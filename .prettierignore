@@ -1,0 +1,9 @@
+node_modules
+dist
+coverage
+package-lock.json
+
+# Tài liệu PM viết — CLAUDE.md §8 cấm sửa khi chưa hỏi PM.
+# Để prettier động vào là tạo diff rác trên nguồn đúng của dự án.
+SPEC.md
+CLAUDE.md

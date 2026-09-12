@@ -1,0 +1,52 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # SPEC.md §14.5 — golden test là lưới an toàn cho M2 (tái lập byte-for-byte).
+      # Đỏ ở đây là chặn merge, kể cả khi kết quả mới "trông hợp lý hơn" (CLAUDE.md §4).
+      - name: Test + golden
+        run: npm run test -- --coverage
+
+  # Ngưỡng hiệu năng ở SPEC.md §7.14 / §14.2 được đo trên VPS 2 vCPU, không phải
+  # trên runner dùng chung của GitHub. Job này để thấy xu hướng, KHÔNG dùng làm gate.
+  # Nghiệm thu hiệu năng thật chạy thủ công trước khi đóng mỗi phase có ngưỡng.
+  bench:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run bench

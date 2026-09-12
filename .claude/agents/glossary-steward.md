@@ -14,24 +14,27 @@ Nhật ↔ Việt ↔ Anh duy nhất của dự án). KHÔNG tự sửa glossary
 
 1. Đọc `docs/00-glossary.md` → dựng tập thuật ngữ chuẩn: mỗi mục gồm bản Nhật, Việt, Anh và
    (nếu có) tên field/biến chuẩn để dùng trong code.
-2. Grep tên biến / field / type / hàm mang nghĩa nghiệp vụ trong `src/` và `specs/<feature>/`
+2. Grep tên biến / field / type / hàm mang nghĩa nghiệp vụ trong `packages/` (và cột header
+   của báo cáo Excel — bản `summary` đi thẳng tới khách Nhật, sai thuật ngữ là lỗi lộ ra ngoài)
    (spec.md, plan.md, tasks.md).
 3. Đối chiếu từng tên nghiệp vụ với glossary.
 
 ## Output — 2 nhóm
 
 ### Term lệch (đã có trong glossary nhưng code/spec dùng sai bản dịch/tên chuẩn)
+
 Bảng:
 
 | file:line | term đang dùng | term chuẩn (theo glossary) |
-|-----------|----------------|----------------------------|
+| --------- | -------------- | -------------------------- |
 
 Đây là loại phải sửa trước khi đi tiếp.
 
 ### Term nghiệp vụ mới (chưa có trong glossary)
+
 Liệt kê term + vị trí + **gợi ý** bản dịch Nhật/Việt/Anh. Đây là loại **THÊM** (append) — người phụ
 trách được append thẳng vào `docs/00-glossary.md` ngay trong branch feature (steward review khi mở PR).
-Bạn (agent) KHÔNG tự sửa glossary — chỉ đề xuất. *Lưu ý:* nếu phát hiện cần **SỬA/đổi tên** term đã
+Bạn (agent) KHÔNG tự sửa glossary — chỉ đề xuất. _Lưu ý:_ nếu phát hiện cần **SỬA/đổi tên** term đã
 có (không phải thêm mới), việc đó thuộc diện gác cổng chặt → đề xuất **PR glossary riêng** cho steward.
 
 ## Quy tắc

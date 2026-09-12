@@ -1,16 +1,23 @@
 node_modules/
 dist/
 build/
+coverage/
+*.tsbuildinfo
+
 .env
 .env.*
 *.log
-.claude/settings.local.json
-.claude.template-backup/
 
-# LƯU Ý: các thư mục sau CỐ Ý được commit để giữ traceability
-# - docs/intake/       (bằng chứng agent đã hiểu tài liệu Nhật)
-# - docs/04-decisions/ (long-term memory cho clarify)
-# - specs/             (spec.md, plan.md, tasks.md do Spec Kit sinh)
-# - .specify/          (constitution + template)
-# - .claude/agents/    (subagent config)
-# - .claude/commands/  (slash command)
+.claude/settings.local.json
+
+# DB thật chạy trên VPS. Không commit.
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# LƯU Ý: các thư mục sau CỐ Ý được commit
+# - SPEC.md, CLAUDE.md          nguồn đúng của dự án
+# - docs/decisions/             quyết định cho chỗ spec chưa rõ
+# - docs/05-lessons.md          gotcha kỹ thuật
+# - packages/core/tests/fixtures/  fixture + expected.json của golden test (SPEC.md §14.5)
+# - .claude/agents/             cấu hình subagent

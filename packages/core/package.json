@@ -1,0 +1,27 @@
+{
+  "name": "@planix/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Engine thuần: schema, importer, calendar, dependency, scheduler, validator, excel. Không phụ thuộc web (SPEC.md §3.3).",
+  "exports": {
+    ".": "./dist/index.js",
+    "./domain/*": "./dist/domain/*.js",
+    "./db/*": "./dist/db/*.js",
+    "./io/*": "./dist/io/*.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "exceljs": "^4.4.0",
+    "luxon": "^3.7.2",
+    "zod": "^4.6.2"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/luxon": "^3.7.5"
+  }
+}

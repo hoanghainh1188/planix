@@ -1,32 +1,33 @@
-# Bài học dự án (lessons / gotchas)
+# Bài học kỹ thuật (lessons / gotchas)
 
-Bộ nhớ cho **những điều học được trong lúc code** mà KHÔNG thuộc về các file memory khác. Đây là loại
-memory duy nhất trước đây không có nhà — nay có. Mọi agent đọc file này ở đầu `/design-to-code` (bước
-"Nạp memory") để **không lặp lại lỗi cũ**.
+Nơi ghi **cạm bẫy kỹ thuật phát hiện lúc code**. Đọc trước khi bắt đầu một phase để
+không giẫm lại vết cũ.
 
-## File này chứa gì (và KHÔNG chứa gì)
+## Ghi vào đâu — ba nơi khác nhau, đừng nhầm
 
-| Nếu là… | Ghi vào | KHÔNG ghi vào đây |
-|---|---|---|
-| Thuật ngữ nghiệp vụ (Nhật-Việt-Anh) | `docs/00-glossary.md` | ✗ |
-| Nguyên tắc bất biến của dự án | `.specify/memory/constitution.md` | ✗ |
-| Câu trả lời cho 1 ambiguity của `/speckit-clarify` | `docs/04-decisions/` + `INDEX.md` | ✗ |
-| **Gotcha kỹ thuật / cạm bẫy / mẹo đặc thù dự án** phát hiện khi implement | **file này** | — |
+| Nếu là…                                                               | Ghi vào                        |
+| --------------------------------------------------------------------- | ------------------------------ |
+| Thuật ngữ nghiệp vụ (VI / EN / JA)                                    | `docs/00-glossary.md`          |
+| Quyết định cho chỗ spec chưa rõ                                       | `docs/decisions/` + `INDEX.md` |
+| Nguyên tắc bất biến của hệ thống                                      | `SPEC.md` §2 — chỉ PM sửa      |
+| **Gotcha kỹ thuật, cạm bẫy thư viện, hành vi bất ngờ của môi trường** | **file này**                   |
 
-Ví dụ thuộc về đây: "API khách trả `date` dạng `YYYY/MM/DD` không phải ISO", "field `status` thực ra
-nullable dù detail design không nói", "môi trường staging của khách rate-limit 10 req/s", "thư viện X
-version Y có bug Z, dùng workaround W". Đây là *tri thức vận hành*, không phải thuật ngữ hay nguyên tắc.
+Ví dụ thuộc về đây: "`better-sqlite3` chạy đồng bộ nên phải đẩy scheduler sang worker
+thread", "`luxon` `plus({days})` không bỏ qua ngày nghỉ — phải đi qua `CalendarEngine`",
+"thứ tự `JSON.stringify` phụ thuộc thứ tự chèn key nên golden test phải sort key trước".
 
 ## Quy tắc
 
-- **Append-only, 1 dòng/bài học** (ít đụng nhau khi nhiều người làm — như glossary). Mới nhất xuống dưới.
-- Được **append ngay trong branch feature** (không cần PR riêng) — đây là THÊM tri thức, blast radius nhỏ.
-- Nếu một bài học tiến hoá thành **nguyên tắc chung** → nâng cấp nó lên `constitution.md` (qua PR steward),
-  rồi ghi chú "đã lên constitution" ở cột Ghi chú. Nếu là **thuật ngữ** → chuyển sang glossary.
-- Trước khi thêm dòng mới, quét bảng xem đã có chưa (tránh trùng).
+- **Append-only, 1 dòng mỗi bài học.** Mới nhất xuống dưới. Append ít gây git conflict.
+- Append thẳng trong branch phase, không cần PR riêng.
+- Trước khi thêm, quét bảng xem đã có chưa.
+- Bài học tiến hoá thành nguyên tắc chung → đề xuất PM đưa lên `SPEC.md` §2, rồi ghi
+  "đã lên SPEC" ở cột Ghi chú.
 
 ## Bảng bài học
 
-| Ngày | Bài học (gotcha) | Nơi phát hiện (feature / file) | Ghi chú / cách áp dụng |
-|---|---|---|---|
-| _(xoá dòng mẫu khi bắt đầu dự án)_ | 承認 API trả `approved_at` theo giờ JST, không UTC | `000-example-reservation` · `approveReservation.ts` | Convert sang UTC ở boundary; đừng so sánh trực tiếp |
+| Ngày       | Bài học                                                                                                                                                                                           | Nơi phát hiện                 | Cách áp dụng                                                                                                                                                            |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-12 | `typescript-eslint@8` (bản mới nhất) chỉ nhận TypeScript `<6.1.0` — chưa hỗ trợ TS 7                                                                                                              | Phase 0 · `package.json`      | Pin `typescript: ~6.0.3`. Chỉ lên TS 7 khi typescript-eslint công bố hỗ trợ, đừng nâng lẻ                                                                               |
+| 2026-09-12 | `npm audit` báo 2 lỗi moderate ở `uuid` qua `exceljs`. `npm audit fix --force` sẽ **hạ** exceljs xuống 3.4.0 — mất `outlineLevel` mà §11.2 bắt buộc                                               | Phase 0 · `npm install`       | **Không chạy** `audit fix --force`. Lỗ hổng ở uuid v3/v5/v6 khi truyền `buf`; exceljs dùng v4 không truyền `buf` → không chạm được. Rà lại khi exceljs ra bản nâng uuid |
+| 2026-09-12 | ESLint flat config: block KHÔNG có `files:` áp cho mọi file và ghi đè mọi block đứng trước nó. Đặt `disableTypeChecked` trước block `languageOptions` chung thì nó bị vô hiệu, lint vẫn lỗi parse | Phase 0 · `eslint.config.mjs` | Block hẹp phải đứng SAU block rộng. Sửa config xong luôn thử bằng file probe cố tình sai — config im lặng cho qua trông giống hệt config đúng                           |
