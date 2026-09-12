@@ -16,7 +16,9 @@
 
 # Gate chất lượng. Nới lỏng ở đây là vô hiệu hóa golden test (SPEC.md §14.5).
 /.github/workflows/       @hoanghainh1188
-/eslint.config.js         @hoanghainh1188
+/eslint.config.mjs        @hoanghainh1188
+/.prettierrc.json         @hoanghainh1188
+/.prettierignore          @hoanghainh1188
 /vitest.config.ts         @hoanghainh1188
 /tsconfig.base.json       @hoanghainh1188
 
