@@ -16,8 +16,8 @@ lần sau sẽ có người hỏi lại đúng câu đó. Ghi ra file để tra 
 
 Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 
-| Ngày       | Quyết định                                                                                           | Ảnh hưởng tới                    | Trạng thái         |
-| ---------- | ---------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------ |
-| 2026-09-12 | [Hai dự án CÓ dùng chung nhân sự — P6 nằm trong MVP](2026-09-12-shared-resources-across-projects.md) | §16 giả định 4, §7.12, schema P1 | Đã chốt            |
-| 2026-09-12 | [`C06` kiểm hai giai đoạn: cấu trúc ở P1, đầy đủ ở P3](2026-09-12-c06-partial-at-p1.md)              | §8.1 `C06`, §14.2 P1 + P3        | Đã chốt            |
-| 2026-09-12 | [CI dùng GitHub Actions, không phải GitLab CI](2026-09-12-ci-github-actions.md)                      | §3.2, §14.2/P11                  | Chờ PM sửa SPEC.md |
+| Ngày       | Quyết định                                                                                           | Ảnh hưởng tới                    | Trạng thái  |
+| ---------- | ---------------------------------------------------------------------------------------------------- | -------------------------------- | ----------- |
+| 2026-09-12 | [Hai dự án CÓ dùng chung nhân sự — P6 nằm trong MVP](2026-09-12-shared-resources-across-projects.md) | §16 giả định 4, §7.12, schema P1 | Đã chốt     |
+| 2026-09-12 | [`C06` kiểm hai giai đoạn: cấu trúc ở P1, đầy đủ ở P3](2026-09-12-c06-partial-at-p1.md)              | §8.1 `C06`, §14.2 P1 + P3        | Đã chốt     |
+| 2026-09-12 | [CI dùng GitHub Actions, không phải GitLab CI](2026-09-12-ci-github-actions.md)                      | §3.2, §14.2/P11                  | Đã hoàn tất |

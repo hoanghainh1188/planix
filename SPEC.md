@@ -177,7 +177,7 @@ flowchart TB
     CC[Claude Code] -.MCP + bearer token.-> APP
 ```
 
-VPS 2 vCPU / 4 GB. Deploy qua GitLab CI: build image → push → `docker compose up -d`.
+VPS 2 vCPU / 4 GB. Deploy qua GitHub Actions: build image → push → `docker compose up -d`.
 
 ### 3.3. Cấu trúc thư mục
 
@@ -1478,7 +1478,7 @@ flowchart TD
 - [ ] Docker Compose chạy được từ máy sạch.
 - [ ] Caddy cấp HTTPS tự động.
 - [ ] Litestream replicate và **khôi phục thử thành công**.
-- [ ] GitLab CI: build → push → deploy.
+- [ ] GitHub Actions: build → push → deploy.
 
 ### 14.3. Ba mốc kiểm tra
 

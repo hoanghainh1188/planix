@@ -1,7 +1,7 @@
 # CI dùng GitHub Actions, không phải GitLab CI
 
 - **Ngày:** 2026-09-12
-- **Trạng thái:** đã chốt, chờ PM sửa `SPEC.md`
+- **Trạng thái:** đã hoàn tất — `SPEC.md` đã sửa
 - **Ảnh hưởng:** `SPEC.md` §3.2, §14.2 / P11
 
 ## Vấn đề
@@ -26,8 +26,8 @@ Dùng **GitHub Actions**.
 
 ## Việc phải làm
 
-- [ ] PM sửa `SPEC.md` §3.2: "Deploy qua GitLab CI" → "Deploy qua GitHub Actions".
-- [ ] PM sửa `SPEC.md` §14.2 / P11, dòng cuối: "GitLab CI" → "GitHub Actions".
+- [x] PM sửa `SPEC.md` §3.2: "Deploy qua GitLab CI" → "Deploy qua GitHub Actions".
+- [x] PM sửa `SPEC.md` §14.2 / P11, dòng cuối: "GitLab CI" → "GitHub Actions".
 - [x] `.github/workflows/ci.yml` — typecheck, lint, test + golden, coverage.
 - [ ] P11: thêm job build image + deploy.
 
