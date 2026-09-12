@@ -1,28 +1,48 @@
-<!-- Xem quy trình đầy đủ: docs/TEAM-WORKFLOW.md -->
+<!-- Quy trình đầy đủ: CLAUDE.md §7. Mở PR khi hết một phase, không phải giữa chừng. -->
 
-## Feature
-Closes #<!-- số issue = feature ID -->
+## Phase
+
+<!-- VD: P1 — core: schema, importer, validate. Xem SPEC.md §14.1 -->
 
 ## Tóm tắt
-<!-- Feature này làm gì, dựa trên tài liệu design nào -->
 
-## Traceability (đã commit vào branch)
-- [ ] `docs/intake/<NNN>-<slug>.md` — output của `design-intake` (đặt theo số issue)
-- [ ] `docs/04-decisions/*` — mọi câu trả lời `/speckit-clarify` (nếu có ambiguity)
-- [ ] `specs/<feature>/` — spec.md / plan.md / tasks.md do Spec Kit sinh
+<!-- Phase này làm được gì. Một bản demo chạy được, không phải code chưa ghép (CLAUDE.md §2). -->
+
+## Checklist nghiệm thu (SPEC.md §14.2)
+
+<!-- Copy nguyên checklist của phase từ SPEC.md §14.2 vào đây, tick từng dòng.
+     Dòng nào chưa đạt thì ghi rõ vì sao, đừng tick cho đủ. -->
+
+- [ ]
+
+## Năm nguyên tắc bất biến (SPEC.md §2)
+
+- [ ] **N1** — không có đường nào cho phép AI/người dùng ghi thẳng vào `schedule` / `assignment`
+- [ ] **N2** — không `Math.random()` / `Date.now()` trong engine; mọi so sánh có tie-break cuối cùng
+- [ ] **N3** — không có handler nào cho phép sửa `start_date` / `end_date`
+- [ ] **N4** — xung đột sinh issue, engine không tự phá ràng buộc
+- [ ] **N5** — không ghi chéo nhóm bảng
 
 ## Chất lượng
+
+- [ ] Golden test xanh — **byte-for-byte**, không "gần đúng"
+- [ ] Nếu có sửa `expected.json`: đã tách thành commit riêng, có giải thích vì sao
+- [ ] `npm run typecheck` / `lint` / `test` xanh
 - [ ] Đã chạy subagent `code-reviewer`, xử lý hết mục **Blocking**
-- [ ] Đã chạy `glossary-steward` (term lệch đã sửa) và `security-reviewer` (nếu feature đụng data/auth/API)
-- [ ] Test gate xanh: `npm run lint` / `test` / `build` (hoặc tương đương của dự án)
-- [ ] Coverage đạt ngưỡng constitution (Article W — mặc định ≥ 80% business logic)
-- [ ] CI `template-smoke-test` (và CI dự án) xanh
+- [ ] Đã chạy `security-reviewer` (nếu phase đụng DB/auth/API) và `glossary-steward`
 
-## File dùng chung (gác cổng)
-- [ ] **THÊM** term mới vào `docs/00-glossary.md` (append) — OK để trong PR này; steward (code-owner) review phần glossary
-- [ ] PR này **không SỬA/đổi tên** term đã có, và **không đổi** `.specify/memory/constitution.md`
-      → *nếu có, đã tách thành **PR riêng** được **code-owner** duyệt (xem `.github/CODEOWNERS`)*
-- [ ] Đã rebase lên `main` mới nhất; nếu glossary/constitution vừa đổi → đã chạy lại `/speckit-analyze`
+## Hiệu năng
 
-## Branch
-- [ ] Tên branch dạng `NNN-<slug>` với `NNN` = số issue (zero-pad ≥ 3 chữ số)
+<!-- Chỉ với phase có ngưỡng: P1 import < 5s, P2 calendar cache < 1s, P4 schedule < 10s.
+     Đo trên VPS 2 vCPU, không lấy số của CI runner. Không có ngưỡng thì ghi "không áp dụng". -->
+
+## Chỗ spec chưa rõ đã gặp
+
+<!-- Câu hỏi và cách xử lý. Quyết định đã chốt phải có file trong docs/decisions/
+     và một dòng trong docs/decisions/INDEX.md. Không có thì ghi "không có". -->
+
+## Cách chạy thử demo
+
+```bash
+
+```

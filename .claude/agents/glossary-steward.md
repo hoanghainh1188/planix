@@ -14,7 +14,8 @@ Nhật ↔ Việt ↔ Anh duy nhất của dự án). KHÔNG tự sửa glossary
 
 1. Đọc `docs/00-glossary.md` → dựng tập thuật ngữ chuẩn: mỗi mục gồm bản Nhật, Việt, Anh và
    (nếu có) tên field/biến chuẩn để dùng trong code.
-2. Grep tên biến / field / type / hàm mang nghĩa nghiệp vụ trong `src/` và `specs/<feature>/`
+2. Grep tên biến / field / type / hàm mang nghĩa nghiệp vụ trong `packages/` (và cột header
+   của báo cáo Excel — bản `summary` đi thẳng tới khách Nhật, sai thuật ngữ là lỗi lộ ra ngoài)
    (spec.md, plan.md, tasks.md).
 3. Đối chiếu từng tên nghiệp vụ với glossary.
 
