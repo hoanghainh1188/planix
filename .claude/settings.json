@@ -1,0 +1,55 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Grep(**)",
+      "Glob(**)",
+      "Bash(npm run lint)",
+      "Bash(npm run test *)",
+      "Bash(npm run build)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git branch)",
+      "Bash(git checkout -b *)",
+      "Write(docs/intake/**)",
+      "Write(docs/04-decisions/**)"
+    ],
+    "ask": [
+      "Edit(src/**)",
+      "Write(src/**)",
+      "Edit(.specify/memory/**)",
+      "Bash(npm install *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(./secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*credentials*)",
+      "Bash(curl * | *)",
+      "Bash(wget * | *)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)"
+    ],
+    "defaultMode": "plan"
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/format.sh",
+            "description": "Format file vừa sửa theo formatter của dự án (điền lệnh trong .claude/hooks/format.sh)"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "spec-driven-jp",
+  "version": "0.1.0",
+  "description": "Hybrid pipeline for spec-driven development with Japanese design documents + Figma. Wraps GitHub Spec Kit with design-intake, code-reviewer, security-reviewer, and glossary-steward agents.",
+  "author": "hoanghainh1188",
+  "homepage": "https://github.com/hoanghainh1188/spec-driven-jp",
+  "keywords": ["spec-kit", "japanese", "brse", "figma", "design-driven"],
+  "commands": [
+    "./.claude/commands/design-to-code.md"
+  ],
+  "agents": [
+    "./.claude/agents/design-intake.md",
+    "./.claude/agents/code-reviewer.md",
+    "./.claude/agents/security-reviewer.md",
+    "./.claude/agents/glossary-steward.md"
+  ]
+}

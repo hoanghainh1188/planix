@@ -1,0 +1,46 @@
+name: template-smoke-test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate-structure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kiểm tra các file cấu hình tồn tại
+        run: |
+          test -f CLAUDE.md
+          test -f bootstrap.sh
+          test -f .claude/settings.json
+          test -f .claude/agents/design-intake.md
+          test -f .claude/agents/code-reviewer.md
+          test -f .claude/agents/security-reviewer.md
+          test -f .claude/agents/glossary-steward.md
+          test -f .claude/hooks/format.sh
+          test -f .claude/commands/design-to-code.md
+          test -f docs/00-glossary.md
+          test -f docs/05-lessons.md
+          test -f docs/CONSTITUTION_APPEND.md
+          test -f .claude-plugin/plugin.json
+          test -f .claude-plugin/marketplace.json
+          test -f .github/scripts/check-template.py
+          echo "✓ Cấu trúc template hợp lệ"
+
+      - name: Kiểm tra nội dung template (link/frontmatter/step/mermaid)
+        run: python3 .github/scripts/check-template.py
+
+      - name: Kiểm tra shell script hợp lệ (dry run)
+        run: |
+          bash -n bootstrap.sh
+          bash -n .claude/hooks/format.sh
+
+      - name: Kiểm tra JSON hợp lệ
+        run: |
+          python3 -c "import json; json.load(open('.claude/settings.json'))"
+          python3 -c "import json; json.load(open('.claude-plugin/plugin.json'))"
+          python3 -c "import json; json.load(open('.claude-plugin/marketplace.json'))"
+          echo "✓ JSON hợp lệ"

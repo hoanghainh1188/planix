@@ -1,0 +1,22 @@
+{
+  "name": "hoanghainh1188",
+  "owner": {
+    "name": "hoanghainh1188"
+  },
+  "plugins": [
+    {
+      "name": "spec-driven-jp",
+      "source": ".",
+      "description": "Hybrid pipeline for spec-driven development from Japanese design docs (基本設計/詳細設計) + Figma. Wraps GitHub Spec Kit with design-intake, code-reviewer, security-reviewer, and glossary-steward agents.",
+      "commands": [
+        "./.claude/commands/design-to-code.md"
+      ],
+      "agents": [
+        "./.claude/agents/design-intake.md",
+        "./.claude/agents/code-reviewer.md",
+        "./.claude/agents/security-reviewer.md",
+        "./.claude/agents/glossary-steward.md"
+      ]
+    }
+  ]
+}

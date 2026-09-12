@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+*.log
+.claude/settings.local.json
+.claude.template-backup/
+
+# LƯU Ý: các thư mục sau CỐ Ý được commit để giữ traceability
+# - docs/intake/       (bằng chứng agent đã hiểu tài liệu Nhật)
+# - docs/04-decisions/ (long-term memory cho clarify)
+# - specs/             (spec.md, plan.md, tasks.md do Spec Kit sinh)
+# - .specify/          (constitution + template)
+# - .claude/agents/    (subagent config)
+# - .claude/commands/  (slash command)
