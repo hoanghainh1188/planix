@@ -10,6 +10,10 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      // ESLint flat config KHONG tu doc .gitignore. Thieu dong nay thi lint do
+      // tren may dev ngay sau khi chay coverage, con CI khong bat duoc vi o do
+      // lint chay TRUOC test nen coverage/ chua ton tai.
+      '**/coverage/**',
       '**/*.d.ts',
       'packages/server/**',
       'packages/web/**',

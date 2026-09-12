@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:golden": "vitest run --project core golden",
-    "bench": "vitest bench --run",
+    "bench": "vitest bench --run --passWithNoTests",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --build --verbose"
