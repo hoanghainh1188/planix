@@ -5,7 +5,7 @@ Công cụ Planning & Control cho PM thị trường Nhật. Nhận task list do
 stakeholder.
 
 **Đọc [`SPEC.md`](SPEC.md) trước khi làm bất cứ việc gì.** Đó là nguồn đúng duy nhất.
-[`CLAUDE.md`](CLAUDE.md) nói *cách làm việc*, không lặp lại nội dung spec.
+[`CLAUDE.md`](CLAUDE.md) nói _cách làm việc_, không lặp lại nội dung spec.
 
 ## Năm nguyên tắc không được vi phạm
 
@@ -49,14 +49,14 @@ npm run test
 
 ## Lệnh
 
-| Lệnh | Việc |
-|---|---|
-| `npm run test` | Toàn bộ test, gồm golden test |
+| Lệnh                  | Việc                                  |
+| --------------------- | ------------------------------------- |
+| `npm run test`        | Toàn bộ test, gồm golden test         |
 | `npm run test:golden` | Chỉ golden test — lưới an toàn cho M2 |
-| `npm run typecheck` | `tsc --build` toàn monorepo |
-| `npm run lint` | eslint + prettier check |
-| `npm run format` | prettier --write |
-| `npm run bench` | Benchmark hiệu năng |
+| `npm run typecheck`   | `tsc --build` toàn monorepo           |
+| `npm run lint`        | eslint + prettier check               |
+| `npm run format`      | prettier --write                      |
+| `npm run bench`       | Benchmark hiệu năng                   |
 
 ## Cách làm việc
 
@@ -71,11 +71,11 @@ npm run test
 
 ## Ba mốc kiểm tra
 
-| Mốc | Sau phase | Điều kiện đi tiếp |
-|---|---|---|
-| **A** | P4 | Lịch engine tính ra PM tin được |
-| **B** | P9 | Team lead nhập tiến độ một tuần dưới 30 phút |
-| **C** | P11 | Báo cáo dùng được cho khách |
+| Mốc   | Sau phase | Điều kiện đi tiếp                            |
+| ----- | --------- | -------------------------------------------- |
+| **A** | P4        | Lịch engine tính ra PM tin được              |
+| **B** | P9        | Team lead nhập tiến độ một tuần dưới 30 phút |
+| **C** | P11       | Báo cáo dùng được cho khách                  |
 
 Không đạt Mốc A thì dừng. Không đạt Mốc B thì quay lại bàn về độ mịn WBS.
 

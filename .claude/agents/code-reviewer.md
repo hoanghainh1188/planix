@@ -16,13 +16,13 @@ rồi đọc đúng mục `SPEC.md` của phase đó cùng checklist nghiệm th
 1. **`SPEC.md` §2 — năm nguyên tắc bất biến.** Vi phạm bất kỳ điều nào là **Blocking**, không
    thương lượng. Đây là phần phải soi kỹ nhất:
 
-   | | Dấu hiệu vi phạm cần grep |
-   |---|---|
-   | **N1** | Đường code nào cho phép AI/người dùng ghi thẳng vào `schedule` hay `assignment`. Hai bảng này chỉ engine ghi. |
+   |        | Dấu hiệu vi phạm cần grep                                                                                                                                                             |
+   | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | **N1** | Đường code nào cho phép AI/người dùng ghi thẳng vào `schedule` hay `assignment`. Hai bảng này chỉ engine ghi.                                                                         |
    | **N2** | `Math.random()`, `Date.now()`, `new Date()` không tham số trong `packages/core`. So sánh/sort thiếu tie-break cuối cùng. Duyệt `Object.keys()` / `Map` / `Set` rồi dựa vào thứ tự đó. |
-   | **N3** | Handler cho phép sửa `start_date` / `end_date` từ UI. Kéo thả đổi ngày. |
-   | **N4** | Engine tự dời milestone, tự đổi người đã pin, tự bỏ constraint thay vì sinh issue. |
-   | **N5** | Code ghi chéo nhóm bảng. Ba nhóm, ba chủ sở hữu — xem bảng §2/N5. |
+   | **N3** | Handler cho phép sửa `start_date` / `end_date` từ UI. Kéo thả đổi ngày.                                                                                                               |
+   | **N4** | Engine tự dời milestone, tự đổi người đã pin, tự bỏ constraint thay vì sinh issue.                                                                                                    |
+   | **N5** | Code ghi chéo nhóm bảng. Ba nhóm, ba chủ sở hữu — xem bảng §2/N5.                                                                                                                     |
 
 2. **Mục `SPEC.md` của phase.** Code có đúng thuật toán và công thức viết trong spec không?
    Đặc biệt soi: công thức dependency §6.1, thứ tự tie-break §7.4 (đúng thứ tự từng bậc,
@@ -41,7 +41,7 @@ rồi đọc đúng mục `SPEC.md` của phase đó cùng checklist nghiệm th
    - Migration là file `.sql` đánh số tăng dần — **file cũ không được sửa**.
 
 5. **`docs/05-lessons.md`** — code có lặp lại một gotcha đã ghi không? Có → **Blocking**.
-   Phát hiện gotcha *mới* → gợi ý append 1 dòng.
+   Phát hiện gotcha _mới_ → gợi ý append 1 dòng.
 
 6. **`docs/decisions/`** — có quyết định nào phase này phải tuân mà code đang làm khác không?
 

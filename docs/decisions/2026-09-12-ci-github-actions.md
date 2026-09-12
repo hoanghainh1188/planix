@@ -6,8 +6,8 @@
 
 ## Vấn đề
 
-`SPEC.md` §3.2 ghi *"Deploy qua GitLab CI: build image → push → `docker compose up -d`"*,
-và tiêu chí nghiệm thu P11 ghi *"GitLab CI: build → push → deploy"*.
+`SPEC.md` §3.2 ghi _"Deploy qua GitLab CI: build image → push → `docker compose up -d`"_,
+và tiêu chí nghiệm thu P11 ghi _"GitLab CI: build → push → deploy"_.
 
 Nhưng repo nằm ở `github.com/hoanghainh1188/planix`. Hai chỗ này mâu thuẫn nhau.
 

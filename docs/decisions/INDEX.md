@@ -16,6 +16,6 @@ lần sau sẽ có người hỏi lại đúng câu đó. Ghi ra file để tra 
 
 Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 
-| Ngày | Quyết định | Ảnh hưởng tới | Trạng thái |
-|---|---|---|---|
+| Ngày       | Quyết định                                                                      | Ảnh hưởng tới   | Trạng thái         |
+| ---------- | ------------------------------------------------------------------------------- | --------------- | ------------------ |
 | 2026-09-12 | [CI dùng GitHub Actions, không phải GitLab CI](2026-09-12-ci-github-actions.md) | §3.2, §14.2/P11 | Chờ PM sửa SPEC.md |
