@@ -10,7 +10,8 @@
   },
   "workspaces": [
     "packages/core",
-    "packages/server"
+    "packages/server",
+    "packages/web"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -19,7 +20,8 @@
     "test:golden": "vitest run --project core golden",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json && tsc -p packages/server/tsconfig.json"
+    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json && tsc -p packages/server/tsconfig.json && tsc -p packages/web/tsconfig.json",
+    "dev:web": "npm run dev --workspace @planix/web"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

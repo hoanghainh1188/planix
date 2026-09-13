@@ -1,0 +1,111 @@
+/* S6 — Issues. §14.2 P8: lọc theo severity, click nhảy tới task. */
+
+.issues {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-left: 1px solid var(--c-rule);
+  background: var(--c-surface);
+}
+
+.issues__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--c-rule);
+}
+
+.issues__title {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.issues__filters {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.issues__filter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 1px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  border: 1px solid var(--c-rule);
+  border-radius: 2px;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.issues__filter:hover {
+  border-color: var(--c-rule-strong);
+}
+.issues__filter[aria-pressed='true'] {
+  color: var(--c-ink);
+  border-color: var(--c-ink-muted);
+  background: var(--c-surface-sunken);
+}
+.issues__filter b {
+  font-variant-numeric: tabular-nums;
+}
+
+.issues__list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.issues__item {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--c-rule);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.issues__item:hover {
+  background: var(--c-surface-sunken);
+}
+
+.issues__code {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.issues__code[data-severity='Critical'] {
+  color: var(--c-critical);
+}
+.issues__code[data-severity='Major'] {
+  color: var(--c-warn);
+}
+.issues__code[data-severity='Minor'] {
+  color: var(--c-ink-faint);
+}
+
+.issues__message {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.issues__task {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--c-ink-faint);
+}
+
+.issues__empty {
+  padding: var(--space-6) var(--space-3);
+  color: var(--c-ink-faint);
+  font-size: var(--text-sm);
+}

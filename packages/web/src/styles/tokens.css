@@ -1,0 +1,89 @@
+/*
+ * Design token — hướng Swiss / International.
+ *
+ * Vì sao hướng này: màn chính là bảng 6.000 dòng cho PM đọc cả ngày. Thứ quyết định nó
+ * dùng được hay không là mật độ, nhịp lưới và phân cấp chữ — không phải màu hay bo góc.
+ * Màu ở đây mang NGHĨA, không trang trí: đúng một accent cho đường găng, một cho cảnh
+ * báo. Thêm màu thứ ba là bắt đầu mất khả năng quét nhanh.
+ *
+ * Bảng đi tới khách Nhật nên chữ số dùng tabular-nums: cột ngày và MD phải thẳng hàng
+ * theo chiều dọc, nếu không mắt phải đọc từng dòng thay vì quét cả cột.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Nền và mực — thang xám lạnh, không thuần xám, để bảng đỡ phẳng */
+  --c-ground: oklch(99% 0.002 250);
+  --c-surface: oklch(100% 0 0);
+  --c-surface-sunken: oklch(97.2% 0.003 250);
+  --c-ink: oklch(21% 0.012 260);
+  --c-ink-muted: oklch(52% 0.011 260);
+  --c-ink-faint: oklch(68% 0.008 260);
+
+  /* Đường kẻ — mảnh, phân cấp bằng độ đậm chứ không bằng độ dày */
+  --c-rule: oklch(91% 0.004 260);
+  --c-rule-strong: oklch(82% 0.006 260);
+
+  /* Accent: đường găng. Một màu, dùng đúng một việc. */
+  --c-critical: oklch(52% 0.19 28);
+  --c-critical-soft: oklch(96% 0.03 28);
+
+  /* Cảnh báo và trạng thái — dùng cho chấm issue, không dùng làm nền lớn */
+  --c-warn: oklch(62% 0.15 65);
+  --c-blocked: oklch(55% 0.14 300);
+  --c-done: oklch(58% 0.11 155);
+
+  --c-focus: oklch(55% 0.17 250);
+  --c-selection: oklch(95% 0.03 250);
+
+  /* Chữ: một họ sans cho giao diện, một họ đều bề rộng cho số liệu */
+  --font-ui:
+    'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue',
+    system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', ui-monospace, 'Menlo', monospace;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+
+  /* Nhịp lưới 4px — mọi khoảng cách là bội của nó */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  /* Chiều cao dòng cố định: virtualizer cần con số này để tính vị trí */
+  --row-height: 28px;
+  --header-height: 52px;
+
+  --duration-fast: 120ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root[data-theme='dark'],
+:root:not([data-theme='light']) {
+  /* Chế độ tối không phải mặc định (xem design-quality). Chỉ đổi token, không đổi cấu
+     trúc — vai trò của từng token giữ nguyên. */
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --c-ground: oklch(17% 0.008 260);
+    --c-surface: oklch(21% 0.01 260);
+    --c-surface-sunken: oklch(19% 0.009 260);
+    --c-ink: oklch(94% 0.004 260);
+    --c-ink-muted: oklch(70% 0.008 260);
+    --c-ink-faint: oklch(52% 0.008 260);
+    --c-rule: oklch(28% 0.008 260);
+    --c-rule-strong: oklch(38% 0.01 260);
+    --c-critical: oklch(70% 0.16 28);
+    --c-critical-soft: oklch(26% 0.05 28);
+    --c-selection: oklch(27% 0.03 250);
+  }
+}

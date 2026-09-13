@@ -31,14 +31,24 @@ export default defineConfig({
           include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
         },
       },
-      // Thêm project 'web' khi bắt đầu P8 (SPEC.md §14.1).
+      {
+        test: {
+          name: 'web',
+          root: './packages/web',
+          include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
+        },
+      },
     ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],
       // Engine là phần phải đúng tuyệt đối (M2). Ngưỡng áp lên domain layer,
       // không áp lên adapter I/O — đo chỗ đó bằng golden test thì thật hơn.
-      include: ['packages/core/src/domain/**', 'packages/server/src/**'],
+      include: [
+        'packages/core/src/domain/**',
+        'packages/server/src/**',
+        'packages/web/src/model/**',
+      ],
       thresholds: {
         statements: 80,
         branches: 80,
