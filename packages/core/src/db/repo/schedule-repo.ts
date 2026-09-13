@@ -350,3 +350,36 @@ export function loadTaskLocations(db: Db, projectId: string): TaskLocation[] {
     locationId: (r['location_id'] as string | null) ?? null,
   }));
 }
+
+export interface GlobalAssignment {
+  readonly taskUid: string;
+  readonly resourceId: string;
+  readonly allocation: number;
+  readonly fromDate: DateOnly;
+  readonly toDate: DateOnly;
+}
+
+/**
+ * Assignment của MỌI dự án chồng lên một khoảng — đầu vào cho `J06`.
+ *
+ * Cố ý KHÔNG lọc theo `project_id`. §7.12 cho hai dự án dùng chung người, nên tỷ lệ sử
+ * dụng chỉ có nghĩa khi nhìn toàn cục: lọc theo dự án sẽ biến một người bận kín ở nơi
+ * khác thành "rảnh 0%". Xem docs/decisions/2026-09-13-j06-pool-chung.md.
+ */
+export function loadAssignmentsInWindow(db: Db, from: DateOnly, to: DateOnly): GlobalAssignment[] {
+  const rows = db
+    .prepare(
+      `SELECT task_uid, resource_id, allocation, from_date, to_date
+         FROM assignment
+        WHERE from_date <= ? AND to_date >= ?
+        ORDER BY resource_id, task_uid`,
+    )
+    .all(to, from) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    taskUid: r['task_uid'] as string,
+    resourceId: r['resource_id'] as string,
+    allocation: r['allocation'] as number,
+    fromDate: r['from_date'] as DateOnly,
+    toDate: r['to_date'] as DateOnly,
+  }));
+}

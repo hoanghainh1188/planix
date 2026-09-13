@@ -23,6 +23,7 @@ import { runCpm, type CpmTask } from '../domain/cpm.js';
 import {
   checkMilestonesOnHolidays,
   checkPhaseSkew,
+  checkResourceUtilisation,
   checkThinAllocations,
   type AuditTask,
 } from '../domain/schedule-audit.js';
@@ -423,6 +424,21 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       assignments: sgs.assignments,
       workingDaysBetween: (a, b) => engine.workingDaysBetween(lagCalendarId, a, b) + 1,
     }),
+    // `J06` — cửa sổ từ MỐC CHUẨN tới hết dự án (PM chốt 2026-09-13). Đo cả span thì
+    // người tham gia ở giai đoạn cuối luôn hiện ra là rảnh dù chưa tới lượt; câu hỏi PM
+    // đặt là "ai đang rảnh", ở thì hiện tại.
+    ...(projectEnd === null
+      ? []
+      : checkResourceUtilisation({
+          // Chỉ người CÓ làm dự án này. Đo toàn cục rồi báo ở mọi dự án thì cùng một phát
+          // hiện lặp lại khắp nơi.
+          resourceIds: [...new Set(sgs.assignments.map((a) => a.resourceId))],
+          // Nhưng ĐẾM thì đếm toàn cục — đó là cả điểm của rule.
+          assignments: scheduleRepo.loadAssignmentsInWindow(db, settings.statusDate, projectEnd),
+          windowStart: settings.statusDate,
+          windowEnd: projectEnd,
+          capacityOn: (resourceId, date) => engine.capacityOn(resourceId, date),
+        })),
   ]) {
     issues.push({
       code: i.code,
