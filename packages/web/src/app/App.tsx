@@ -91,6 +91,8 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [validatedAt, setValidatedAt] = useState<string | null>(null);
   /** Task cần đưa vào tầm mắt. `at` để bấm lại cùng một issue vẫn cuộn lại lần nữa. */
   const [reveal, setReveal] = useState<{ uid: string; at: number } | null>(null);
+  /** Lượt validate đang xem. `null` = lượt mới nhất, tức trạng thái hiện tại. */
+  const [viewingRunPk, setViewingRunPk] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     uid: string;
     taskCount: number;
@@ -119,6 +121,12 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     setLinkIssues([]);
   }, [selectedUid]);
 
+  // `runPk` thuộc về MỘT dự án. Giữ nguyên khi đổi dự án thì panel xin một lượt không
+  // tồn tại ở đó và nhận NOT_FOUND.
+  useEffect(() => {
+    setViewingRunPk(null);
+  }, [projectId]);
+
   function chooseProject(id: string): void {
     setProjectId(id);
     projectStore.save(id);
@@ -131,12 +139,20 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
 
   const loadIssues = useCallback(() => {
     if (projectId === null) return Promise.resolve([]);
-    return trpc.issues.list.query({ projectId });
-  }, [projectId]);
+    // Xem một lượt cũ thì đọc đúng lượt đó; không thì đọc trạng thái hiện tại.
+    return viewingRunPk === null
+      ? trpc.issues.list.query({ projectId })
+      : trpc.issues.ofRun.query({ projectId, runPk: viewingRunPk });
+  }, [projectId, viewingRunPk]);
 
   const loadLastRun = useCallback(() => {
     if (projectId === null) return Promise.resolve(null);
     return trpc.issues.lastRun.query({ projectId });
+  }, [projectId]);
+
+  const loadHistory = useCallback(() => {
+    if (projectId === null) return Promise.resolve([]);
+    return trpc.issues.history.query({ projectId });
   }, [projectId]);
 
   const loadGantt = useCallback((): Promise<GanttRowData[]> => {
@@ -163,8 +179,9 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const evm = useAsync(loadEvm, [projectId, savedAt]);
   // Khoá theo `savedAt`: mỗi lần ghi (lưu tiến độ, tính lại lịch) là một lượt validate
   // mới, nên panel phải đọc lại — nếu không nó hiện ảnh chụp cũ mà trông như hiện thời.
-  const issues = useAsync(loadIssues, [projectId, savedAt, validatedAt]);
+  const issues = useAsync(loadIssues, [projectId, savedAt, validatedAt, viewingRunPk]);
   const lastRun = useAsync(loadLastRun, [projectId, savedAt, validatedAt]);
+  const history = useAsync(loadHistory, [projectId, savedAt, validatedAt]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
   const links = useAsync(loadLinks, [selectedUid, savedAt]);
@@ -594,6 +611,9 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
               <IssuePanel
                 issues={issues.status === 'ready' ? issues.data : []}
                 lastRun={lastRun.status === 'ready' ? lastRun.data : null}
+                history={history.status === 'ready' ? history.data : []}
+                viewingRunPk={viewingRunPk}
+                onViewRun={setViewingRunPk}
                 onJumpToTask={(uid) => {
                   // Chọn thôi là chưa đủ: task bị báo lỗi thường nằm sâu trong một nhánh
                   // đang thu gọn, nên cây phải bung ra và cuộn tới thì mới gọi là "nhảy".

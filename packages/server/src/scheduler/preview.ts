@@ -123,8 +123,9 @@ function carryIssuesFromPreview(copyPath: string, target: Db): void {
       issueRepo.recordValidationRun(target, {
         runId: run.runId,
         projectId,
-        detectedAt: run.ranAt,
-        issues: issueRepo.loadRecordedIssues(copy, projectId),
+        detectedAt: run.lastAt,
+        source: run.source,
+        issues: issueRepo.loadRecordedIssues(copy, run.id),
       });
     }
   } finally {

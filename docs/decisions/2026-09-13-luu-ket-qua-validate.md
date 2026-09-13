@@ -76,19 +76,60 @@ Issue là **ảnh chụp tại một thời điểm**, không phải trạng th�
 danh sách đã cũ cho tới lần validate kế tiếp. Panel ghi `as of <thời điểm>` để PM biết
 mình đang đọc ảnh chụp lúc nào.
 
-## Hai chỗ PM cần xác nhận
+## Hai chỗ PM đã trả lời (cùng ngày)
 
-**1. Có cần lịch sử issue không?** Hiện lượt mới xoá lượt cũ, nên không trả lời được câu
-"issue này xuất hiện từ bao giờ". Không màn nào trong §10 đòi hỏi điều đó, và chi phí
-giữ lịch sử là bảng phình theo số task × số lần bấm Recalculate. Nếu PM muốn, cách rẻ
-nhất là giữ `validation_run` (đã có, mỗi dự án một dòng) và thêm cột đếm theo thời gian,
-chứ không giữ từng dòng issue.
+### 1. Có cần lịch sử issue không? → **Có**
 
-**2. Sửa WBS có nên validate lại ngay không?** §8 chỉ liệt kê ba chỗ: import, schedule,
-lưu progress. Nên sau khi PM sửa task, đổi cha, nối/gỡ ràng buộc, panel **vẫn hiện ảnh
-chụp cũ** cho tới lần schedule kế tiếp. Đã làm đúng theo spec và ghi rõ "as of" để không
-gây hiểu nhầm. Nhưng nếu PM thấy khó chịu thì mở rộng ra mọi thao tác ghi là việc nhỏ —
-đo trên fixture 6.000 task, một lượt validate hết 5,4 ms.
+Bản đầu giữ đúng một lượt mỗi dự án, nên không trả lời được "issue này xuất hiện từ bao
+giờ". Migration 005 đổi `validation_run` sang nhiều dòng mỗi dự án, thêm `source`,
+`first_at`, `last_at` và `fingerprint`.
 
-Riêng nối/gỡ ràng buộc thì §12.4 đã có phản hồi validate **ngay tại panel Links**, nên
-chỗ đó không bị mù.
+**Khử trùng bằng vân tay** là thứ khiến lịch sử dùng được. Nếu mỗi lần ghi là một dòng thì
+sửa tên hai mươi task sinh ra hai mươi dòng giống hệt nhau, và "lịch sử" chỉ còn là tiếng
+ồn. Ở đây mỗi dòng là một **trạng thái issue khác nhau**: gặp lại đúng tập issue cũ thì chỉ
+đẩy `last_at`. Nhờ vậy `first_at` trả lời đúng câu PM hỏi, và bảng phình theo diễn biến của
+dự án chứ không theo số lần gõ phím.
+
+`source` đi cặp với `first_at`, không với `last_at`: nó nói thao tác nào làm trạng thái này
+**xuất hiện**. Ghi đè nó ở mỗi lần gặp lại sẽ nói rằng vấn đề sinh ra từ lần sửa gần nhất,
+trong khi nó đã ở đó từ trước.
+
+Chặn trên `MAX_RUNS_PER_PROJECT = 100`, cắt lượt ghi sớm nhất trước; issue đi theo nhờ
+`ON DELETE CASCADE`. Lịch sử là thứ tự nó không dừng, nên phải có chặn trên — nhưng nhờ khử
+trùng, 100 dòng đã là rất nhiều đời sống của một dự án.
+
+### 2. Sửa WBS có nên validate lại ngay không? → **Có**
+
+Mở ra toàn bộ đường ghi WBS: `updateTask`, `createTask`, `deleteSubtree`, `moveTask`,
+`setSequencing`, `setDependency`, `deleteDependency`. Nguồn ghi là `edit`. Chạy TRONG
+transaction của thao tác: ghi hỏng giữa chừng thì cả thay đổi lẫn báo cáo về nó cùng biến
+mất.
+
+Đo lại trên fixture 6.000 task:
+
+| Tình huống                        | Thời gian mỗi lần sửa | Dòng lịch sử mới |
+| --------------------------------- | --------------------- | ---------------- |
+| Dự án sạch                        | 5,4 ms                | 0 / 10 lần sửa   |
+| Dự án hỏng nặng (5.706 issue C04) | 8,6 ms                | 1 / 5 lần sửa    |
+
+## Một lỗi phát hiện lúc đo hiệu năng
+
+Bản đầu xác định "lượt mới nhất" bằng `ORDER BY last_at DESC`. `last_at` do người gọi truyền
+vào (`ctx.now`), nên một lần chỉnh đồng hồ lùi — hay một request mang `now` cũ — làm hỏng hai
+thứ cùng lúc: panel quay về hiện trạng thái cũ, và việc khử trùng so với nhầm dòng nên đẻ ra
+một dòng lịch sử thừa **mỗi lần ghi**.
+
+Lộ ra khi đo: 5 lượt giống hệt nhau lại sinh ra 5 dòng và 28.530 dòng issue, thay vì 1 dòng
+và 5.706. Sửa bằng cách sắp theo `id` — tăng đơn điệu theo thứ tự chèn, đúng nghĩa "lượt gần
+đây nhất". `last_at` chỉ còn là dữ liệu để hiện.
+
+## Một lỗi khác, ở nhật ký
+
+Sửa dữ liệu demo cho thấy `recordUpdate` của `progress.save` chỉ ghi vết cho `status` và
+`percent`. Sửa `actual_start` / `actual_end` — đúng thứ quyết định một task có bị tính là
+trễ hay không — **không để lại dòng nhật ký nào**, dù §10.5 đòi "ghi audit_log từng dòng".
+80 dòng sửa ngày trong lần dọn dữ liệu demo sinh ra đúng 0 dòng nhật ký.
+
+Đã mở ra đủ năm trường §10.5 cho phép sửa. Lưu ý kỹ thuật: tên khoá của `before` phải khớp
+`after` (alias camelCase trong câu SQL), lệch tên thì `recordUpdate` coi mọi trường là đã
+đổi và đẻ ra nhật ký rác.
