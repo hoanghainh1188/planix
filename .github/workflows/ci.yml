@@ -33,3 +33,12 @@ jobs:
       # Đỏ ở đây là chặn merge, kể cả khi kết quả mới "trông hợp lý hơn" (CLAUDE.md §4).
       - name: Test + golden
         run: npm run test -- --coverage
+
+      - name: Build
+        run: npm run build
+
+      # Test chạy trên `src/`, nên một bản build hỏng vẫn có thể xanh hết bảng. Bước này
+      # khởi động ĐÚNG thứ sẽ đem đi chạy: seed → server → đăng nhập → tRPC trả dữ liệu.
+      # Nó bắt được đúng lớp lỗi mà unit test mù: thiếu `.sql`/`.json` trong `dist/`.
+      - name: Smoke (ban build)
+        run: npm run smoke

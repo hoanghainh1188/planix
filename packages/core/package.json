@@ -12,7 +12,7 @@
     "./pipeline/*": "./dist/pipeline/*"
   },
   "scripts": {
-    "build": "tsc --build tsconfig.build.json && cp -R src/db/migrations dist/db/",
+    "build": "tsc --build tsconfig.build.json && node scripts/copy-assets.mjs",
     "clean": "tsc --build tsconfig.build.json --clean"
   },
   "dependencies": {

@@ -14,6 +14,9 @@ export interface RollupTask {
   readonly effortMd: number | null;
   readonly status: ProgressStatus;
   readonly percent: number;
+  /** Ngày từ `schedule`; null khi task chưa được xếp lịch. */
+  readonly planStart: string | null;
+  readonly planEnd: string | null;
 }
 
 export interface RollupRow {
@@ -23,6 +26,9 @@ export interface RollupRow {
   /** Bản đã làm tròn 1 chữ số thập phân, dùng để hiện ra và xuất Excel. */
   readonly percentDisplay: number;
   readonly effortRollup: number;
+  /** Summary: min/max của con (§7.7). Lá: ngày của chính nó. */
+  readonly planStart: string | null;
+  readonly planEnd: string | null;
 }
 
 export interface RollupIssue {
@@ -104,6 +110,8 @@ export function rollupTree(tasks: readonly RollupTask[]): RollupResult {
         percent: task.percent,
         percentDisplay: round1(task.percent),
         effortRollup: effort,
+        planStart: task.planStart,
+        planEnd: task.planEnd,
       });
       continue;
     }
@@ -138,11 +146,27 @@ export function rollupTree(tasks: readonly RollupTask[]): RollupResult {
       percent = live.reduce((acc, x) => acc + x.row.effortRollup * x.row.percent, 0) / effortRollup;
     }
 
+    // Ngày ISO so sánh theo chuỗi là đúng thứ tự thời gian, nên không cần parse.
+    // Chỉ lấy con còn sống: task huỷ đã bị gỡ khỏi mạng lưới nên thường không có ngày,
+    // nhưng một hàng cũ còn sót ngày thì không được phép kéo dài thanh của summary.
+    let planStart: string | null = null;
+    let planEnd: string | null = null;
+    for (const { row } of live) {
+      if (row.planStart !== null && (planStart === null || row.planStart < planStart)) {
+        planStart = row.planStart;
+      }
+      if (row.planEnd !== null && (planEnd === null || row.planEnd > planEnd)) {
+        planEnd = row.planEnd;
+      }
+    }
+
     rows.set(uid, {
       status,
       percent,
       percentDisplay: round1(percent),
       effortRollup,
+      planStart,
+      planEnd,
     });
   }
 

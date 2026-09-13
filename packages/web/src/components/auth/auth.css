@@ -1,0 +1,88 @@
+/* Màn đăng nhập. §13.3: không đăng ký công khai — admin tạo tài khoản. */
+
+.signin {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  background: var(--c-ground);
+}
+
+.signin__card {
+  width: min(22rem, 100%);
+  padding: var(--space-8);
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+}
+
+.signin__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+.signin__mark {
+  font-size: var(--text-xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.signin__tag {
+  font-size: var(--text-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-ink-faint);
+}
+
+.signin__field {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+.signin__label {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+.signin__input {
+  width: 100%;
+  padding: var(--space-2);
+  font: inherit;
+  color: inherit;
+  background: var(--c-surface-sunken);
+  border: 1px solid var(--c-rule);
+  border-radius: 2px;
+}
+
+.signin__submit {
+  width: 100%;
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  color: var(--c-surface);
+  background: var(--c-ink);
+  border-radius: 2px;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.signin__submit:hover:not(:disabled) {
+  background: var(--c-ink-muted);
+}
+.signin__submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.signin__error {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--c-critical);
+  background: var(--c-critical-soft);
+  border-left: 3px solid var(--c-critical);
+}
+
+.signin__note {
+  margin: var(--space-6) 0 0;
+  font-size: var(--text-xs);
+  color: var(--c-ink-faint);
+}

@@ -7,14 +7,22 @@
   "scripts": {
     "build": "tsc --build tsconfig.build.json",
     "clean": "tsc --build tsconfig.build.json --clean",
-    "dev": "node --watch dist/index.js"
+    "dev": "node --watch dist/index.js",
+    "seed:dev": "node dist/dev-seed.js",
+    "start": "node dist/index.js"
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@node-rs/argon2": "^2.2.1",
     "@planix/core": "*",
     "@trpc/server": "^11.18.0",
     "hono": "^4.13.7",
     "zod": "^4.6.2"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./router/*": "./dist/router/*",
+    "./http/*": "./dist/http/*"
   }
 }

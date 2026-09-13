@@ -21,7 +21,10 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json && tsc -p packages/server/tsconfig.json && tsc -p packages/web/tsconfig.json",
-    "dev:web": "npm run dev --workspace @planix/web"
+    "dev:web": "npm run dev --workspace @planix/web",
+    "seed:dev": "npm run build --workspace @planix/core && npm run build --workspace @planix/server && node packages/server/dist/dev-seed.js data/dev.db",
+    "dev:server": "PLANIX_DB=data/dev.db node packages/server/dist/index.js",
+    "smoke": "bash scripts/smoke.sh"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -86,7 +86,11 @@ export default tseslint.config(
   {
     // File config ở gốc repo không thuộc tsconfig nào, nên typed-lint không parse được.
     // Chúng là cấu hình build, không phải code sản phẩm — tắt luật cần kiểu, giữ luật cú pháp.
-    files: ['*.mjs', '*.js', '*.ts'],
+    //
+    // `packages/*/scripts/**` cũng vậy: script build (ví dụ chép asset sang dist) nằm
+    // ngoài tsconfig của package. Chỉ mở đúng thư mục `scripts`, không mở cả `**/*.ts`,
+    // vì làm thế là tắt typed-lint cho toàn bộ mã sản phẩm.
+    files: ['*.mjs', '*.js', '*.ts', 'packages/*/scripts/**/*.{mjs,js}'],
     extends: [tseslint.configs.disableTypeChecked],
   },
 );

@@ -102,6 +102,22 @@
 
 .app__main {
   display: grid;
-  grid-template-columns: 1fr minmax(20rem, 26rem);
+  /* `1fr` nghĩa là `minmax(auto, 1fr)`: cột KHÔNG co xuống dưới min-content của nó. Bảng
+     WBS rộng tối thiểu 58rem, nên cột trái ghim ở 928px và cả TRANG phải cuộn ngang —
+     đẩy panel Issues ra ngoài màn hình trên máy 1024px. `minmax(0, 1fr)` cho cột co lại
+     và trả việc cuộn ngang về đúng chỗ của nó: khung cuộn bên trong bảng. */
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
   min-height: 0;
+}
+
+.app__boot,
+.app__state {
+  display: grid;
+  place-items: center;
+  padding: var(--space-8);
+  color: var(--c-ink-faint);
+  font-size: var(--text-sm);
+}
+.app__state--error {
+  color: var(--c-critical);
 }
