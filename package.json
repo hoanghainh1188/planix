@@ -24,7 +24,10 @@
     "dev:web": "npm run dev --workspace @planix/web",
     "seed:dev": "npm run build --workspace @planix/core && npm run build --workspace @planix/server && node packages/server/dist/dev-seed.js data/dev.db",
     "dev:server": "PLANIX_DB=data/dev.db node packages/server/dist/index.js",
-    "smoke": "bash scripts/smoke.sh"
+    "smoke": "bash scripts/smoke.sh",
+    "up": "docker compose -f deploy/docker-compose.local.yml up -d --build",
+    "down": "docker compose -f deploy/docker-compose.local.yml down",
+    "cli": "node packages/server/dist/cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

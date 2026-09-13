@@ -1,0 +1,44 @@
+# Chạy ở máy mình — không HTTPS, không sao lưu ra ngoài, không cần khoá gì.
+#
+# Khác `docker-compose.yml` (§13.1 cách A) ở chỗ bỏ Caddy và Litestream: ở local không có
+# tên miền để cấp chứng chỉ, và sao lưu thì dùng `planix backup` cho gọn.
+#
+#   docker compose -f deploy/docker-compose.local.yml up -d --build
+#   open http://localhost:3000
+#
+# Tạo tài khoản đầu tiên (§13.3 không có đăng ký công khai):
+#
+#   echo -n 'mat-khau-that-cua-ban' | docker compose -f deploy/docker-compose.local.yml \
+#     exec -T app node packages/server/dist/cli.js \
+#     create-user --email ban@congty.com --name 'Ten ban' --admin
+#
+# Nạp WBS thật: đặt file vào `deploy/import/` rồi
+#
+#   docker compose -f deploy/docker-compose.local.yml exec app \
+#     node packages/server/dist/cli.js import --project UTG --file /import/tasks.json
+
+name: planix-local
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: planix:local
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      PLANIX_DB: /data/project.db
+      PORT: '3000'
+      # KHÔNG bật HSTS ở local: nó ghim localhost vào https trong một năm, và mọi dự án
+      # khác dùng localhost hỏng theo.
+      PLANIX_HTTPS: 'false'
+    volumes:
+      - planix-data:/data
+      # Chỗ đặt file WBS do AI sinh ra (§9.2) để `import` đọc được. Gắn CHỈ ĐỌC: container
+      # không có việc gì phải ghi vào thư mục của máy bạn.
+      - ./import:/import:ro
+
+volumes:
+  planix-data:
