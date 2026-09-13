@@ -16,6 +16,9 @@ import * as authRepo from '@planix/core/db/repo/auth-repo.js';
 import * as read from '@planix/core/db/repo/read-repo.js';
 import * as baselineRepo from '@planix/core/db/repo/baseline-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
+import { validate } from '@planix/core/domain/validator.js';
+import * as importRepo from '@planix/core/db/repo/import-repo.js';
+import type { ValidationIssue } from '@planix/core/domain/validation-types.js';
 import { moveRejectionMessage } from '@planix/core/domain/move.js';
 import { previewRecalculate } from '../scheduler/preview.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
@@ -77,6 +80,50 @@ function toTrpc(error: unknown): never {
     throw new TRPCError({ code: 'FORBIDDEN', message: error.message });
   }
   throw error;
+}
+
+/**
+ * §12.4 — chạy validate ngay sau một lần ghi dependency và trả về phần liên quan.
+ *
+ * Vì sao trả về chứ không chặn: §12.4 nói "sau mỗi tool ghi, tự động chạy validate và
+ * kèm `ValidationReport` vào response". Cạnh vẫn được ghi, kể cả khi nó tạo ra Critical.
+ * Chặn ở đây là tự đặt thêm một luật không có trong spec, và nó sẽ khoá PM lại giữa
+ * chừng một chuỗi sửa nhiều bước mà trạng thái trung gian nào cũng tạm thời sai.
+ *
+ * Điều spec KHÔNG nói là phải trả cả rổ: một dự án dở dang có hàng trăm issue chẳng dính
+ * gì tới cạnh vừa sửa, và dội hết lên panel thì PM không tìm ra cái mình vừa gây ra. Lọc
+ * theo hai đầu của cạnh — cộng C01 vì vòng lặp được gắn vào một đỉnh bất kỳ trên đường đi,
+ * không nhất thiết là một trong hai đầu.
+ *
+ * Đo trên fixture 6.000 task: load + validate hết 5,4 ms, nên chạy mỗi lần ghi không phải
+ * thứ cần tối ưu.
+ */
+function validateDependencyEdit(
+  db: Db,
+  projectId: string,
+  runId: string,
+  endpoints: readonly string[],
+): ValidationIssue[] {
+  const project = db
+    .prepare('SELECT dependency_max_level FROM project WHERE id = ?')
+    .get(projectId) as { dependency_max_level: number } | undefined;
+  if (project === undefined) return [];
+
+  const report = validate({
+    runId,
+    projectId,
+    tasks: importRepo.loadTasks(db, projectId),
+    dependencies: importRepo.loadDependencies(db, projectId),
+    resources: importRepo.loadResources(db),
+    resourceRoles: importRepo.loadResourceRoles(db),
+    progress: importRepo.loadProgress(db, projectId),
+    dependencyMaxLevel: project.dependency_max_level,
+  });
+
+  const touched = new Set(endpoints);
+  return report.issues.filter(
+    (i) => i.code === 'C01' || (i.taskUid !== undefined && touched.has(i.taskUid)),
+  );
 }
 
 export const appRouter = t.router({
@@ -278,7 +325,13 @@ export const appRouter = t.router({
             cause: e,
           });
         }
-        return { ok: true as const };
+        return {
+          ok: true as const,
+          issues: validateDependencyEdit(ctx.db, projectId, `dep-${ctx.now}`, [
+            input.predUid,
+            input.succUid,
+          ]),
+        };
       }),
 
     deleteDependency: authed
@@ -297,8 +350,29 @@ export const appRouter = t.router({
         } catch (e) {
           toTrpc(e);
         }
-        return { removed: read.deleteDependency(ctx.db, input) };
+        const removed = read.deleteDependency(ctx.db, input);
+        return {
+          removed,
+          issues: validateDependencyEdit(ctx.db, projectId, `dep-${ctx.now}`, [
+            input.predUid,
+            input.succUid,
+          ]),
+        };
       }),
+
+    /** Ràng buộc của MỘT task, cả hai chiều — nguồn dữ liệu cho panel nối task. */
+    dependencies: authed.input(z.object({ taskUid: z.string().min(1) })).query(({ ctx, input }) => {
+      const projectId = read.projectOfTask(ctx.db, input.taskUid);
+      if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+      // Chỉ cần quyền XEM: lead phải đọc được ràng buộc để hiểu vì sao task của mình
+      // bắt đầu muộn, dù không được sửa (§10.6).
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return read.loadTaskDependencies(ctx.db, input.taskUid);
+    }),
 
     /** §10.4 — kéo thả đổi cha và `sort_order`, engine tự đánh số lại. */
     moveTask: authed

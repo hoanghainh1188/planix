@@ -5,6 +5,15 @@
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  /* `min-width: 0` là BẮT BUỘC, không phải cho đẹp. Kích thước tối thiểu tự động của một
+     grid item là min-content của nó, mà `.wbs__grid` bên trong đặt `min-width: 58rem` —
+     nên nếu không ghi đè, khối này luôn phình ra 928px dù ô lưới chứa nó chỉ rộng 310px.
+     Phần thừa TRÀN RA ngoài (ô cha không cắt), và vì dòng trong cây là `position:absolute`
+     nên nó vẽ ĐÈ lên panel bên phải: chữ của hai cột chồng lên nhau.
+
+     Với `min-width: 0`, khối co đúng bằng ô của nó và việc cuộn ngang rơi về đúng chỗ đã
+     thiết kế cho nó — `.wbs__scroll`. */
+  min-width: 0;
   background: var(--c-surface);
 }
 
@@ -327,4 +336,13 @@ button.wbs__seq[data-mode='sequential'] {
 .wbs__act--danger:hover:not(:disabled) {
   border-color: var(--c-critical);
   color: var(--c-critical);
+}
+
+/* Số ràng buộc chạm vào dòng. Mực nhạt: nó là chú thích, không phải dữ liệu cột. */
+.wbs__links {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-faint);
 }

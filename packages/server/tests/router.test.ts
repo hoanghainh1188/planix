@@ -614,4 +614,103 @@ describe('S1 — dependency', () => {
       'FORBIDDEN',
     );
   });
+
+  // §12.4: "sau mỗi tool ghi, tự động chạy validate và kèm ValidationReport vào response".
+  // PM phải biết hậu quả NGAY lúc nối, chứ không phải lúc bấm Recalculate rồi mới bị chặn.
+  describe('phản hồi validate ngay sau khi ghi (§12.4)', () => {
+    it('nối thành vòng thì trả về C01 kèm đường đi', async () => {
+      const { a, b } = pair();
+      const first = await caller('U-PM').wbs.setDependency({
+        predUid: a,
+        succUid: b,
+        type: 'FS',
+        lagDays: 0,
+      });
+      expect(first.issues).toEqual([]);
+
+      const closing = await caller('U-PM').wbs.setDependency({
+        predUid: b,
+        succUid: a,
+        type: 'FS',
+        lagDays: 0,
+      });
+      const cycle = closing.issues.find((i) => i.code === 'C01');
+      expect(cycle?.severity).toBe('Critical');
+      expect(cycle?.message).toMatch(/cycle/i);
+      // Cạnh vẫn được ghi: §12.4 nói validate SAU khi ghi, không nói chặn ghi.
+      expect(db.prepare('SELECT COUNT(*) n FROM dependency').get()).toEqual({ n: 2 });
+    });
+
+    it('nối ở cấp sâu hơn dependency_max_level trả về C12', async () => {
+      // §6.2: chỉ được khai báo ở depth <= dependency_max_level (mặc định 3). Hai lá ở
+      // depth 4 và KHÁC cha — cùng cha thì được miễn trừ, xem
+      // docs/decisions/2026-09-13-c12-vs-sibling-edges.md.
+      const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
+        .uid;
+      const ins = db.prepare(
+        `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,created_at,updated_at)
+         VALUES (?,'P',?,?,?,1,?,?,?,?,?,?)`,
+      );
+      ins.run('T-9001', '1.1.1', 3, root, 'Mid A', 'summary', null, null, AT, AT);
+      ins.run('T-9002', '1.1.1.1', 4, 'T-9001', 'Deep A', 'work', 1, 'Dev', AT, AT);
+      ins.run('T-9003', '1.2.1', 3, root, 'Mid B', 'summary', null, null, AT, AT);
+      ins.run('T-9004', '1.2.1.1', 4, 'T-9003', 'Deep B', 'work', 1, 'Dev', AT, AT);
+
+      const r = await caller('U-PM').wbs.setDependency({
+        predUid: 'T-9002',
+        succUid: 'T-9004',
+        type: 'FS',
+        lagDays: 0,
+      });
+      expect(r.issues.map((i) => i.code)).toContain('C12');
+    });
+
+    it('chỉ trả issue của chính cạnh vừa sửa, không trả cả rổ issue của dự án', async () => {
+      const { a, b } = pair();
+      // Task 'Root' không có role nên dự án vốn đã có issue khác; chúng không được lẫn vào.
+      const r = await caller('U-PM').wbs.setDependency({
+        predUid: a,
+        succUid: b,
+        type: 'FS',
+        lagDays: 0,
+      });
+      for (const issue of r.issues) {
+        expect([a, b, undefined]).toContain(issue.taskUid);
+      }
+    });
+
+    it('xoá cạnh cũng trả về phản hồi validate — gỡ vòng thì C01 biến mất', async () => {
+      const { a, b } = pair();
+      await caller('U-PM').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 0 });
+      await caller('U-PM').wbs.setDependency({ predUid: b, succUid: a, type: 'FS', lagDays: 0 });
+      const r = await caller('U-PM').wbs.deleteDependency({ predUid: b, succUid: a, type: 'FS' });
+      expect(r.removed).toBe(1);
+      expect(r.issues.map((i) => i.code)).not.toContain('C01');
+    });
+  });
+
+  describe('đọc liên kết của một task', () => {
+    it('trả cả hai chiều kèm tên, để panel hiện được ngay', async () => {
+      const { a, b } = pair();
+      await caller('U-PM').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 3 });
+
+      const ofB = await caller('U-PM').wbs.dependencies({ taskUid: b });
+      expect(ofB.predecessors).toHaveLength(1);
+      expect(ofB.predecessors[0]?.name).toBe('A');
+      expect(ofB.predecessors[0]?.lagDays).toBe(3);
+      expect(ofB.successors).toEqual([]);
+    });
+
+    it('lead CHỈ ĐỌC vẫn xem được — xem ràng buộc không phải quyền sửa WBS', async () => {
+      const { a, b } = pair();
+      await caller('U-PM').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 0 });
+      const r = await caller('U-LEAD').wbs.dependencies({ taskUid: b });
+      expect(r.predecessors).toHaveLength(1);
+    });
+
+    it('người ngoài dự án không xem được', async () => {
+      const { b } = pair();
+      await expectTrpcCode(caller('U-OUT').wbs.dependencies({ taskUid: b }), 'FORBIDDEN');
+    });
+  });
 });

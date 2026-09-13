@@ -18,6 +18,7 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 
 | Ngày       | Quyết định                                                                                             | Ảnh hưởng tới                    | Trạng thái                    |
 | ---------- | ------------------------------------------------------------------------------------------------------ | -------------------------------- | ----------------------------- |
+| 2026-09-13 | [15 rule validate của §8 chưa được cài](2026-09-13-validator-rules-con-thieu.md)                       | §8.2 `J03`–`J08` `J11`, §8.3     | Ghi nhận — **PM xếp ưu tiên** |
 | 2026-09-13 | [`C12` cấm đúng thứ §6.3 cho phép](2026-09-13-c12-vs-sibling-edges.md)                                 | §6.3, §8.1 `C12`, §8.3 `N08`     | Đã xử lý, **PM nên xác nhận** |
 | 2026-09-13 | [Vòng luẩn quẩn giữa §4.3 và §7.12](2026-09-13-running-work-vs-wipe-and-recompute.md)                  | §4.3, §7.12, §14.2/P6            | Đã xử lý, PM nên biết         |
 | 2026-09-13 | [Bỏ qua Mốc A, đi thẳng tiếp](2026-09-13-skip-milestone-a.md)                                          | §14.3                            | PM quyết                      |

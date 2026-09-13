@@ -17,3 +17,8 @@ export type ProjectSummary = Outputs['projects']['list'][number];
 export type IssueRow = Outputs['issues']['list'][number];
 export type GanttRowData = Outputs['gantt']['get'][number];
 export type ProgressBoardData = Outputs['progress']['board'];
+export type TaskLinks = Outputs['wbs']['dependencies'];
+export type TaskLink = TaskLinks['predecessors'][number];
+export type DependencyType = TaskLink['type'];
+/** Phản hồi validate đi kèm mỗi lần sửa ràng buộc (§12.4). */
+export type LinkIssue = Outputs['wbs']['setDependency']['issues'][number];
