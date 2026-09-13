@@ -25,6 +25,16 @@
   color: var(--c-ink-muted);
 }
 
+.issues__asOf {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--c-ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .issues__filters {
   display: flex;
   gap: var(--space-1);
