@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import { WbsTree, type TaskEdit } from '../components/wbs-tree/WbsTree.js';
+import { EvmStrip } from '../components/evm/EvmStrip.js';
 import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
@@ -106,7 +107,13 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.progress.board.query({ projectId });
   }, [projectId, screen]);
 
+  const loadEvm = useCallback(() => {
+    if (projectId === null) return Promise.resolve(null);
+    return trpc.evm.get.query({ projectId });
+  }, [projectId]);
+
   const tree = useAsync(loadTree, [projectId, savedAt]);
+  const evm = useAsync(loadEvm, [projectId, savedAt]);
   const issues = useAsync(loadIssues, [projectId]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
@@ -391,20 +398,23 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
               This project has no tasks yet. Import a task list to start.
             </p>
           ) : (
-            <WbsTree
-              projectId={projectId ?? ''}
-              rows={rows}
-              selectedUid={selectedUid}
-              onSelect={setSelectedUid}
-              onEdit={editTask}
-              onMove={moveTask}
-              onSequencing={setSequencing}
-              onCreate={createTask}
-              onDelete={deleteTask}
-              editUid={editUid}
-              onEditDone={() => setEditUid(null)}
-              busy={writing}
-            />
+            <div className="app__wbs">
+              <EvmStrip evm={evm.status === 'ready' ? evm.data : null} />
+              <WbsTree
+                projectId={projectId ?? ''}
+                rows={rows}
+                selectedUid={selectedUid}
+                onSelect={setSelectedUid}
+                onEdit={editTask}
+                onMove={moveTask}
+                onSequencing={setSequencing}
+                onCreate={createTask}
+                onDelete={deleteTask}
+                editUid={editUid}
+                onEditDone={() => setEditUid(null)}
+                busy={writing}
+              />
+            </div>
           )
         ) : screen === 'gantt' ? (
           gantt.status === 'loading' ? (

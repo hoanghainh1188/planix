@@ -14,6 +14,7 @@ import { z } from 'zod';
 import type { Db } from '@planix/core/db/migrate.js';
 import * as authRepo from '@planix/core/db/repo/auth-repo.js';
 import * as read from '@planix/core/db/repo/read-repo.js';
+import * as baselineRepo from '@planix/core/db/repo/baseline-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { moveRejectionMessage } from '@planix/core/domain/move.js';
 import { previewRecalculate } from '../scheduler/preview.js';
@@ -598,6 +599,38 @@ export const appRouter = t.router({
         })();
         return { saved: input.rows.length };
       }),
+  }),
+
+  // ── EVM (SPI) ────────────────────────────────────────────────────────────
+  evm: t.router({
+    /**
+     * Chỉ số tiến độ so với baseline. `null` khi dự án chưa chốt baseline nào —
+     * EVM không có nghĩa nếu chưa có kế hoạch gốc để so.
+     */
+    get: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          baselineId: z.string().min(1).optional(),
+        }),
+      )
+      .query(({ ctx, input }) => {
+        try {
+          assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        return read.loadEvm(ctx.db, input.projectId, input.baselineId);
+      }),
+
+    baselines: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return baselineRepo.listBaselines(ctx.db, input.projectId);
+    }),
   }),
 
   // ── S6 — Issues ──────────────────────────────────────────────────────────
