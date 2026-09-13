@@ -11,6 +11,7 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { migrate, openDatabase } from '@planix/core/db/migrate.js';
 import { createApp } from './http/app.js';
+import { sinkFromEnv } from './http/request-log.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -31,7 +32,7 @@ export function main(): void {
   // Đồng hồ đọc ở ĐÂY, tại biên, rồi truyền vào trong. Core không bao giờ tự đọc (N2).
   migrate(db, new Date().toISOString());
 
-  const app = createApp({ db, dbPath, enableHsts });
+  const app = createApp({ db, dbPath, enableHsts, log: sinkFromEnv(process.env['PLANIX_LOG']) });
 
   // UI tĩnh: chỉ gắn khi đã build. Thiếu nó thì API vẫn chạy, tiện cho môi trường chỉ
   // cần API (ví dụ chạy MCP riêng).

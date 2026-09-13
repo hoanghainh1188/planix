@@ -19,6 +19,7 @@ import {
   SESSION_TTL_DAYS,
 } from '../auth/session.js';
 import { securityHeaders } from './security.js';
+import { redactPath, stdoutSink, type LogSink } from './request-log.js';
 
 export interface AppConfig {
   readonly db: Db;
@@ -28,10 +29,19 @@ export interface AppConfig {
   readonly enableHsts: boolean;
   /** Nguồn thời gian, truyền vào để test không phụ thuộc đồng hồ. */
   readonly now?: () => string;
+  /** Nơi ghi nhật ký request. Truyền vào để test thu lại được thay vì bẩn stdout. */
+  readonly log?: LogSink;
 }
 
 interface Vars {
   nonce: string;
+  /**
+   * Ai gọi request này — do route tự đặt khi đã tra phiên.
+   *
+   * Middleware nhật ký chạy TRƯỚC route nên không tự tra được, và tra thêm một lần nữa ở
+   * middleware là đọc DB hai lần cho mỗi request chỉ để ghi một dòng log.
+   */
+  userId: string | null;
 }
 
 /**
@@ -46,12 +56,34 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
   const app = new Hono<{ Variables: Vars }>();
   const now = config.now ?? ((): string => new Date().toISOString());
 
+  const log = config.log ?? stdoutSink;
+
   app.use('*', async (c, next) => {
     // Nonce MỚI cho từng request. Dùng lại một nonce cố định thì nó không còn là nonce,
     // và CSP trở lại ngang mức `unsafe-inline`.
     const nonce = randomBytes(16).toString('base64');
     c.set('nonce', nonce);
-    await next();
+    c.set('userId', null);
+
+    // Mã request ngắn, đủ để nối một lỗi trên màn hình với một dòng nhật ký.
+    const id = randomBytes(6).toString('hex');
+    const startedAt = Date.now();
+
+    try {
+      await next();
+    } finally {
+      // `finally`: request ném ra giữa chừng cũng phải để lại vết. Đó chính là loại
+      // request mà sau này người ta đi tìm.
+      log({
+        at: now(),
+        id,
+        method: c.req.method,
+        path: redactPath(c.req.path),
+        status: c.res.status,
+        ms: Date.now() - startedAt,
+        userId: c.get('userId'),
+      });
+    }
     for (const [key, value] of Object.entries(
       securityHeaders({ enableHsts: config.enableHsts, nonce }),
     )) {
@@ -95,6 +127,11 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
       sameSite: 'Lax',
       maxAge: SESSION_TTL_DAYS * 24 * 60 * 60,
     });
+    // Ghi ai vừa vào. Không có dòng này thì nhật ký chỉ nói "có người đăng nhập thành
+    // công" — đúng nhưng vô dụng, vì câu cần trả lời khi truy nguyên luôn là "ai".
+    // Lần đăng nhập HỎNG vẫn để `null`: chưa xác thực được thì chưa biết là ai, và ghi
+    // theo email người ta gõ vào là ghi lại một lời khai chưa kiểm chứng.
+    c.set('userId', result.user.userId);
     return c.json({ ok: true, userId: result.user.userId, isAdmin: result.user.isAdmin });
   });
 
@@ -109,6 +146,7 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
     const sessionId = getCookie(c, SESSION_COOKIE);
     const user = sessionId === undefined ? null : getSession(config.db, sessionId, now());
     if (user === null) return c.json({ user: null }, 401);
+    c.set('userId', user.userId);
     return c.json({ user });
   });
 
@@ -118,6 +156,7 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
   app.all('/trpc/*', (c) => {
     const sessionId = getCookie(c, SESSION_COOKIE);
     const user = sessionId === undefined ? null : getSession(config.db, sessionId, now());
+    c.set('userId', user?.userId ?? null);
 
     return fetchRequestHandler({
       endpoint: '/trpc',
