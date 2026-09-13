@@ -278,6 +278,44 @@ describe('pipeline — Critical thì chặn (§8.1)', () => {
  *
  * Ở đây cửa sổ 9.000 ngày chỉ để bài test chạy hết; nó không phải khuyến nghị cấu hình.
  */
+describe('pipeline — validate chạy SAU khi ghi lịch (§8)', () => {
+  /**
+   * Bài này phân biệt được "trước" với "sau", điều mà hầu hết test khác không làm được.
+   *
+   * Mẹo: lượt xếp lịch ĐẦU TIÊN. Trước nó, bảng `schedule` rỗng nên `J04` không thể bắt
+   * gì — không biết dự án kết thúc ngày nào thì không so được với `target_end`. Sau nó
+   * thì biết. Nên nếu issue ghi xuống có `J04`, lượt validate ấy chắc chắn chạy sau khi
+   * ghi lịch.
+   *
+   * Trước khi sửa, `scheduleProject` ghi lại đúng report của cửa chặn — tức trạng thái
+   * TRƯỚC khi có lịch — và bài này đỏ.
+   *
+   * Dùng `J04` chứ không `J11` là có lý do: §7.11 re-forecast đẩy task chưa bắt đầu ra
+   * từ mốc chuẩn, nên ngay sau một lượt xếp lịch thì gần như không còn gì quá hạn. `J11`
+   * sống ở các lượt validate KHÁC (lưu tiến độ, sửa WBS), không phải ở đây.
+   */
+  it('lượt đầu tiên đã bắt được J04, tức issue ghi xuống là của lịch vừa tính', () => {
+    importFixture(20);
+    db.prepare(`UPDATE project SET target_end = '2026-01-06' WHERE id = 'P'`).run();
+    expect(db.prepare('SELECT COUNT(*) AS n FROM schedule').get()).toEqual({ n: 0 });
+
+    run();
+
+    expect(loadIssues(db, 'P').map((i) => i.code)).toContain('J04');
+  });
+
+  it('nới hạn rồi chạy lại thì J04 biến mất ngay lượt đó', () => {
+    importFixture(20);
+    db.prepare(`UPDATE project SET target_end = '2026-01-06' WHERE id = 'P'`).run();
+    run();
+    expect(loadIssues(db, 'P').map((i) => i.code)).toContain('J04');
+
+    db.prepare(`UPDATE project SET target_end = '2030-01-01' WHERE id = 'P'`).run();
+    run();
+    expect(loadIssues(db, 'P').map((i) => i.code)).not.toContain('J04');
+  });
+});
+
 describe('pipeline — quy mô thật 6.000 task (§1.5, §7.14)', () => {
   it('chạy hết ba pha dưới 10 giây và write lock dưới 200 ms', () => {
     importFixture(6000);

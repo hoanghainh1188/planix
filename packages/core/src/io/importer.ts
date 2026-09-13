@@ -214,6 +214,11 @@ export function importTasks(db: Db, payload: unknown, options: ImportOptions): I
       resourceRoles: repo.loadResourceRoles(db),
       progress: repo.loadProgress(db, project.id),
       dependencyMaxLevel: project.dependencyMaxLevel,
+      // Lúc nạp lần đầu thì `schedule` rỗng và các rule cần ngày im lặng. Nhưng nạp thêm
+      // vào một dự án ĐÃ xếp lịch là chuyện thường (`mode: merge`), và khi đó chúng có
+      // việc để làm ngay.
+      schedule: repo.loadSchedule(db, project.id),
+      ...repo.loadProjectDates(db, project.id),
     });
 
     if (!report.passed) {

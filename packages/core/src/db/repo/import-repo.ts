@@ -9,6 +9,7 @@ import type {
   ProgressRow,
   ResourceRoleRow,
   ResourceRow,
+  ScheduleRow,
   TaskRow,
 } from '../../domain/validation-types.js';
 
@@ -205,4 +206,41 @@ export function loadProgress(db: Db, projectId: string): ProgressRow[] {
     actualStart: (r['actual_start'] as string | null) ?? null,
     actualEnd: (r['actual_end'] as string | null) ?? null,
   }));
+}
+
+/**
+ * Lịch hiện tại của một dự án — đầu vào cho `J03`, `J04`, `J11`.
+ *
+ * Rỗng là trạng thái BÌNH THƯỜNG, không phải lỗi: trước lần xếp lịch đầu tiên thì chưa
+ * có dòng nào, và validator im lặng với các rule cần ngày.
+ */
+export function loadSchedule(db: Db, projectId: string): ScheduleRow[] {
+  const rows = db
+    .prepare(
+      `SELECT s.task_uid, s.start_date, s.end_date
+       FROM schedule s JOIN task t ON t.uid = s.task_uid
+       WHERE t.project_id = ? ORDER BY s.task_uid`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    taskUid: r['task_uid'] as string,
+    startDate: (r['start_date'] as string | null) ?? null,
+    endDate: (r['end_date'] as string | null) ?? null,
+  }));
+}
+
+export interface ProjectDates {
+  readonly statusDate: string | null;
+  readonly targetEnd: string | null;
+}
+
+/** `status_date` và `target_end` — hai mốc mà §8.2 đối chiếu lịch vào. */
+export function loadProjectDates(db: Db, projectId: string): ProjectDates {
+  const r = db
+    .prepare('SELECT status_date, target_end FROM project WHERE id = ?')
+    .get(projectId) as Record<string, unknown> | undefined;
+  return {
+    statusDate: (r?.['status_date'] as string | null) ?? null,
+    targetEnd: (r?.['target_end'] as string | null) ?? null,
+  };
 }

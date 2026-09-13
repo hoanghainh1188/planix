@@ -50,6 +50,9 @@ function input(over: Partial<ValidationInput> = {}): ValidationInput {
     resourceRoles,
     progress: [],
     dependencyMaxLevel: 3,
+    schedule: [],
+    statusDate: null,
+    targetEnd: null,
     ...over,
   };
 }
@@ -963,5 +966,177 @@ describe('N03 — task lá thiếu phase hoặc module (§8.3)', () => {
       }),
     );
     expect(codes(r)).toContain('N03');
+  });
+});
+
+// ── §8.2 Major cần lịch ─────────────────────────────────────────────────────
+
+describe('J11 — quá hạn so với mốc chuẩn (§8.2)', () => {
+  function overdue(over: Partial<ValidationInput> = {}) {
+    return input({
+      tasks: [task('T-1', { wbsCode: '1.1' })],
+      statusDate: '2026-03-01',
+      schedule: [{ taskUid: 'T-1', startDate: '2026-02-01', endDate: '2026-02-10' }],
+      ...over,
+    });
+  }
+
+  it('lịch kết thúc trước mốc chuẩn mà chưa xong thì báo', () => {
+    const issue = validate(overdue()).issues.find((i) => i.code === 'J11');
+    expect(issue?.severity).toBe('Major');
+    expect(issue?.taskUid).toBe('T-1');
+  });
+
+  it('đã xong thì không', () => {
+    const r = validate(
+      overdue({
+        progress: [
+          {
+            taskUid: 'T-1',
+            status: 'done',
+            percent: 100,
+            actualStart: '2026-02-01',
+            actualEnd: '2026-02-09',
+          },
+        ],
+      }),
+    );
+    expect(codes(r)).not.toContain('J11');
+  });
+
+  it('đã HUỶ thì cũng không — task huỷ nằm ngoài mọi phép đo', () => {
+    const r = validate(
+      overdue({
+        progress: [
+          { taskUid: 'T-1', status: 'cancelled', percent: 0, actualStart: null, actualEnd: null },
+        ],
+      }),
+    );
+    expect(codes(r)).not.toContain('J11');
+  });
+
+  it('đang làm dở mà quá hạn VẪN báo — dở dang không phải xong', () => {
+    const r = validate(
+      overdue({
+        progress: [
+          {
+            taskUid: 'T-1',
+            status: 'in_progress',
+            percent: 80,
+            actualStart: '2026-02-01',
+            actualEnd: null,
+          },
+        ],
+      }),
+    );
+    expect(codes(r)).toContain('J11');
+  });
+
+  it('chưa tới hạn thì không', () => {
+    expect(
+      codes(
+        validate(
+          overdue({
+            schedule: [{ taskUid: 'T-1', startDate: '2026-03-02', endDate: '2026-03-20' }],
+          }),
+        ),
+      ),
+    ).not.toContain('J11');
+  });
+
+  it('kết thúc ĐÚNG ngày mốc chuẩn thì chưa quá hạn — "<" chứ không phải "<="', () => {
+    expect(
+      codes(
+        validate(
+          overdue({
+            schedule: [{ taskUid: 'T-1', startDate: '2026-02-01', endDate: '2026-03-01' }],
+          }),
+        ),
+      ),
+    ).not.toContain('J11');
+  });
+
+  it('chưa xếp lịch thì im lặng — không có ngày thì không kết luận được gì', () => {
+    expect(codes(validate(overdue({ schedule: [] })))).not.toContain('J11');
+  });
+
+  it('dự án chưa đặt mốc chuẩn thì im lặng', () => {
+    expect(codes(validate(overdue({ statusDate: null })))).not.toContain('J11');
+  });
+
+  it('summary không bị báo — ngày của nó là ngày của con', () => {
+    const r = validate(
+      input({
+        statusDate: '2026-03-01',
+        tasks: [
+          task('S', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+          task('A', { wbsCode: '1.1', depth: 2, parentUid: 'S' }),
+        ],
+        schedule: [
+          { taskUid: 'S', startDate: '2026-02-01', endDate: '2026-02-10' },
+          { taskUid: 'A', startDate: '2026-02-01', endDate: '2026-02-10' },
+        ],
+      }),
+    );
+    expect(r.issues.filter((i) => i.code === 'J11').map((i) => i.taskUid)).toEqual(['A']);
+  });
+});
+
+describe('J03 — vi phạm FNLT (§6.6, §8.2)', () => {
+  function fnlt(endDate: string, constraintDate = '2026-02-15') {
+    return input({
+      tasks: [task('T-1', { constraintType: 'FNLT', constraintDate })],
+      schedule: [{ taskUid: 'T-1', startDate: '2026-02-01', endDate }],
+    });
+  }
+
+  it('kết thúc SAU hạn thì báo', () => {
+    const issue = validate(fnlt('2026-02-20')).issues.find((i) => i.code === 'J03');
+    expect(issue?.severity).toBe('Major');
+    // §6.6: "Chỉ kiểm tra; KHÔNG đẩy lịch ngược" — nên Major, không phải Critical.
+    expect(validate(fnlt('2026-02-20')).passed).toBe(true);
+  });
+
+  it('đúng hạn thì không', () => {
+    expect(codes(validate(fnlt('2026-02-15')))).not.toContain('J03');
+  });
+
+  it('ràng buộc khác FNLT thì bỏ qua', () => {
+    const r = validate(
+      input({
+        tasks: [task('T-1', { constraintType: 'SNET', constraintDate: '2026-02-15' })],
+        schedule: [{ taskUid: 'T-1', startDate: '2026-02-01', endDate: '2026-02-28' }],
+      }),
+    );
+    expect(codes(r)).not.toContain('J03');
+  });
+});
+
+describe('J04 — dự án kết thúc sau target_end (§8.2)', () => {
+  function withTarget(targetEnd: string | null) {
+    return input({
+      targetEnd,
+      tasks: [task('T-1', { wbsCode: '1.1' }), task('T-2', { uid: 'T-2', wbsCode: '1.2' })],
+      schedule: [
+        { taskUid: 'T-1', startDate: '2026-02-01', endDate: '2026-02-10' },
+        { taskUid: 'T-2', startDate: '2026-02-01', endDate: '2026-04-30' },
+      ],
+    });
+  }
+
+  it('ngày kết thúc muộn nhất vượt mục tiêu thì báo, MỘT lần cho cả dự án', () => {
+    const found = validate(withTarget('2026-03-31')).issues.filter((i) => i.code === 'J04');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.severity).toBe('Major');
+    // Đây là vấn đề của DỰ ÁN, không của một task — nên không gắn vào task nào.
+    expect(found[0]?.taskUid).toBeUndefined();
+  });
+
+  it('trong hạn thì không', () => {
+    expect(codes(validate(withTarget('2026-05-31')))).not.toContain('J04');
+  });
+
+  it('chưa đặt mục tiêu thì im lặng', () => {
+    expect(codes(validate(withTarget(null)))).not.toContain('J04');
   });
 });

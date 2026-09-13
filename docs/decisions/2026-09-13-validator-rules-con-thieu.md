@@ -2,8 +2,8 @@
 
 **Ngày:** 2026-09-13
 **Bối cảnh:** làm panel nối dependency (§6, §10.4)
-**Trạng thái:** đã cài `N01`, `N08`, rồi `J05`, `N02`, `N04`, `N05`, `N10` (2026-09-13).
-Còn `N03` và nhóm cần lịch.
+**Trạng thái:** đã cài `N01`, `N08`, `J05`, `N02`, `N04`, `N05`, `N10`, `N03`, rồi `J03`,
+`J04`, `J11` (2026-09-13). Còn `J06`, `J07`, `J08`, `N06` — nhóm cần `assignment` và calendar.
 
 ---
 
@@ -101,23 +101,49 @@ tình huống fixture còn thiếu (task huỷ giữa chuỗi, người làm nhi
 phép, `pinned_resource` gây overallocate), và `N08` hiện cũng chưa có trong golden vì
 generator chỉ nối summary với summary. Gộp `N03` vào lần sinh lại đó.
 
+## Đã làm tiếp: `J03`, `J04`, `J11` — và sửa CHỖ validate chạy
+
+Ba rule này cần `schedule`, nên `ValidationInput` nhận thêm `schedule`, `statusDate`,
+`targetEnd`. Lịch rỗng thì chúng **im lặng**, không báo "không đạt": chưa có ngày thì chưa
+kết luận được gì, và một cảnh báo sai sẽ dạy PM cách phớt lờ cả panel.
+
+### Câu hỏi thiết kế đã có lời đáp
+
+Ghi ở lần trước: _"`validate()` chạy TRƯỚC khi xếp lịch, nên đặt `J11` ở đó thì lượt
+validate của lần recalculate sẽ đọc lịch CŨ."_
+
+Trả lời: `scheduleProject` nay chạy validate **hai lần**. Lượt đầu là **cửa chặn** — phải
+chạy trước để từ chối Critical, và nó mô tả lịch cũ. Lượt sau chạy khi lịch đã ghi xong, và
+**đó mới là lượt được lưu lại**. Thêm khoảng 5 ms trên 6.000 task, rẻ hơn nhiều so với việc
+PM đọc một con số không còn đúng.
+
+Có test phân biệt được hai trạng thái đó: lượt xếp lịch ĐẦU TIÊN, khi bảng `schedule` còn
+rỗng. Trước lượt ấy `J04` không thể bắt gì; sau thì có. Đã kiểm bằng cách tạm quay lại hành
+vi cũ — bài test đỏ đúng như mong đợi.
+
+### Một điều học được về `J11`
+
+`J11` gần như **không bao giờ** xuất hiện ngay sau một lượt recalculate, và đó là đúng: §7.11
+re-forecast đẩy task chưa bắt đầu ra từ mốc chuẩn, nên chúng thôi quá hạn. `J11` sống ở các
+lượt validate khác — lưu tiến độ, sửa WBS — khi mốc chuẩn đã nhích lên mà lịch thì chưa tính
+lại. Đó chính là câu hỏi PM đặt mỗi tuần.
+
+Phát hiện điều này khi một bài test đặt `status_date` vào năm 2030 rồi xếp lịch: scheduler
+ném `ResourceWindowExhaustedError` vì mọi thứ bị đẩy ra ngoài cửa sổ 600 ngày. Bài test sai,
+nhưng nó chỉ ra đúng tính chất trên.
+
 ## Việc còn nợ
 
-| Mức   | Còn thiếu                           | Chạy được ở đâu                                 |
-| ----- | ----------------------------------- | ----------------------------------------------- |
-| Minor | `N03` lá thiếu phase/module         | `validate()` — chờ sinh lại fixture             |
-| Major | `J11` quá hạn so với `status_date`  | cần `schedule.end_date` + `project.status_date` |
-| Major | `J03` vi phạm FNLT                  | cần lịch                                        |
-| Major | `J04` vượt `target_end`             | cần lịch + `project.target_end`                 |
-| Major | `J06` resource dùng < 30%           | cần `assignment`                                |
-| Major | `J07` lệch pha A/B > 20%            | cần kết quả phân bổ                             |
-| Major | `J08` milestone rơi ngày nghỉ       | cần lịch + calendar                             |
-| Minor | `N06` chia mỏng dưới 0.5 allocation | cần `assignment`                                |
+| Mức   | Còn thiếu                                            | Cần thêm gì     |
+| ----- | ---------------------------------------------------- | --------------- |
+| Major | `J06` resource dùng < 30%                            | `assignment`    |
+| Major | `J07` lệch pha A/B > 20%                             | kết quả phân bổ |
+| Major | `J08` milestone rơi ngày nghỉ                        | calendar + lịch |
+| Minor | `N06` chia mỏng dưới 0.5 allocation liên tục 10 ngày | `assignment`    |
 
-Nhóm "cần lịch" phải chạy ở **pipeline sau khi xếp lịch**, giống `J01` đang nằm trong
-`sgs.ts` — không nhét vào `validate()` thuần được.
+Bốn rule này cần `assignment` hoặc calendar — thứ `validate()` không nhận và cũng **không
+nên** nhận: chúng là tính chất của KẾT QUẢ phân bổ, không phải của dữ liệu đầu vào. Chỗ đúng
+là pipeline sau khi xếp lịch, nơi `J01` và `J14` đã nằm (`sgs.ts`).
 
-`J11` đáng làm trước cả nhóm: PM nhìn nó mỗi tuần khi chốt kỳ, và nó chỉ cần hai thứ đã
-có sẵn trong DB. Nhưng nó đặt ra một câu hỏi thiết kế chưa có lời đáp: `validate()` chạy
-TRƯỚC khi xếp lịch, nên nếu đặt `J11` ở đó thì lượt validate của lần recalculate sẽ đọc
-lịch CŨ. Phải quyết định chỗ chạy trước khi cài.
+Fixture vẫn còn nợ vài tình huống §4 (task huỷ giữa chuỗi, người làm nhiều dự án, lễ chồng
+nghỉ phép, `pinned_resource` overallocate) và chưa phủ `N08`.
