@@ -1,7 +1,7 @@
 # Lễ Nhật chỉ có 2 năm từ nguồn chính thức, không phải 3
 
 - **Ngày:** 2026-09-13
-- **Trạng thái:** cần PM quyết
+- **Trạng thái:** ĐÃ GIẢI QUYẾT — xem mục cuối
 - **Ảnh hưởng:** `SPEC.md` §5.4, §14.2 / P2
 
 ## Vấn đề
@@ -55,3 +55,42 @@ Với lễ VN: PM cung cấp thông báo nghỉ lễ hằng năm của Chính ph
 
 File gốc mã hoá **Shift-JIS**. Giải mã sai vẫn cho **ngày đúng** (toàn ASCII) và **tên
 lễ hỏng** — kiểu lỗi lặng lẽ. Đã ghi cảnh báo ngay trong `holiday-csv.ts`.
+
+---
+
+## Giải quyết (2026-09-13, PM quyết)
+
+**Tôi đã đọc sai §14.2.** Tôi hiểu "3 năm" là _ba năm tới_ (2026–2028) nên kết luận không
+thể làm được. PM đọc là **ba năm gần nhất**, và nguồn 内閣府 có tới 2027 — tức **2025, 2026,
+2027 đều có sẵn**. Tiêu chí P2 thoả được, không cần sửa spec.
+
+Bài học: trước khi kết luận một yêu cầu bất khả thi, kiểm lại xem mình có đang đọc thêm
+chữ không có trong đó không.
+
+### Đã làm
+
+- Seed `src/db/seed/holidays/jp-{2025,2026,2027}.json` — **54 ngày lễ**, ngày lấy nguyên từ
+  nguồn chính thức.
+- **Tên lễ được chuẩn hoá lại.** File gốc mã Shift-JIS, lần tải trả về 元日 thành "新年" và
+  振替休日 thành "休場". Ngày là ASCII nên đúng; tên thì không tin được.
+- Mỗi file là một địa điểm cho một năm. Thêm năm mới chỉ là **thả thêm một file**, không sửa
+  file cũ — lịch lễ nhà nước công bố từng năm, năm đã công bố thì không nên bị đụng nữa.
+
+### Kiểm chứng, không tin suông
+
+Test kiểm **bằng máy** rằng mọi `振替休日` trong cả ba năm đều đứng sau một ngày lễ rơi vào
+Chủ nhật, và không có `振替休日` nào rơi vào Chủ nhật. Đây là _kiểm chứng_ dữ liệu đã tải,
+không phải _tự tính_ — §5.4 cấm cái sau, không cấm cái trước.
+
+Cộng thêm: mỗi năm phải có đủ 10 ngày lễ cố định theo luật.
+
+### Lễ Việt Nam — nhập tay
+
+PM chốt tạm thời nhập tay. Đã dựng `vn-{2025,2026,2027}.json` với các ngày dương cố định theo
+Bộ luật Lao động 2019 Điều 112 (1/1, 30/4, 1/5, 2/9), và khai `complete: false` kèm danh sách
+còn thiếu: Tết Âm lịch, Giỗ Tổ Hùng Vương, ngày liền kề Quốc khánh.
+
+`resolveSeed` **từ chối nạp** seed khai `complete: false` trừ khi người gọi truyền
+`allowIncomplete` tường minh. Lý do: seed thiếu Tết trông y hệt seed đầy đủ, và engine sẽ
+lặng lẽ coi 5 ngày Tết là ngày làm việc. Đó là 5 ngày công bịa ra mỗi năm mà không ai phát
+hiện cho tới khi giao trễ.
