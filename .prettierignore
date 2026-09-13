@@ -7,3 +7,11 @@ package-lock.json
 # Để prettier động vào là tạo diff rác trên nguồn đúng của dự án.
 SPEC.md
 CLAUDE.md
+
+# Fixture golden — sinh bằng máy, so sánh BYTE-FOR-BYTE (CLAUDE.md §4).
+#
+# Chúng khớp prettier tới giờ chỉ do tình cờ: `JSON.stringify(x, null, 2)` trải mảng dài
+# ra giống prettier. Mảng NGẮN thì không — prettier gộp `["module"]` về một dòng, và golden
+# đỏ ngay dù engine không đổi gì. Định dạng của những file này thuộc về `JSON.stringify`,
+# không thuộc về prettier.
+packages/core/tests/fixtures/*.json

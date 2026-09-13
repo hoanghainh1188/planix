@@ -1,0 +1,250 @@
+{
+  "version": "1.0",
+  "project_code": "UTG",
+  "mode": "merge",
+  "tasks": [
+    {
+      "tmp_id": "root",
+      "parent_tmp_id": null,
+      "name": "Rule coverage",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "seq",
+      "parent_tmp_id": "root",
+      "name": "Sequential cluster",
+      "kind": "summary",
+      "child_sequencing": "sequential",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "seq-a",
+      "parent_tmp_id": "seq",
+      "name": "Seq A",
+      "kind": "work",
+      "effort_md": 2,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "seq-b",
+      "parent_tmp_id": "seq",
+      "name": "Seq B",
+      "kind": "work",
+      "effort_md": 2,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "style",
+      "parent_tmp_id": "root",
+      "name": "Link style",
+      "kind": "summary",
+      "child_sequencing": "parallel",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "sf-pred",
+      "parent_tmp_id": "style",
+      "name": "SF pred",
+      "kind": "work",
+      "effort_md": 4,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "sf-succ",
+      "parent_tmp_id": "style",
+      "name": "SF succ",
+      "kind": "work",
+      "effort_md": 2,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "lead-succ",
+      "parent_tmp_id": "style",
+      "name": "Lead succ",
+      "kind": "work",
+      "effort_md": 2,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "left",
+      "parent_tmp_id": "root",
+      "name": "Left branch",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "left-leaf",
+      "parent_tmp_id": "left",
+      "name": "Left leaf",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "right",
+      "parent_tmp_id": "root",
+      "name": "Right branch",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "right-leaf",
+      "parent_tmp_id": "right",
+      "name": "Right leaf",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "big",
+      "parent_tmp_id": "root",
+      "name": "Too big to plan",
+      "kind": "work",
+      "effort_md": 25,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "no-module",
+      "parent_tmp_id": "root",
+      "name": "Missing module",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "Dev",
+      "phase": "P1"
+    },
+    {
+      "tmp_id": "no-labels",
+      "parent_tmp_id": "root",
+      "name": "Missing both",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "Dev"
+    },
+    {
+      "tmp_id": "twin",
+      "parent_tmp_id": "root",
+      "name": "Same name",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "QA",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "twin-2",
+      "parent_tmp_id": "root",
+      "name": "Same name",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "QA",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-2",
+      "parent_tmp_id": "root",
+      "name": "Deep 2",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-3",
+      "parent_tmp_id": "deep-2",
+      "name": "Deep 3",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-4",
+      "parent_tmp_id": "deep-3",
+      "name": "Deep 4",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-5",
+      "parent_tmp_id": "deep-4",
+      "name": "Deep 5",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-6",
+      "parent_tmp_id": "deep-5",
+      "name": "Deep 6",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-7",
+      "parent_tmp_id": "deep-6",
+      "name": "Deep 7",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-1"
+    },
+    {
+      "tmp_id": "deep-8",
+      "parent_tmp_id": "deep-7",
+      "name": "Deep 8",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "Dev",
+      "phase": "P1",
+      "module": "mod-1"
+    }
+  ],
+  "dependencies": [
+    {
+      "pred": "seq-a",
+      "succ": "seq-b",
+      "type": "FS",
+      "lag_days": 0
+    },
+    {
+      "pred": "sf-pred",
+      "succ": "sf-succ",
+      "type": "SF",
+      "lag_days": 0
+    },
+    {
+      "pred": "sf-pred",
+      "succ": "lead-succ",
+      "type": "FS",
+      "lag_days": -3
+    },
+    {
+      "pred": "left-leaf",
+      "succ": "right-leaf",
+      "type": "FS",
+      "lag_days": 0
+    }
+  ]
+}
