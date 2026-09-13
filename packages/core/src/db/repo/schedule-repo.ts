@@ -313,3 +313,40 @@ export function loadRunningAssignees(db: Db, projectId: string): Map<string, str
     .all(projectId) as Array<{ task_uid: string; resource_id: string }>;
   return new Map(rows.map((r) => [r.task_uid, r.resource_id]));
 }
+
+export interface TaskLocation {
+  readonly uid: string;
+  readonly locationId: string | null;
+}
+
+/**
+ * Nơi làm việc của từng task, cho `J08`.
+ *
+ * §5.4: *"Milestone có `location_id` → không được rơi vào ngày nghỉ của location đó"*, và
+ * schema ghi `NULL = derive from assignee`. Nên thứ tự tra là: location của chính task →
+ * location của người được gán → (người gọi tự lùi về `default_location` của dự án).
+ *
+ * Trả `null` khi không suy ra được, thay vì tự điền mặc định ở đây: chỗ biết
+ * `default_location` là pipeline, và giấu một bước lùi mặc định trong câu SQL sẽ khiến
+ * `J08` im lặng báo theo lịch sai mà không ai thấy.
+ */
+export function loadTaskLocations(db: Db, projectId: string): TaskLocation[] {
+  const rows = db
+    .prepare(
+      `SELECT t.uid,
+              COALESCE(t.location_id, (
+                SELECT r.location_id FROM assignment a
+                  JOIN resource r ON r.id = a.resource_id
+                 WHERE a.task_uid = t.uid
+                 ORDER BY a.resource_id LIMIT 1
+              )) AS location_id
+         FROM task t
+        WHERE t.project_id = ?
+        ORDER BY t.uid`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    uid: r['uid'] as string,
+    locationId: (r['location_id'] as string | null) ?? null,
+  }));
+}

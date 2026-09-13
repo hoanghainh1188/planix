@@ -20,6 +20,12 @@ import {
 } from '../domain/dependency.js';
 import { createCalendarEngine } from '../domain/calendar.js';
 import { runCpm, type CpmTask } from '../domain/cpm.js';
+import {
+  checkMilestonesOnHolidays,
+  checkPhaseSkew,
+  checkThinAllocations,
+  type AuditTask,
+} from '../domain/schedule-audit.js';
 import { reforecast, type ReforecastTask } from '../domain/reforecast.js';
 import { runSgs, type SgsResource, type SgsTask, type SgsScheduleRow } from '../domain/sgs.js';
 import { validate } from '../domain/validator.js';
@@ -367,6 +373,63 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   let projectEnd: DateOnly | null = null;
   for (const row of schedule.values()) {
     if (projectEnd === null || row.endDate > projectEnd) projectEnd = row.endDate;
+  }
+
+  // ── §8.2/§8.3 — những rule chỉ trả lời được khi đã có lịch và phân bổ ──────
+  //
+  // Chạy ở đây chứ không trong `validate()`: chúng là tính chất của KẾT QUẢ, không của
+  // dữ liệu đầu vào. Xem `domain/schedule-audit.ts`.
+  let phaseAEnd: DateOnly | null = null;
+  for (const row of cpm.values()) {
+    if (phaseAEnd === null || row.ef > phaseAEnd) phaseAEnd = row.ef;
+  }
+
+  // §5.4: location của task → của người được gán → lùi về `default_location` của dự án.
+  // Bước lùi cuối nằm ở đây vì chỉ pipeline mới biết `default_location`.
+  const locationByUid = new Map(
+    scheduleRepo
+      .loadTaskLocations(db, settings.id)
+      .map((r) => [r.uid, r.locationId ?? settings.defaultLocation]),
+  );
+  const auditTasks: AuditTask[] = facts.map((f) => ({
+    uid: f.uid,
+    wbsCode: f.wbsCode,
+    kind: f.kind,
+    locationId: locationByUid.get(f.uid) ?? settings.defaultLocation,
+  }));
+  const auditSchedule = [...schedule.entries()].map(([taskUid, row]) => ({
+    taskUid,
+    startDate: row.startDate,
+    endDate: row.endDate,
+  }));
+
+  for (const i of [
+    ...checkPhaseSkew({
+      phaseAEnd,
+      phaseBEnd: projectEnd,
+      projectStart: settings.startDate,
+      workingDaysBetween: (a, b) => engine.workingDaysBetween(lagCalendarId, a, b) + 1,
+    }),
+    ...checkMilestonesOnHolidays({
+      tasks: auditTasks,
+      schedule: auditSchedule,
+      isWorkingAtLocation: (locationId, date) =>
+        engine.isWorkingAtLocation(locationId ?? settings.defaultLocation, date),
+      nextWorkingDayAtLocation: (locationId, date) =>
+        engine.nextWorkingDayAtLocation(locationId ?? settings.defaultLocation, date),
+    }),
+    ...checkThinAllocations({
+      tasks: auditTasks,
+      assignments: sgs.assignments,
+      workingDaysBetween: (a, b) => engine.workingDaysBetween(lagCalendarId, a, b) + 1,
+    }),
+  ]) {
+    issues.push({
+      code: i.code,
+      severity: i.severity,
+      message: i.message,
+      ...(typeof i.detail?.['taskUid'] === 'string' ? { taskUid: i.detail['taskUid'] } : {}),
+    });
   }
 
   // §8 "chạy sau mỗi lần schedule" — và SAU nghĩa là sau, nên chạy LẠI ở đây.
