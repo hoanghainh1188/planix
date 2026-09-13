@@ -139,7 +139,7 @@ flowchart TB
 
 | Lớp | Công nghệ | Ghi chú |
 |---|---|---|
-| Ngôn ngữ | TypeScript, Node 20+ | Một ngôn ngữ cho cả ba package |
+| Ngôn ngữ | TypeScript, Node 22+ | Một ngôn ngữ cho cả ba package |
 | Store | SQLite (WAL) qua `better-sqlite3` | 8 người dùng, đọc nhiều ghi ít |
 | Backup | Litestream → S3/R2 | Replicate liên tục |
 | API | Hono + tRPC | Gõ kiểu end-to-end |
