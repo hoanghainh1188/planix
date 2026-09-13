@@ -1,16 +1,19 @@
 {
+  // Web không vào `tsc --build` của root: Vite lo việc dựng bundle, còn tsc chỉ kiểm kiểu.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": ".",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "module": "preserve",
-    "moduleResolution": "bundler",
-    "noEmit": false
+    "moduleResolution": "bundler"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["dist"],
-  "references": [{ "path": "../core" }]
+  // `vite.config.ts` cũng phải nằm trong project: nó là TypeScript trong package này,
+  // và để ngoài thì eslint không phân tích kiểu được cho nó.
+  "include": ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx", "vite.config.ts"],
+  "exclude": ["dist"]
 }
