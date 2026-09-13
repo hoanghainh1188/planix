@@ -1,0 +1,18 @@
+{
+  "locationId": "VN",
+  "year": 2025,
+  "source": "Bộ luật Lao động 2019 Điều 112 (ngày dương cố định) + thông báo nghỉ lễ hằng năm của Chính phủ (ngày âm lịch)",
+  "retrievedAt": "2026-09-13",
+  "complete": false,
+  "pending": [
+    "Tết Âm lịch — 5 ngày, ngày cụ thể theo thông báo của Chính phủ năm 2025",
+    "Giỗ Tổ Hùng Vương — 10/3 âm lịch, quy đổi theo thông báo năm 2025",
+    "Quốc khánh — ngày liền kề 2/9 (trước hoặc sau), theo thông báo năm 2025"
+  ],
+  "holidays": [
+    { "date": "2025-01-01", "name": "Tết Dương lịch" },
+    { "date": "2025-04-30", "name": "Ngày Chiến thắng" },
+    { "date": "2025-05-01", "name": "Ngày Quốc tế Lao động" },
+    { "date": "2025-09-02", "name": "Quốc khánh" }
+  ]
+}

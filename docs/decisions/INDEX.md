@@ -18,6 +18,7 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 
 | Ngày       | Quyết định                                                                                           | Ảnh hưởng tới                    | Trạng thái          |
 | ---------- | ---------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------- |
+| 2026-09-13 | [Bỏ qua Mốc A, đi thẳng tiếp](2026-09-13-skip-milestone-a.md)                                        | §14.3                            | PM quyết            |
 | 2026-09-13 | [WBS nhiều micro task đốt năng lực gấp ~2,7 lần](2026-09-13-micro-task-capacity-waste.md)            | §7.5, §16 giả định 3             | **Cần PM cân nhắc** |
 | 2026-09-13 | [Lễ Nhật chỉ có 2 năm từ nguồn chính thức, không phải 3](2026-09-13-holiday-data-only-two-years.md)  | §5.4, §14.2/P2                   | **Cần PM quyết**    |
 | 2026-09-13 | [Node tối thiểu là 22, không phải 20](2026-09-13-node-22-minimum.md)                                 | §3.1                             | Chờ PM sửa SPEC.md  |
