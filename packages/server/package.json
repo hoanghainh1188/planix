@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Hono + tRPC API, auth, audit, MCP endpoint (SPEC.md §3.1, §12).",
+  "description": "Hono + tRPC API, auth, audit, MCP endpoint (SPEC.md \u00a73.1, \u00a712).",
   "scripts": {
-    "build": "tsc --build",
-    "clean": "tsc --build --clean",
+    "build": "tsc --build tsconfig.build.json",
+    "clean": "tsc --build tsconfig.build.json --clean",
     "dev": "node --watch dist/index.js"
   },
   "dependencies": {

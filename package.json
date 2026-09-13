@@ -9,7 +9,8 @@
     "node": ">=22"
   },
   "workspaces": [
-    "packages/core"
+    "packages/core",
+    "packages/server"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -18,7 +19,7 @@
     "test:golden": "vitest run --project core golden",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json"
+    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json && tsc -p packages/server/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

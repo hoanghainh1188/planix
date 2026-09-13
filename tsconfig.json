@@ -1,7 +1,9 @@
 {
-  // Chỉ tham chiếu package đã có code. Thêm ./packages/server khi bắt đầu P7,
-  // ./packages/web khi bắt đầu P8 (SPEC.md §14.1). Tham chiếu thư mục rỗng làm
+  // Thêm ./packages/web khi bắt đầu P8 (SPEC.md §14.1). Tham chiếu thư mục rỗng làm
   // `tsc --build` đỏ mà không nói lên điều gì.
   "files": [],
-  "references": [{ "path": "./packages/core/tsconfig.build.json" }]
+  "references": [
+    { "path": "./packages/core/tsconfig.build.json" },
+    { "path": "./packages/server/tsconfig.build.json" }
+  ]
 }

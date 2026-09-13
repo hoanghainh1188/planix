@@ -55,7 +55,7 @@ describe('migrate — từ DB rỗng (§14.2 P1)', () => {
     expect(expected.length).toBe(18);
   });
 
-  it('tạo đủ 7 index của §4.2', () => {
+  it('tạo đủ 7 index của §4.2 (migration sau được thêm, không được thiếu)', () => {
     const db = freshDb();
     migrate(db, APPLIED_AT);
     const idx = db
@@ -64,15 +64,32 @@ describe('migrate — từ DB rỗng (§14.2 P1)', () => {
       )
       .all()
       .map((r) => (r as { name: string }).name);
-    expect(idx).toEqual([
-      'idx_asg_res',
-      'idx_audit',
-      'idx_audit_user',
-      'idx_cal_exc',
-      'idx_task_depth',
-      'idx_task_parent',
-      'idx_task_wbs',
-    ]);
+    // `arrayContaining` chứ không `toEqual`: §4.2 nói phải CÓ 7 index này, không nói
+    // cấm migration sau thêm index khác. Khẳng định chặt hơn spec sẽ đỏ mỗi lần thêm
+    // bảng mới, và người sửa sẽ quen tay nới test thay vì đọc xem có gì sai thật.
+    expect(idx).toEqual(
+      expect.arrayContaining([
+        'idx_asg_res',
+        'idx_audit',
+        'idx_audit_user',
+        'idx_cal_exc',
+        'idx_task_depth',
+        'idx_task_parent',
+        'idx_task_wbs',
+      ]),
+    );
+  });
+
+  it('migration 002 thêm index cho session và login_attempt', () => {
+    const db = freshDb();
+    migrate(db, APPLIED_AT);
+    const idx = db
+      .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'idx_%'`)
+      .all()
+      .map((r) => (r as { name: string }).name);
+    expect(idx).toEqual(
+      expect.arrayContaining(['idx_session_user', 'idx_session_expires', 'idx_login_attempt']),
+    );
   });
 
   it('chạy 2 lần không lỗi và không áp dụng lại migration đã chạy', () => {

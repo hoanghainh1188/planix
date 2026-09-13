@@ -1,0 +1,263 @@
+/**
+ * tRPC router — SPEC.md §10.3 màn S0, S1, S3, S4, S6; §10.6 phân quyền.
+ *
+ * §10.6 chốt: **kiểm tra quyền ở server, không chỉ ẩn nút trên UI.** Mọi procedure ở
+ * đây gọi `assertCan` trước khi chạm dữ liệu; UI chỉ dùng cùng bảng đó để quyết định
+ * hiện hay ẩn, không phải để gác.
+ *
+ * N1: không procedure nào ghi vào `schedule` hay `assignment`. Đường duy nhất tới hai
+ * bảng đó là scheduler.
+ */
+
+import { initTRPC, TRPCError } from '@trpc/server';
+import { z } from 'zod';
+import type { Db } from '@planix/core/db/migrate.js';
+import * as authRepo from '@planix/core/db/repo/auth-repo.js';
+import * as read from '@planix/core/db/repo/read-repo.js';
+import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
+import { recordUpdate } from '../audit/audit-log.js';
+import { runSchedulerInWorker } from '../scheduler/run-in-worker.js';
+
+export interface Context {
+  readonly db: Db;
+  readonly user: { userId: string; isAdmin: boolean } | null;
+  /** Thời điểm của request. Truyền vào chứ không đọc đồng hồ trong logic. */
+  readonly now: string;
+  /** Đường dẫn file DB, cần cho worker lập lịch (§7.14). */
+  readonly dbPath: string;
+}
+
+const t = initTRPC.context<Context>().create();
+
+/** Mọi procedure đều đòi đăng nhập: §13.3 không có đăng ký công khai, không có khách. */
+const authed = t.procedure.use(({ ctx, next }) => {
+  if (ctx.user === null) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { ...ctx, user: ctx.user } });
+});
+
+/**
+ * Dựng ngữ cảnh quyền cho MỘT dự án.
+ *
+ * Vai đọc từ `user_project` mỗi request, không cache vào phiên: admin thu hồi quyền thì
+ * phải có hiệu lực ngay, không đợi người kia đăng xuất.
+ */
+function permissionContext(
+  ctx: Context & { user: { userId: string; isAdmin: boolean } },
+  projectId: string,
+  extra: Omit<PermissionContext, 'isAdmin' | 'projectRole'> = {},
+): PermissionContext & { teamId: string | null } {
+  const assignment = authRepo.findProjectRole(ctx.db, ctx.user.userId, projectId);
+  return {
+    isAdmin: ctx.user.isAdmin,
+    projectRole: assignment?.role ?? null,
+    teamId: assignment?.teamId ?? null,
+    ...extra,
+  };
+}
+
+function toTrpc(error: unknown): never {
+  if (error instanceof ForbiddenError) {
+    throw new TRPCError({ code: 'FORBIDDEN', message: error.message });
+  }
+  throw error;
+}
+
+export const appRouter = t.router({
+  // ── S0 — Project switcher ────────────────────────────────────────────────
+  projects: t.router({
+    list: authed.query(({ ctx }) =>
+      authRepo.listUserProjects(ctx.db, ctx.user.userId, ctx.user.isAdmin),
+    ),
+  }),
+
+  // ── S1 — WBS tree ────────────────────────────────────────────────────────
+  wbs: t.router({
+    tree: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return read.loadWbsTree(ctx.db, input.projectId);
+    }),
+
+    updateTask: authed
+      .input(
+        z.object({
+          taskUid: z.string().min(1),
+          name: z.string().min(1),
+          effortMd: z.number().nullable(),
+          role: z.string().nullable(),
+          priority: z.number().int(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        const before = read.loadTaskForEdit(ctx.db, input.taskUid);
+        if (before === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        const after = {
+          name: input.name,
+          effortMd: input.effortMd,
+          role: input.role,
+          priority: input.priority,
+        };
+
+        // Ghi dữ liệu và nhật ký trong CÙNG transaction: có vết mà không có thay đổi,
+        // hoặc ngược lại, đều tệ hơn là không có gì.
+        ctx.db.transaction(() => {
+          read.updateTaskFields(ctx.db, input.taskUid, after, ctx.now);
+          recordUpdate(
+            ctx.db,
+            { userId: ctx.user.userId, at: ctx.now },
+            'task',
+            input.taskUid,
+            before,
+            after,
+          );
+        })();
+        return { ok: true as const };
+      }),
+
+    recalculate: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          scope: z.enum(['project', 'all']).default('project'),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          assertCan(
+            input.scope === 'all' ? 'recalculate_all' : 'recalculate_project',
+            permissionContext(ctx, input.projectId),
+          );
+        } catch (e) {
+          toTrpc(e);
+        }
+        // §7.14 — chạy trong worker thread để không chặn API.
+        return runSchedulerInWorker({
+          dbPath: ctx.dbPath,
+          projectId: input.projectId,
+          scope: input.scope,
+          runId: `ui-${ctx.now}`,
+          now: ctx.now,
+        });
+      }),
+  }),
+
+  // ── S3 — Gantt, chỉ xem (N3) ─────────────────────────────────────────────
+  gantt: t.router({
+    get: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      // Cùng nguồn với S1: §10.1 cấm client tính lại bất cứ con số nào.
+      return read.loadWbsTree(ctx.db, input.projectId);
+    }),
+  }),
+
+  // ── S4 — Progress entry ──────────────────────────────────────────────────
+  progress: t.router({
+    list: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      const perm = permissionContext(ctx, input.projectId);
+      try {
+        assertCan('view_assigned_project', perm);
+      } catch (e) {
+        toTrpc(e);
+      }
+      // Lead chỉ thấy team mình (§10.5 "lọc mặc định"); PM và admin thấy tất.
+      const teamFilter = perm.projectRole === 'lead' ? perm.teamId : null;
+      return read.loadProgressRows(ctx.db, input.projectId, teamFilter);
+    }),
+
+    save: authed
+      .input(
+        z.object({
+          rows: z
+            .array(
+              z.object({
+                taskUid: z.string().min(1),
+                status: z.enum(['not_started', 'in_progress', 'done', 'blocked', 'cancelled']),
+                percent: z.number().min(0).max(100),
+                actualStart: z.string().nullable(),
+                actualEnd: z.string().nullable(),
+              }),
+            )
+            .min(1),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        // §10.5: "Lưu một lần, một transaction, ghi audit_log từng dòng."
+        ctx.db.transaction(() => {
+          for (const row of input.rows) {
+            const projectId = read.projectOfTask(ctx.db, row.taskUid);
+            if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+
+            const taskTeam = read.teamOfTask(ctx.db, row.taskUid);
+            const perm = permissionContext(ctx, projectId);
+            const sameTeam = perm.teamId !== null && perm.teamId === taskTeam;
+
+            // Quyền kiểm theo TỪNG DÒNG, không kiểm một lần cho cả lô: một lô có thể
+            // trộn task của nhiều team, và lead chỉ được ghi cho team mình (§10.6).
+            try {
+              assertCan(sameTeam ? 'enter_progress_own_team' : 'enter_progress_other_team', {
+                ...perm,
+                sameTeam,
+              });
+            } catch (e) {
+              toTrpc(e);
+            }
+
+            const before = ctx.db
+              .prepare('SELECT status, percent FROM progress WHERE task_uid = ?')
+              .get(row.taskUid) as { status: string; percent: number } | undefined;
+
+            read.upsertProgress(ctx.db, {
+              taskUid: row.taskUid,
+              status: row.status,
+              percent: row.percent,
+              actualStart: row.actualStart,
+              actualEnd: row.actualEnd,
+              updatedBy: ctx.user.userId,
+              source: 'ui',
+              now: ctx.now,
+            });
+
+            recordUpdate(
+              ctx.db,
+              { userId: ctx.user.userId, at: ctx.now },
+              'progress',
+              row.taskUid,
+              before ?? {},
+              { status: row.status, percent: row.percent },
+            );
+          }
+        })();
+        return { saved: input.rows.length };
+      }),
+  }),
+
+  // ── S6 — Issues ──────────────────────────────────────────────────────────
+  issues: t.router({
+    list: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return read.loadIssues(ctx.db, input.projectId);
+    }),
+  }),
+});
+
+export type AppRouter = typeof appRouter;
+export { t };

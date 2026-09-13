@@ -3,12 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Engine thuần: schema, importer, calendar, dependency, scheduler, validator, excel. Không phụ thuộc web (SPEC.md §3.3).",
+  "description": "Engine thu\u1ea7n: schema, importer, calendar, dependency, scheduler, validator, excel. Kh\u00f4ng ph\u1ee5 thu\u1ed9c web (SPEC.md \u00a73.3).",
   "exports": {
     ".": "./dist/index.js",
-    "./domain/*": "./dist/domain/*.js",
-    "./db/*": "./dist/db/*.js",
-    "./io/*": "./dist/io/*.js"
+    "./domain/*": "./dist/domain/*",
+    "./db/*": "./dist/db/*",
+    "./io/*": "./dist/io/*",
+    "./pipeline/*": "./dist/pipeline/*"
   },
   "scripts": {
     "build": "tsc --build tsconfig.build.json && cp -R src/db/migrations dist/db/",
