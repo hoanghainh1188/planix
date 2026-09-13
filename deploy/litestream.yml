@@ -1,0 +1,17 @@
+# §13.2 — sao lưu liên tục, gần thời gian thực.
+#
+# "Backup chưa từng thử khôi phục thì không tính là backup" (§13.2). Lệnh khôi phục thử:
+#
+#   docker compose run --rm litestream restore -o /tmp/thu.db /data/project.db
+#   docker compose run --rm litestream sqlite3 /tmp/thu.db "SELECT COUNT(*) FROM task"
+
+dbs:
+  - path: /data/project.db
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_BUCKET:-planix-backup}
+        path: project
+        endpoint: ${LITESTREAM_ENDPOINT:-}
+        # Giữ 30 ngày, khớp với "giữ 30 bản" của §13.2.
+        retention: 720h
+        snapshot-interval: 24h

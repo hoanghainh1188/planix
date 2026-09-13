@@ -29,3 +29,4 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 | 2026-09-12 | [CI dùng GitHub Actions, không phải GitLab CI](2026-09-12-ci-github-actions.md)                        | §3.2, §14.2/P11                  | Đã hoàn tất                   |
 | 2026-09-13 | [S4: "khớp đề xuất và chưa từng bị sửa" nghĩa là gì](2026-09-13-s4-on-track.md)                        | §10.5 lọc mặc định               | **Cần PM xác nhận**           |
 | 2026-09-13 | [P9: hai chỗ §10.5 không nói, đã để nguyên](2026-09-13-p9-spec-questions.md)                           | §10.5 ràng buộc nhập liệu, §7.11 | **Cần PM quyết**              |
+| 2026-09-13 | [Bỏ P10 (Excel) và chọn nền tảng triển khai](2026-09-13-skip-p10-and-platform.md)                      | §14.3 Mốc C, §13.1               | **Cần PM chốt nền tảng**      |

@@ -42,3 +42,24 @@ jobs:
       # Nó bắt được đúng lớp lỗi mà unit test mù: thiếu `.sql`/`.json` trong `dist/`.
       - name: Smoke (ban build)
         run: npm run smoke
+
+      # Dockerfile hỏng không làm đỏ bất kỳ test nào: nó chỉ lộ ra lúc triển khai.
+      # Trường hợp hay gặp nhất là thêm file mới mà quên copy vào image — build ở đây
+      # bắt được ngay. Chỉ build, không đẩy đi đâu.
+      - name: Build Docker image
+        run: docker build -t planix:ci .
+
+      # Chạy thật trong container: chứng minh image dùng được, chứ không chỉ build xong.
+      - name: Smoke trong container
+        run: |
+          docker volume create planix-ci
+          docker run --rm -v planix-ci:/data planix:ci \
+            node packages/server/dist/dev-seed.js /data/project.db
+          docker run -d --name planix-ci -v planix-ci:/data -p 3000:3000 planix:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://localhost:3000/api/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://localhost:3000/api/health | grep -q '"ok":true'
+          curl -fsS -o /dev/null http://localhost:3000/
+          docker rm -f planix-ci
