@@ -63,6 +63,14 @@ export interface CalendarEngine {
 
   // Lịch B
   isWorking(calendarId: string, date: DateOnly): boolean;
+  /**
+   * Capacity của một ngày trên lịch B (0 | 0.5 | 1).
+   *
+   * §5.6 chỉ liệt kê `isWorking` (boolean), nhưng `week_pattern` của §4.2 cho phép
+   * nửa ngày và §7.2 tính duration theo bước 0.5. CPM cần con số, không chỉ có/không.
+   * `isWorking` chính là `capacityOfCalendar > 0`.
+   */
+  capacityOfCalendar(calendarId: string, date: DateOnly): number;
   addWorkingDays(calendarId: string, from: DateOnly, days: number): DateOnly;
   workingDaysBetween(calendarId: string, a: DateOnly, b: DateOnly): number;
   nextWorkingDay(calendarId: string, from: DateOnly): DateOnly;
@@ -295,6 +303,7 @@ export function createCalendarEngine(snapshot: CalendarSnapshot): CalendarEngine
     capacityOn,
     workSlots,
     isWorking,
+    capacityOfCalendar: capacityFromCalendar,
     addWorkingDays,
     workingDaysBetween,
     nextWorkingDay,
