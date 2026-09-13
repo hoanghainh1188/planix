@@ -1,0 +1,210 @@
+{
+  "version": "1.0",
+  "project_code": "UTG",
+  "mode": "merge",
+  "tasks": [
+    {
+      "tmp_id": "root",
+      "parent_tmp_id": null,
+      "name": "Project root",
+      "kind": "summary",
+      "child_sequencing": "sequential"
+    },
+    {
+      "tmp_id": "ph0",
+      "parent_tmp_id": "root",
+      "name": "Phase 1",
+      "kind": "summary",
+      "phase": "P1",
+      "child_sequencing": "sequential"
+    },
+    {
+      "tmp_id": "ph0m0",
+      "parent_tmp_id": "ph0",
+      "name": "Module 1.1",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-0-0",
+      "child_sequencing": "sequential"
+    },
+    {
+      "tmp_id": "ph0m1",
+      "parent_tmp_id": "ph0",
+      "name": "Module 1.2",
+      "kind": "summary",
+      "phase": "P1",
+      "module": "mod-0-1",
+      "child_sequencing": "parallel"
+    },
+    {
+      "tmp_id": "ph1",
+      "parent_tmp_id": "root",
+      "name": "Phase 2",
+      "kind": "summary",
+      "phase": "P2",
+      "child_sequencing": "parallel"
+    },
+    {
+      "tmp_id": "ph1m0",
+      "parent_tmp_id": "ph1",
+      "name": "Module 2.1",
+      "kind": "summary",
+      "phase": "P2",
+      "module": "mod-1-0",
+      "child_sequencing": "parallel"
+    },
+    {
+      "tmp_id": "ph1m1",
+      "parent_tmp_id": "ph1",
+      "name": "Module 2.2",
+      "kind": "summary",
+      "phase": "P2",
+      "module": "mod-1-1",
+      "child_sequencing": "parallel"
+    },
+    {
+      "tmp_id": "t0",
+      "parent_tmp_id": "ph0m0",
+      "name": "Task 0",
+      "kind": "work",
+      "effort_md": 0.25,
+      "role": "BrSE",
+      "category": "UI",
+      "priority": 300
+    },
+    {
+      "tmp_id": "t1",
+      "parent_tmp_id": "ph0m1",
+      "name": "Task 1",
+      "kind": "work",
+      "effort_md": 0.5,
+      "role": "Dev",
+      "category": "Logic",
+      "priority": 400
+    },
+    {
+      "tmp_id": "t2",
+      "parent_tmp_id": "ph1m0",
+      "name": "Task 2",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "QA",
+      "category": "UI",
+      "priority": 500
+    },
+    {
+      "tmp_id": "t3",
+      "parent_tmp_id": "ph1m1",
+      "name": "Task 3",
+      "kind": "work",
+      "effort_md": 2,
+      "role": "Designer",
+      "category": "Logic",
+      "priority": 600
+    },
+    {
+      "tmp_id": "t4",
+      "parent_tmp_id": "ph0m0",
+      "name": "Task 4",
+      "kind": "work",
+      "effort_md": 0.5,
+      "role": "TechLead",
+      "category": "UI",
+      "priority": 700
+    },
+    {
+      "tmp_id": "t5",
+      "parent_tmp_id": "ph0m1",
+      "name": "Task 5",
+      "kind": "work",
+      "effort_md": 3,
+      "role": "BrSE",
+      "category": "Logic",
+      "priority": 300
+    },
+    {
+      "tmp_id": "t6",
+      "parent_tmp_id": "ph1m0",
+      "name": "Task 6",
+      "kind": "work",
+      "effort_md": 0.25,
+      "role": "Dev",
+      "category": "UI",
+      "priority": 400
+    },
+    {
+      "tmp_id": "t7",
+      "parent_tmp_id": "ph1m1",
+      "name": "Task 7",
+      "kind": "work",
+      "effort_md": 5,
+      "role": "QA",
+      "category": "Logic",
+      "priority": 500
+    },
+    {
+      "tmp_id": "t8",
+      "parent_tmp_id": "ph0m0",
+      "name": "Task 8",
+      "kind": "work",
+      "effort_md": 1.5,
+      "role": "Designer",
+      "category": "UI",
+      "priority": 600
+    },
+    {
+      "tmp_id": "t9",
+      "parent_tmp_id": "ph0m1",
+      "name": "Task 9",
+      "kind": "work",
+      "effort_md": 8,
+      "role": "TechLead",
+      "category": "Logic",
+      "priority": 700
+    },
+    {
+      "tmp_id": "t10",
+      "parent_tmp_id": "ph1m0",
+      "name": "Task 10",
+      "kind": "work",
+      "effort_md": 0.25,
+      "role": "BrSE",
+      "category": "UI",
+      "priority": 300
+    },
+    {
+      "tmp_id": "t11",
+      "parent_tmp_id": "ph1m1",
+      "name": "Task 11",
+      "kind": "work",
+      "effort_md": 0.5,
+      "role": "Dev",
+      "category": "Logic",
+      "priority": 400
+    },
+    {
+      "tmp_id": "t12",
+      "parent_tmp_id": "ph0m0",
+      "name": "Task 12",
+      "kind": "work",
+      "effort_md": 1,
+      "role": "QA",
+      "category": "UI",
+      "priority": 500
+    }
+  ],
+  "dependencies": [
+    {
+      "pred": "ph0",
+      "succ": "ph1",
+      "type": "SS",
+      "lag_days": 0
+    },
+    {
+      "pred": "ph0m1",
+      "succ": "ph1m0",
+      "type": "FS",
+      "lag_days": 0
+    }
+  ]
+}

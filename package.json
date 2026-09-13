@@ -2,11 +2,11 @@
   "name": "planix",
   "version": "0.1.0",
   "private": true,
-  "description": "WBS Tool — Planning & Control cho PM thị trường Nhật. Xem SPEC.md.",
+  "description": "WBS Tool \u2014 Planning & Control cho PM th\u1ecb tr\u01b0\u1eddng Nh\u1eadt. Xem SPEC.md.",
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "workspaces": [
     "packages/core"
@@ -16,10 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:golden": "vitest run --project core golden",
-    "bench": "vitest bench --run --passWithNoTests",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --build --verbose"
+    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
