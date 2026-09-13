@@ -19,7 +19,7 @@
     "bench": "vitest bench --run --passWithNoTests",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc --build --verbose"
+    "typecheck": "tsc --build && tsc -p packages/core/tsconfig.json"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

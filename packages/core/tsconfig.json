@@ -1,10 +1,16 @@
 {
+  // Config "phủ hết" — editor, eslint (projectService tìm tsconfig.json gần nhất)
+  // và bước typecheck dùng file này. Bao gồm cả tests/: test không được typecheck
+  // nghĩa là lỗi kiểu trong test lọt qua im lặng.
+  // Build thật dùng tsconfig.build.json, nó loại *.test.ts khỏi dist.
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "./src",
-    "outDir": "./dist",
-    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "rootDir": "."
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "tests"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "exclude": ["dist"]
 }
