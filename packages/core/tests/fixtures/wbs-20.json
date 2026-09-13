@@ -70,6 +70,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 300
     },
     {
@@ -80,6 +82,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 400
     },
     {
@@ -90,6 +94,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 500
     },
     {
@@ -100,6 +106,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 600
     },
     {
@@ -110,6 +118,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 700
     },
     {
@@ -120,6 +130,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 300
     },
     {
@@ -130,6 +142,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 400
     },
     {
@@ -140,6 +154,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 500
     },
     {
@@ -150,6 +166,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 600
     },
     {
@@ -160,6 +178,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 700
     },
     {
@@ -170,6 +190,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 300
     },
     {
@@ -180,6 +202,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 400
     },
     {
@@ -190,6 +214,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 500
     }
   ],

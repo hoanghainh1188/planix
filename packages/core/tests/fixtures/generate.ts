@@ -79,6 +79,8 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
 
   const phaseIds: string[] = [];
   const moduleIds: string[] = [];
+  /** `tmp_id` của module → nhãn phase/module của nó, để lá thừa hưởng đúng cặp. */
+  const moduleMeta = new Map<string, { phase: string; module: string }>();
   /** Module theo từng phase — dùng để nối cạnh TRONG phase, không vắt ngang. */
   const modulesByPhase: string[][] = [];
 
@@ -102,6 +104,7 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
       const mid = `ph${p}m${m}`;
       moduleIds.push(mid);
       phaseModules.push(mid);
+      moduleMeta.set(mid, { phase: `P${p + 1}`, module: `mod-${p}-${m}` });
       tasks.push({
         tmp_id: mid,
         parent_tmp_id: pid,
@@ -115,14 +118,25 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
   }
 
   // Task lá rải đều vào các module, vòng tròn cho tất định.
+  //
+  // Lá mang `phase` và `module` của module chứa nó. §9.2 có hai trường đó trong schema
+  // task, và §8.3 `N03` coi lá thiếu chúng là một vấn đề — nên fixture không có chúng là
+  // fixture KHÔNG giống dữ liệu thật. Lấy từ `moduleMeta` chứ không tự suy từ `i`: một
+  // lá thuộc về module nào là do vòng chia dưới đây quyết định, và hai chỗ tính riêng sẽ
+  // lệch nhau ngay khi ai đó đổi cách chia.
   for (let i = 0; i < leafCount; i++) {
     const mid = moduleIds[i % moduleIds.length];
     if (mid === undefined) break;
+    // `mid` lấy từ `moduleIds` nên luôn có trong map; guard để thoả `exactOptionalPropertyTypes`
+    // chứ không phải vì nghi ngờ.
+    const meta = moduleMeta.get(mid);
+    if (meta === undefined) break;
     const isMilestone = i % 97 === 96;
     const role = ROLES[i % ROLES.length] ?? 'Dev';
 
     if (isMilestone) {
       // Mốc thuần: effort 0, không cần role (§7.10). effort > 0 mà thiếu role là C09.
+      // Mốc vẫn thuộc về một phase và một module — nó là lá, nên `N03` cũng soi tới nó.
       tasks.push({
         tmp_id: `t${i}`,
         parent_tmp_id: mid,
@@ -130,6 +144,8 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
         kind: 'milestone',
         effort_md: 0,
         category: 'Milestone',
+        phase: meta.phase,
+        module: meta.module,
         priority: 100,
       });
     } else {
@@ -141,6 +157,8 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
         effort_md: effortFor(i),
         role,
         category: i % 2 === 0 ? 'UI' : 'Logic',
+        phase: meta.phase,
+        module: meta.module,
         priority: 300 + (i % 5) * 100,
       });
     }
