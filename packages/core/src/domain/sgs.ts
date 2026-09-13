@@ -115,11 +115,43 @@ export class NoEligibleResourceError extends Error {
   }
 }
 
-/** Các mức allocation thử theo §7.5: full-time trước, rồi hạ dần theo bước 0.25. */
-function allocationLadder(minAllocation: number): number[] {
+/**
+ * Có người đảm nhiệm được role, nhưng TẤT CẢ đều kín lịch tới hết cửa sổ.
+ *
+ * Tách khỏi `NoEligibleResourceError` vì hai tình huống này đòi hai cách xử lý khác
+ * hẳn: một bên là thiếu người có kỹ năng (tuyển, đào tạo, đổi role), bên kia là thiếu
+ * giờ (thêm người, giãn deadline, cắt scope). Gộp chung sẽ khiến PM đọc sai vấn đề.
+ */
+export class ResourceWindowExhaustedError extends Error {
+  readonly taskUid: string;
+  readonly role: string | null;
+  readonly candidateIds: readonly string[];
+  constructor(taskUid: string, role: string | null, candidateIds: readonly string[]) {
+    super(
+      `Task ${taskUid} (role ${role ?? '(none)'}) cannot be placed: all ${candidateIds.length} ` +
+        `eligible resource(s) are fully booked through the scheduling window.`,
+    );
+    this.name = 'ResourceWindowExhaustedError';
+    this.taskUid = taskUid;
+    this.role = role;
+    this.candidateIds = [...candidateIds];
+  }
+}
+
+/**
+ * Các mức allocation thử theo §7.5: full-time trước, rồi hạ dần theo bước 0.25.
+ *
+ * Trần KHÔNG phải lúc nào cũng 1.0 mà là nhu cầu thật của task, làm tròn lên bội 0.25.
+ * Gán 1.0 cho một task 0.25 MD sẽ chiếm trọn một ngày của một người để làm một phần tư
+ * ngày việc — §7.5 ràng buộc theo TỔNG allocation trong ngày và `max_parallel`, tức bốn
+ * task 0.25 MD phải chia nhau được một ngày. Không chặn trần thì ở WBS mịn (§1.5 chốt độ
+ * mịn 0.25 MD) năng lực bị đốt gấp nhiều lần lượng việc thật.
+ */
+function allocationLadder(minAllocation: number, effortMd: number): number[] {
+  const needed = Math.min(1, Math.max(minAllocation, Math.ceil(effortMd * 4) / 4));
   const out: number[] = [];
-  for (let a = 1; a >= minAllocation - 1e-9; a -= 0.25) out.push(Math.round(a * 100) / 100);
-  return out;
+  for (let a = needed; a >= minAllocation - 1e-9; a -= 0.25) out.push(Math.round(a * 100) / 100);
+  return out.length === 0 ? [minAllocation] : out;
 }
 
 export function runSgs(input: SgsInput): SgsResult {
@@ -157,7 +189,6 @@ export function runSgs(input: SgsInput): SgsResult {
   const assignments: SgsAssignment[] = [];
   const schedule = new Map<string, SgsScheduleRow>();
   const issues: SgsIssue[] = [];
-  const ladder = allocationLadder(minAllocation);
 
   /**
    * Đặt task vào lịch của một người ở một mức allocation.
@@ -307,7 +338,7 @@ export function runSgs(input: SgsInput): SgsResult {
 
       for (const r of eligible) {
         const maxParallel = r.maxParallel > 0 ? r.maxParallel : defaultMaxParallel;
-        for (const allocation of ladder) {
+        for (const allocation of allocationLadder(minAllocation, t.effortMd)) {
           const placed = place(r.id, earliest, t.effortMd, allocation, maxParallel);
           if (placed === null) continue;
           options.push({
@@ -327,7 +358,11 @@ export function runSgs(input: SgsInput): SgsResult {
       }
 
       if (options.length === 0) {
-        if (t.pinnedResource === null) throw new NoEligibleResourceError(t.uid, t.role);
+        if (t.pinnedResource === null) {
+          // `eligible` không rỗng ở đây (đã kiểm ở trên), nên vấn đề là hết chỗ chứ
+          // không phải thiếu người có role.
+          throw new ResourceWindowExhaustedError(t.uid, t.role, eligible.map((r) => r.id).sort());
+        }
 
         // §4.3: pin phải được tôn trọng TUYỆT ĐỐI, kể cả khi lịch xấu đi. Không còn chỗ
         // thì vẫn ép gán và báo J01 — engine không tự đổi người (N4). PM quyết.
