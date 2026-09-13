@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '@planix/core/db/migrate.js';
 import { importTasks } from '@planix/core/io/importer.js';
 import { previewRecalculate } from '../src/scheduler/preview.js';
+import { loadIssues } from '@planix/core/db/repo/read-repo.js';
 import { run } from '../src/scheduler/worker.js';
 import type { SchedulerRequest } from '../src/scheduler/protocol.js';
 
@@ -138,6 +139,48 @@ describe('xem trước KHÔNG ghi vào DB thật (§10.1)', () => {
 
     expect(res.after).not.toEqual(res.before);
     expect(scheduleRows()).toEqual(untouched);
+  });
+
+  /**
+   * Xem trước chạy engine trên BẢN SAO (`VACUUM INTO`), nên mọi thứ engine ghi — kể cả
+   * kết quả validate — đều rơi vào bản sao rồi bị xoá cùng thư mục tạm.
+   *
+   * Với lịch thì đó chính là điều ta muốn (§10.1: không ghi gì cho tới khi PM duyệt).
+   * Với issue thì ngược lại: bị chặn là lúc PM cần đọc nhất, mà PM không bao giờ tới
+   * được bước duyệt để engine chạy lại trên DB thật. Không ghi ở đây thì panel S6 trống
+   * đúng vào lúc dự án hỏng.
+   */
+  it('bị chặn thì issue vẫn xuống DB THẬT, dù lịch thì không', async () => {
+    db.prepare(`UPDATE task SET role = NULL WHERE kind = 'work'`).run();
+    const untouched = scheduleRows();
+
+    const res = await previewRecalculate({
+      db,
+      dbPath,
+      projectId: 'P',
+      scope: 'project',
+      now: AT,
+      runScheduler: inline,
+    });
+
+    expect(res.result.ok).toBe(false);
+    // Lịch KHÔNG đổi — §10.1 vẫn được giữ.
+    expect(scheduleRows()).toEqual(untouched);
+    // Nhưng issue thì có, trên DB thật.
+    expect(loadIssues(db, 'P').map((i) => i.code)).toContain('C04');
+  });
+
+  it('xem trước trót lọt thì KHÔNG ghi issue — chưa có gì xảy ra để mà báo cáo', async () => {
+    const before = loadIssues(db, 'P');
+    await previewRecalculate({
+      db,
+      dbPath,
+      projectId: 'P',
+      scope: 'project',
+      now: AT,
+      runScheduler: inline,
+    });
+    expect(loadIssues(db, 'P')).toEqual(before);
   });
 
   it('không để lại file tạm nào', async () => {

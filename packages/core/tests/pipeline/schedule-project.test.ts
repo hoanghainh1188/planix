@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
 import { importTasks } from '../../src/io/importer.js';
 import { ScheduleBlockedError, scheduleProject } from '../../src/pipeline/schedule-project.js';
+import { loadIssues } from '../../src/db/repo/read-repo.js';
 import { ROLES } from '../fixtures/generate.js';
 
 const AT = '2026-09-13T00:00:00.000Z';
@@ -211,6 +212,48 @@ describe('pipeline — Critical thì chặn (§8.1)', () => {
     db.prepare(`UPDATE task SET role = NULL WHERE kind = 'work'`).run();
     expect(() => run()).toThrow(ScheduleBlockedError);
     expect(scheduleRows().length).toBe(before);
+  });
+
+  /**
+   * Ca quan trọng nhất của cả việc lưu issue.
+   *
+   * Bị chặn là đúng lúc PM CẦN biết vì sao nhất, mà đó cũng là lúc `scheduleProject`
+   * ném ra giữa chừng. Nếu chỉ ghi issue ở đường thành công thì panel S6 trống trơn
+   * đúng vào lúc dự án hỏng — tệ hơn cả không có panel, vì trống trông như "không sao".
+   */
+  it('bị chặn thì VẪN ghi issue xuống, đó là lúc PM cần đọc nhất', () => {
+    importFixture(20);
+    db.prepare(`UPDATE task SET role = NULL WHERE kind = 'work'`).run();
+    expect(() => run()).toThrow(ScheduleBlockedError);
+
+    const issues = loadIssues(db, 'P');
+    expect(issues.length).toBeGreaterThan(0);
+    expect(issues.map((i) => i.code)).toContain('C04');
+    expect(issues.every((i) => i.severity === 'Critical' || i.severity !== undefined)).toBe(true);
+  });
+
+  it('sửa xong rồi chạy lại thì issue cũ biến mất', () => {
+    importFixture(20);
+    db.prepare(`UPDATE task SET role = NULL WHERE kind = 'work'`).run();
+    expect(() => run()).toThrow(ScheduleBlockedError);
+    expect(loadIssues(db, 'P').length).toBeGreaterThan(0);
+
+    db.prepare(`UPDATE task SET role = 'Dev' WHERE kind = 'work'`).run();
+    run();
+    expect(loadIssues(db, 'P').map((i) => i.code)).not.toContain('C04');
+  });
+
+  it('chạy trót lọt cũng ghi — issue mức Major/Minor của engine phải tới được màn S6', () => {
+    importFixture(20);
+    run();
+    // Fixture 20 sạch nên có thể không còn issue nào; điều cần khẳng định là đường ghi
+    // ĐÃ chạy, tức bảng phản ánh đúng lượt vừa rồi chứ không phải rác của lượt trước.
+    db.prepare(
+      `INSERT INTO validation_issue (run_id,project_id,severity,code,message,detected_at)
+       VALUES ('rac','P','Critical','C99','rac cua luot truoc',?)`,
+    ).run(AT);
+    run();
+    expect(loadIssues(db, 'P').map((i) => i.code)).not.toContain('C99');
   });
 });
 
