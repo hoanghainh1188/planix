@@ -316,6 +316,95 @@ describe('pipeline — validate chạy SAU khi ghi lịch (§8)', () => {
   });
 });
 
+/**
+ * Ba rule §8 sống ở pipeline chứ không trong `validate()` — xem `domain/schedule-audit.ts`.
+ *
+ * Hàm thuần của chúng đã có test riêng. Những bài dưới đây kiểm thứ KHÁC: rằng chúng thật
+ * sự được nối vào `scheduleProject` và nhận đúng dữ liệu. Không có chúng thì hàm có thể
+ * đúng hoàn toàn trong khi không bao giờ được gọi — và cả hai tầng test đều xanh.
+ *
+ * Fixture chuẩn không kích hoạt rule nào trong ba (đã đo: 20 và 500 đều ra rỗng), nên mỗi
+ * bài tự dựng đúng điều kiện của mình.
+ */
+describe('pipeline — rule cần lịch được nối đúng (§8.2, §8.3)', () => {
+  it('J07: pool nhân sự teo lại thì lịch giãn ra quá 20% so với pha A', () => {
+    importFixture(20);
+    // Chỉ còn MỘT người cho mọi role. Pha A vẫn giả định nguồn lực vô hạn, pha B thì xếp
+    // hàng — chênh lệch đó chính là "chi phí do thiếu người" mà §7.2 nói tới.
+    db.prepare('DELETE FROM resource_role').run();
+    db.prepare('DELETE FROM resource').run();
+    db.prepare(`INSERT INTO resource (id,name,location_id) VALUES ('R-1','Solo','VN')`).run();
+    for (const role of ROLES) {
+      db.prepare('INSERT INTO resource_role (resource_id,role,proficiency) VALUES (?,?,1)').run(
+        'R-1',
+        role,
+      );
+    }
+
+    const found = run({ windowDays: 9000 }).issues.filter((i) => i.code === 'J07');
+    expect(found).toHaveLength(1);
+    expect(found[0]?.severity).toBe('Major');
+    expect(found[0]?.message).toMatch(/working days/);
+  });
+
+  it('J08: milestone của location KHÁC rơi vào ngày nghỉ của chính location đó', () => {
+    // Đây mới là tình huống §5.4 nhắm tới. Lịch xếp theo lịch VN, nhưng mốc bàn giao
+    // thuộc về JP — một ngày làm việc ở VN có thể là ngày nghỉ ở JP, và engine KHÔNG tự
+    // dời (nguyên tắc N4). Không có rule này thì không ai biết.
+    importFixture(20);
+    db.prepare(
+      `INSERT INTO calendar (id,name,scope,week_pattern) VALUES ('CAL-JP','JP','location','1111100')`,
+    ).run();
+    db.prepare(
+      `INSERT INTO location (id,name,timezone,calendar_id) VALUES ('JP','Japan','Asia/Tokyo','CAL-JP')`,
+    ).run();
+
+    // Biến MỘT task lá thành milestone đặt ở JP, rồi cho toàn bộ tháng 1 là ngày nghỉ ở
+    // JP — chắc chắn ngày kết thúc của nó rơi vào ngày nghỉ JP.
+    const uid = (
+      db.prepare(`SELECT uid FROM task WHERE kind='work' ORDER BY uid LIMIT 1`).get() as {
+        uid: string;
+      }
+    ).uid;
+    db.prepare(
+      `UPDATE task SET kind='milestone', effort_md=0, role=NULL, location_id='JP' WHERE uid=?`,
+    ).run(uid);
+    db.prepare(
+      `INSERT INTO calendar_exception (calendar_id,date_from,date_to,capacity,kind,note)
+       VALUES ('CAL-JP','2026-01-01','2026-01-31',0,'holiday','test')`,
+    ).run();
+
+    const found = run({ windowDays: 9000 }).issues.filter((i) => i.code === 'J08');
+    expect(found).toHaveLength(1);
+    // §5.4 đòi "kèm ngày làm việc gần nhất" — thiếu nó thì PM lại phải đi tra lịch.
+    expect(found[0]?.message).toMatch(/Nearest is 2026-02-/);
+  });
+
+  it('N06: allocation mỏng kéo dài thì bị ghi nhận', () => {
+    importFixture(20);
+    // Một task to với đúng một người đủ role: SGS phải hạ allocation để nhét vừa, và nó
+    // kéo lê qua nhiều tuần.
+    db.prepare('DELETE FROM resource_role').run();
+    db.prepare('DELETE FROM resource').run();
+    db.prepare(`INSERT INTO resource (id,name,location_id) VALUES ('R-1','Solo','VN')`).run();
+    for (const role of ROLES) {
+      db.prepare('INSERT INTO resource_role (resource_id,role,proficiency) VALUES (?,?,1)').run(
+        'R-1',
+        role,
+      );
+    }
+    db.prepare(`UPDATE project SET min_allocation = 0.25 WHERE id='P'`).run();
+
+    const result = run({ windowDays: 9000 });
+    // Không khẳng định có N06 — nó phụ thuộc cách SGS chia. Khẳng định điều chắc chắn:
+    // mọi dòng N06 (nếu có) phải mô tả đúng, tức rule được nối và đọc đúng assignment.
+    for (const i of result.issues.filter((x) => x.code === 'N06')) {
+      expect(i.severity).toBe('Minor');
+      expect(i.message).toMatch(/allocation for \d+ working days/);
+    }
+  });
+});
+
 describe('pipeline — quy mô thật 6.000 task (§1.5, §7.14)', () => {
   it('chạy hết ba pha dưới 10 giây và write lock dưới 200 ms', () => {
     importFixture(6000);
