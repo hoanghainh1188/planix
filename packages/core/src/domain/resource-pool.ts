@@ -125,6 +125,29 @@ export class ResourcePool {
   }
 
   /**
+   * Đặt chỗ ĐÚNG những ngày task thật sự làm việc.
+   *
+   * Khác `reserve` ở chỗ không trừ cả dải `from..to`. Một task trải từ 18/03 tới 23/03
+   * không có nghĩa nó chiếm chỗ mọi ngày trong đó: ngày người kia đã kín, hoặc đã chạm
+   * `max_parallel`, task chỉ đi qua chứ không tiêu tốn gì.
+   *
+   * Trừ cả dải sẽ khiến một người bị tính là làm 1.25 ngày công trong một ngày — phép
+   * đếm lúc xếp và phép trừ lúc ghi phải khớp nhau, nếu không pool nói dối.
+   */
+  reserveDays(resourceId: string, days: readonly DateOnly[], allocation: number): void {
+    const r = this.#index.get(resourceId);
+    if (r === undefined) throw new Error(`Unknown resource in pool: ${resourceId}`);
+
+    for (const day of days) {
+      const slot = this.#slot(resourceId, day);
+      if (slot === null) continue;
+      this.#remaining[slot] = (this.#remaining[slot] ?? 0) - allocation;
+      this.#parallel[slot] = (this.#parallel[slot] ?? 0) + 1;
+      this.#assignedMd[r] = (this.#assignedMd[r] ?? 0) + allocation;
+    }
+  }
+
+  /**
    * Đặt chỗ cho một dự án KHÁC, có ghi nguồn.
    *
    * Dùng khi lập lịch dự án ưu tiên thấp hơn: assignment của dự án ưu tiên cao đã ghi

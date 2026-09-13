@@ -216,6 +216,25 @@ function checkDependencyLevel(
   issues: ValidationIssue[],
 ): void {
   for (const d of input.dependencies) {
+    const pred = byUid.get(d.predUid);
+    const succ = byUid.get(d.succUid);
+
+    // §6.3 "Cách 2 — cạnh tường minh" cho phép hai task lá CÙNG CHA nối trực tiếp với
+    // nhau, dùng cho ngoại lệ trong một cụm. Task lá luôn sâu hơn dependency_max_level,
+    // nên C12 hiểu theo nghĩa đen sẽ cấm đúng thứ §6.3 vừa cho phép — và "Cách 2" trở
+    // thành điều khoản không dùng được.
+    //
+    // Miễn trừ cặp cùng cha. Cạnh sâu mà KHÁC cha vẫn là C12: đó mới là thứ §6.2 muốn
+    // chặn, vì nó vượt ra ngoài cụm và phá cơ chế xếp lịch theo cụm.
+    //
+    // Xem docs/decisions/2026-09-13-c12-vs-sibling-edges.md
+    const sameParent =
+      pred !== undefined &&
+      succ !== undefined &&
+      pred.parentUid !== null &&
+      pred.parentUid === succ.parentUid;
+    if (sameParent) continue;
+
     for (const uid of [d.predUid, d.succUid]) {
       const t = byUid.get(uid);
       if (t === undefined) continue; // đã báo C03
