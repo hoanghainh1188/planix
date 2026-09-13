@@ -74,6 +74,36 @@ docker run -d -v planix-data:/data -p 3000:3000 planix
 bền vững (Vercel và mọi nền serverless khác) sẽ mất toàn bộ lịch sau mỗi lần khởi động
 lại. Đã kiểm bằng lệnh: chạy không volume thì container sau không còn thấy file DB.
 
+### Dùng thật ở máy mình
+
+```bash
+npm run up          # docker compose, phục vụ ở http://localhost:3000
+```
+
+Rồi dựng dữ liệu thật — **không cần SQL**. Đặt `cli` cho gọn:
+
+```bash
+cli() { docker compose -f deploy/docker-compose.local.yml exec -T app \
+        node packages/server/dist/cli.js "$@"; }
+
+cli bootstrap                                      # lịch VN/JP, địa điểm, lễ Nhật 3 năm
+cli add-resource --id R-1 --name 'Nguyen A' --location VN --roles BrSE,Dev
+cli create-project --code UTG --name 'UTG' --start 2026-01-05
+cli import --project UTG --file /import/tasks.json # đặt file vào deploy/import/
+
+echo -n 'mat-khau-that' | cli create-user --email ban@congty.com --name 'Ten ban' --admin
+cli grant --email lead@congty.com --project UTG --role lead --team TM-BE
+```
+
+**Mật khẩu đọc từ stdin, không bao giờ từ tham số** — tham số nằm lại trong lịch sử shell
+và hiện ra với mọi tiến trình khác qua `ps`.
+
+Sao lưu (§13.2): `cli backup --out /data/backup-$(date +%F).db` — dùng `VACUUM INTO` nên
+an toàn cả khi server đang chạy.
+
+`npm run seed:dev` là **dữ liệu demo**, mật khẩu nằm ngay trong mã nguồn. Đừng dùng cho
+việc thật.
+
 ### Lên nền tảng có quản lý
 
 | Nền tảng | File          | Cần làm trước                                                                                                                     |
