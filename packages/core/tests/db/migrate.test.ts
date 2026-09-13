@@ -1,13 +1,22 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase } from '../../src/db/migrate.js';
 
 /** Thời điểm cố định — migrate() nhận clock từ ngoài, không tự đọc (N2). */
 const APPLIED_AT = '2026-09-13T00:00:00.000Z';
 
+/** Mọi DB mở trong một test, để đóng hết sau khi test xong. */
+const opened: Array<ReturnType<typeof openDatabase>> = [];
+
 /** DB trong RAM — mỗi test một DB sạch, không đụng file thật. */
 function freshDb() {
-  return openDatabase(':memory:');
+  const db = openDatabase(':memory:');
+  opened.push(db);
+  return db;
 }
+
+afterEach(() => {
+  while (opened.length > 0) opened.pop()?.close();
+});
 
 function tableNames(db: ReturnType<typeof freshDb>): string[] {
   return db

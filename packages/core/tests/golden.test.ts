@@ -1,14 +1,13 @@
-import { readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../src/db/migrate.js';
-import { importTasks } from '../src/io/importer.js';
+import { importTasks, type ImportResult } from '../src/io/importer.js';
 import { buildPayload, ROLES } from './fixtures/generate.js';
-import { buildSnapshot, seedProject, FIXTURE_SIZES, AT } from './golden-helpers.js';
+import { AT, buildSnapshot, FIXTURE_SIZES, seedProject } from './golden-helpers.js';
 
-const FIXTURES = dirname(fileURLToPath(import.meta.url)) + '/fixtures';
-
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const UPDATING = process.env['GOLDEN_UPDATE'] === '1';
 
 /**
@@ -26,50 +25,70 @@ function loadPayload(size: number): unknown {
   return JSON.parse(readFileSync(path, 'utf8'));
 }
 
-function runImport(size: number): { db: Db; snapshot: string; elapsedMs: number } {
+/**
+ * Mở DB, import, chạy `use`, rồi ĐÓNG trong finally.
+ *
+ * better-sqlite3 giữ bộ nhớ native cho tới khi `close()`. Bỏ quên nó thì với fixture
+ * 6.000 task chạy nhiều lượt, cộng coverage instrumentation, worker của vitest bị
+ * SIGSEGV trên runner ít RAM. Máy dev RAM rộng không lộ ra — CI mới bắt được.
+ */
+function withImport<T>(
+  size: number,
+  use: (db: Db, result: ImportResult, elapsedMs: number) => T,
+): T {
   const db = openDatabase(':memory:');
-  migrate(db, AT);
-  seedProject(db, [...ROLES]);
+  try {
+    migrate(db, AT);
+    seedProject(db, [...ROLES]);
 
-  const started = performance.now();
-  const result = importTasks(db, loadPayload(size), { runId: 'GOLDEN', now: AT });
-  const elapsedMs = performance.now() - started;
+    const started = performance.now();
+    const result = importTasks(db, loadPayload(size), { runId: 'GOLDEN', now: AT });
+    const elapsedMs = performance.now() - started;
 
-  return { db, snapshot: buildSnapshot(db, result), elapsedMs };
+    return use(db, result, elapsedMs);
+  } finally {
+    db.close();
+  }
+}
+
+function snapshotOf(size: number): string {
+  return withImport(size, (db, result) => buildSnapshot(db, result));
 }
 
 describe.each(FIXTURE_SIZES)('golden — fixture %i task (§14.5)', (size) => {
-  it('bất biến: đúng số task, không Critical, wbs_code và depth hợp lệ', () => {
-    const { db } = runImport(size);
+  it('bất biến: đúng số task, đúng một gốc, wbs_code hợp lệ và khớp depth', () => {
+    withImport(size, (db) => {
+      const rows = db
+        .prepare('SELECT uid, wbs_code, depth, parent_uid FROM task ORDER BY uid')
+        .all() as Array<{
+        uid: string;
+        wbs_code: string;
+        depth: number;
+        parent_uid: string | null;
+      }>;
 
-    const rows = db
-      .prepare('SELECT uid, wbs_code, depth, parent_uid FROM task ORDER BY uid')
-      .all() as Array<{ uid: string; wbs_code: string; depth: number; parent_uid: string | null }>;
+      expect(rows.length).toBe(size);
+      expect(rows.filter((r) => r.parent_uid === null).length).toBe(1); // C08
 
-    expect(rows.length).toBe(size);
+      for (const r of rows) {
+        expect(r.wbs_code).toMatch(/^\d+(\.\d+)*$/);
+        expect(r.wbs_code.split('.').length).toBe(r.depth);
+        expect(r.depth).toBeGreaterThanOrEqual(1);
+        expect(r.depth).toBeLessThanOrEqual(6); // §1.5 thiết kế tới 6 cấp
+      }
 
-    // Đúng một gốc (C08).
-    expect(rows.filter((r) => r.parent_uid === null).length).toBe(1);
-
-    // wbs_code dạng 1 hoặc 1.2.3, và số đoạn khớp depth.
-    for (const r of rows) {
-      expect(r.wbs_code).toMatch(/^\d+(\.\d+)*$/);
-      expect(r.wbs_code.split('.').length).toBe(r.depth);
-      expect(r.depth).toBeGreaterThanOrEqual(1);
-      expect(r.depth).toBeLessThanOrEqual(6); // §1.5 thiết kế tới 6 cấp
-    }
-
-    // wbs_code duy nhất — trùng mã nghĩa là renumber sai.
-    expect(new Set(rows.map((r) => r.wbs_code)).size).toBe(size);
+      // Trùng mã nghĩa là renumber sai.
+      expect(new Set(rows.map((r) => r.wbs_code)).size).toBe(size);
+    });
   });
 
   it('chạy 2 lần trên DB sạch ra kết quả GIỐNG HỆT (M2)', () => {
-    expect(runImport(size).snapshot).toBe(runImport(size).snapshot);
+    expect(snapshotOf(size)).toBe(snapshotOf(size));
   });
 
   it('khớp byte-for-byte với kết quả kỳ vọng đã commit', () => {
     const expectedPath = join(FIXTURES, `wbs-${size}.expected.json`);
-    const { snapshot } = runImport(size);
+    const snapshot = snapshotOf(size);
 
     // Ghi đè CHỈ khi được yêu cầu tường minh: GOLDEN_UPDATE=1 npm run test.
     // CLAUDE.md §4: golden test đỏ là không được merge. Muốn đổi kết quả kỳ vọng thì
@@ -89,9 +108,10 @@ describe.each(FIXTURE_SIZES)('golden — fixture %i task (§14.5)', (size) => {
 
 describe('hiệu năng import (§14.2 P1)', () => {
   it('6.000 task import dưới 5 giây', () => {
-    const { elapsedMs } = runImport(6000);
-    // In ra để thấy biên còn bao nhiêu, không chỉ pass/fail.
-    console.info(`import 6000 task: ${elapsedMs.toFixed(0)} ms`);
-    expect(elapsedMs).toBeLessThan(5000);
+    withImport(6000, (_db, _result, elapsedMs) => {
+      // In ra để thấy biên còn bao nhiêu, không chỉ pass/fail.
+      console.info(`import 6000 task: ${elapsedMs.toFixed(0)} ms`);
+      expect(elapsedMs).toBeLessThan(5000);
+    });
   });
 });

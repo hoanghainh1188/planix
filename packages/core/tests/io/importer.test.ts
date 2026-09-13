@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
 import { importTasks } from '../../src/io/importer.js';
 
@@ -59,6 +59,12 @@ function countTasks(db: Db): number {
 let db: Db;
 beforeEach(() => {
   db = setup();
+});
+
+// better-sqlite3 giữ bộ nhớ native tới khi close(). Bỏ quên thì worker vitest có thể
+// bị SIGSEGV trên máy ít RAM — đã xảy ra thật ở CI với golden test.
+afterEach(() => {
+  db.close();
 });
 
 describe('importer — validate schema bằng zod (§9.3 bước 1)', () => {
