@@ -18,6 +18,7 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 
 | Ngày       | Quyết định                                                                                           | Ảnh hưởng tới                    | Trạng thái         |
 | ---------- | ---------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------ |
+| 2026-09-13 | [Lễ Nhật chỉ có 2 năm từ nguồn chính thức, không phải 3](2026-09-13-holiday-data-only-two-years.md)  | §5.4, §14.2/P2                   | **Cần PM quyết**   |
 | 2026-09-13 | [Node tối thiểu là 22, không phải 20](2026-09-13-node-22-minimum.md)                                 | §3.1                             | Chờ PM sửa SPEC.md |
 | 2026-09-12 | [Hai dự án CÓ dùng chung nhân sự — P6 nằm trong MVP](2026-09-12-shared-resources-across-projects.md) | §16 giả định 4, §7.12, schema P1 | Đã chốt            |
 | 2026-09-12 | [`C06` kiểm hai giai đoạn: cấu trúc ở P1, đầy đủ ở P3](2026-09-12-c06-partial-at-p1.md)              | §8.1 `C06`, §14.2 P1 + P3        | Đã chốt            |
