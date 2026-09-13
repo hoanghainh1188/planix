@@ -11,6 +11,7 @@ import type {
   ResourceRow,
   ScheduleRow,
   TaskRow,
+  ValidationInput,
 } from '../../domain/validation-types.js';
 
 export interface ProjectRow {
@@ -242,5 +243,40 @@ export function loadProjectDates(db: Db, projectId: string): ProjectDates {
   return {
     statusDate: (r?.['status_date'] as string | null) ?? null,
     targetEnd: (r?.['target_end'] as string | null) ?? null,
+  };
+}
+
+/**
+ * Gom đủ dữ liệu cho một lượt `validate()` (§8).
+ *
+ * Trước đây mỗi nơi gọi validate tự ghép bảy lời gọi loader cộng một câu SQL lấy
+ * `dependency_max_level`. Bảy chỗ ghép giống nhau nghĩa là bảy chỗ phải cùng nhớ sửa khi
+ * `ValidationInput` mọc thêm một trường — và nơi quên sẽ không đỏ test, nó chỉ lặng lẽ
+ * validate trên dữ liệu thiếu. Gom về một chỗ thì việc quên đó không còn xảy ra được.
+ *
+ * `undefined` nghĩa là không có dự án nào mang id đó. Trả về thay vì ném: người gọi đã
+ * kiểm tra quyền trên một id có thể do client bịa ra.
+ */
+export function loadValidationInput(
+  db: Db,
+  projectId: string,
+  runId: string,
+): ValidationInput | undefined {
+  const project = db
+    .prepare('SELECT dependency_max_level FROM project WHERE id = ?')
+    .get(projectId) as { dependency_max_level: number } | undefined;
+  if (project === undefined) return undefined;
+
+  return {
+    runId,
+    projectId,
+    tasks: loadTasks(db, projectId),
+    dependencies: loadDependencies(db, projectId),
+    resources: loadResources(db),
+    resourceRoles: loadResourceRoles(db),
+    progress: loadProgress(db, projectId),
+    dependencyMaxLevel: project.dependency_max_level,
+    schedule: loadSchedule(db, projectId),
+    ...loadProjectDates(db, projectId),
   };
 }
