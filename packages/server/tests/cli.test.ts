@@ -11,6 +11,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase } from '@planix/core/db/migrate.js';
 import { run } from '../src/cli.js';
+import { resolveMcpToken } from '@planix/core/db/repo/mcp-token-repo.js';
 
 const AT = '2026-09-13T09:00:00.000Z';
 let dir: string;
@@ -265,5 +266,91 @@ describe('trợ giúp', () => {
 
   it('lệnh lạ thì báo lỗi kèm hướng dẫn', async () => {
     await expect(run(['khong-co-lenh-nay'], AT)).rejects.toThrow(/create-user/);
+  });
+});
+
+/**
+ * Token MCP (§12.4). Vòng đời đi qua ĐÚNG cửa mà người vận hành dùng: CLI cấp, endpoint
+ * nhận. Kiểm riêng repo sẽ bỏ lọt khả năng CLI in ra một chuỗi khác thứ nó vừa lưu hash.
+ */
+describe('mcp-token', () => {
+  async function makeUser(): Promise<void> {
+    await withStdin('mot-mat-khau-du-dai', () =>
+      run(['create-user', '--email', 'pm@x.com', '--name', 'PM'], AT),
+    );
+  }
+
+  /** Token nằm trên dòng riêng trong bản in ra — rút đúng nó, không rút cả câu. */
+  function tokenFrom(output: string): string {
+    const line = output.split('\n').find((l) => l.startsWith('planix_mcp_'));
+    expect(line).toBeDefined();
+    return line ?? '';
+  }
+
+  it('token in ra dùng được thật, và DB chỉ giữ hash', async () => {
+    await makeUser();
+    const out = await run(['mcp-token', '--email', 'pm@x.com', '--label', 'claude'], AT);
+    const token = tokenFrom(out);
+
+    const db = openDatabase(dbPath);
+    try {
+      // Cấp ở tiến trình CLI, tra ở đây — đúng chỗ một lỗi "in ra khác thứ đã lưu" lộ ra.
+      const principal = resolveMcpToken(db, token, AT);
+      expect(principal?.userId).toMatch(/^U-/);
+
+      const stored = db.prepare('SELECT token_hash FROM mcp_token').get() as {
+        token_hash: string;
+      };
+      expect(stored.token_hash).not.toBe(token);
+      expect(stored.token_hash).not.toContain(token);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('email không có thì từ chối, không cấp token mồ côi', async () => {
+    await expect(
+      run(['mcp-token', '--email', 'khong-co@x.com', '--label', 'x'], AT),
+    ).rejects.toThrow('Không có người dùng');
+
+    const db = openDatabase(dbPath);
+    try {
+      const count = db.prepare('SELECT COUNT(*) AS n FROM mcp_token').get() as { n: number };
+      expect(count.n).toBe(0);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('liệt kê không bao giờ hiện token', async () => {
+    await makeUser();
+    const token = tokenFrom(
+      await run(['mcp-token', '--email', 'pm@x.com', '--label', 'claude'], AT),
+    );
+
+    const listed = await run(['mcp-tokens'], AT);
+    expect(listed).toContain('claude');
+    expect(listed).toContain('chưa bao giờ');
+    expect(listed).not.toContain(token);
+  });
+
+  it('thu hồi rồi thì token hết tác dụng, gọi lần hai nói rõ đã thu hồi', async () => {
+    await makeUser();
+    const out = await run(['mcp-token', '--email', 'pm@x.com', '--label', 'claude'], AT);
+    const token = tokenFrom(out);
+    const id = out.split(' ')[3] ?? '';
+    expect(id).toMatch(/^MCP-/);
+
+    expect(await run(['mcp-revoke', '--id', id], AT)).toContain('Đã thu hồi');
+
+    const db = openDatabase(dbPath);
+    try {
+      expect(resolveMcpToken(db, token, AT)).toBeNull();
+    } finally {
+      db.close();
+    }
+
+    expect(await run(['mcp-revoke', '--id', id], AT)).toContain('đã bị thu hồi từ');
+    await expect(run(['mcp-revoke', '--id', 'MCP-khong-co'], AT)).rejects.toThrow('Không có token');
   });
 });
