@@ -18,6 +18,11 @@ import { importHolidays } from '@planix/core/db/repo/calendar-repo.js';
 import { exportExcel, ExportBlockedError } from '@planix/core/io/excel/index.js';
 import { availableYears, resolveSeed } from '@planix/core/db/seed/holiday-seed.js';
 import { createUser } from './auth/session.js';
+import {
+  createMcpToken,
+  listMcpTokens,
+  revokeMcpToken,
+} from '@planix/core/db/repo/mcp-token-repo.js';
 
 const USAGE = `planix admin
 
@@ -45,6 +50,16 @@ const USAGE = `planix admin
 
   backup        --out <file.db>
                 Ảnh chụp nhất quán, an toàn cả khi server đang chạy (§13.2).
+
+  mcp-token     --email <email> --label <nhãn>
+                Cấp token cho lớp MCP (§12.4). Token HIỆN ĐÚNG MỘT LẦN — chép ngay,
+                DB chỉ giữ hash. Mất thì cấp cái mới.
+
+  mcp-tokens    Liệt kê token đã cấp: ai giữ, cấp khi nào, dùng lần cuối khi nào.
+                Không hiện token.
+
+  mcp-revoke    --id <MCP-xxxx>
+                Thu hồi. Dòng vẫn ở lại để còn truy nguyên được lời gọi cũ.
 
 Biến môi trường:
   PLANIX_DB     đường dẫn file SQLite (mặc định ./data/project.db)
@@ -310,6 +325,73 @@ export async function run(argv: readonly string[], now: string): Promise<string>
       // được trong lúc server vẫn phục vụ. Copy file thô thì không an toàn như vậy.
       db.prepare('VACUUM INTO ?').run(out);
       return `Đã sao lưu vào ${out}`;
+    } finally {
+      db.close();
+    }
+  }
+
+  // ── Token MCP (§12.4) ─────────────────────────────────────────────────────
+
+  if (command === 'mcp-token') {
+    const email = required(argv, 'email');
+    const label = required(argv, 'label');
+
+    const db = open(now);
+    try {
+      const user = db.prepare('SELECT id FROM app_user WHERE email = ?').get(email) as
+        | { id: string }
+        | undefined;
+      if (user === undefined) throw new Error(`Không có người dùng ${email}`);
+
+      const created = createMcpToken(db, { userId: user.id, label, now });
+      return [
+        `Đã cấp token ${created.id} cho ${email}.`,
+        '',
+        created.token,
+        '',
+        'Token này KHÔNG hiện lại được. Chép ngay — DB chỉ giữ hash của nó.',
+      ].join('\n');
+    } finally {
+      db.close();
+    }
+  }
+
+  if (command === 'mcp-tokens') {
+    const db = open(now);
+    try {
+      const rows = listMcpTokens(db);
+      if (rows.length === 0) return 'Chưa cấp token MCP nào.';
+      return rows
+        .map((t) =>
+          [
+            t.id,
+            t.userId,
+            t.label,
+            `cấp ${t.createdAt}`,
+            `dùng lần cuối ${t.lastUsedAt ?? 'chưa bao giờ'}`,
+            t.revokedAt === null ? 'còn hiệu lực' : `ĐÃ THU HỒI ${t.revokedAt}`,
+          ].join('  '),
+        )
+        .join('\n');
+    } finally {
+      db.close();
+    }
+  }
+
+  if (command === 'mcp-revoke') {
+    const id = required(argv, 'id');
+    const db = open(now);
+    try {
+      const changed = revokeMcpToken(db, id, now);
+      // Phân biệt "không có" với "đã thu hồi từ trước": hai cái đòi hai phản ứng khác nhau.
+      if (changed === 0) {
+        const exists = db.prepare('SELECT revoked_at FROM mcp_token WHERE id = ?').get(id) as
+          | { revoked_at: string | null }
+          | undefined;
+        if (exists === undefined) throw new Error(`Không có token ${id}`);
+        return `Token ${id} đã bị thu hồi từ ${String(exists.revoked_at)}.`;
+      }
+      return `Đã thu hồi ${id}.`;
     } finally {
       db.close();
     }
