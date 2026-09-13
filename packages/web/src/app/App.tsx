@@ -106,6 +106,18 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [importDone, setImportDone] = useState<ImportDone | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  /**
+   * Payload đang chờ PM xác nhận vì nó sẽ XOÁ dữ liệu.
+   *
+   * §12.2 đòi confirm cho việc xoá. Màn Import có cảnh báo đỏ nhưng cảnh báo không phải
+   * confirm: nó nằm cạnh một cái nút, và một cú bấm nhầm là mất cả cây con cùng tiến độ
+   * trong đó — thứ tính lại không được.
+   */
+  const [pendingImport, setPendingImport] = useState<{
+    text: string;
+    taskCount: number;
+    progressRows: number;
+  } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     uid: string;
     taskCount: number;
@@ -467,7 +479,23 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  /**
+   * PM bấm nút nạp. Nếu lần nạp này xoá gì đó thì hỏi lại trước; không thì ghi luôn.
+   *
+   * Con số lấy từ lần KIỂM vừa rồi, và kết quả kiểm đã bị vứt nếu nội dung thay đổi — nên
+   * hộp thoại không bao giờ hiện số của một file khác với file sắp được nạp.
+   */
+  async function requestImport(text: string): Promise<void> {
+    const removing = importCheck !== null && importCheck.ok ? importCheck.removing : null;
+    if (removing !== null && removing.taskCount > 0) {
+      setPendingImport({ text, ...removing });
+      return;
+    }
+    await commitImport(text);
+  }
+
   async function commitImport(text: string): Promise<void> {
+    setPendingImport(null);
     setImportError(null);
     setImporting(true);
     try {
@@ -594,7 +622,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
             busy={importing}
             error={importError}
             onCheck={checkImport}
-            onCommit={commitImport}
+            onCommit={requestImport}
             onDirty={() => {
               setImportCheck(null);
               setImportDone(null);
@@ -742,6 +770,35 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
                 onClick={() => void confirmDelete()}
               >
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingImport !== null ? (
+        <div className="app__confirm" role="alertdialog" aria-label="Confirm import">
+          <div className="app__confirmBox">
+            <h2 className="app__confirmTitle">Replace this subtree?</h2>
+            <p className="app__confirmBody">
+              This deletes {pendingImport.taskCount}{' '}
+              {pendingImport.taskCount === 1 ? 'task' : 'tasks'} before importing.
+              {pendingImport.progressRows > 0
+                ? ` ${String(pendingImport.progressRows)} progress ${
+                    pendingImport.progressRows === 1 ? 'entry' : 'entries'
+                  } will be lost — the schedule can be recomputed, but progress people typed cannot.`
+                : ''}
+            </p>
+            <div className="app__confirmActions">
+              <button type="button" className="app__action" onClick={() => setPendingImport(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="app__action app__action--danger"
+                onClick={() => void commitImport(pendingImport.text)}
+              >
+                Replace and import
               </button>
             </div>
           </div>
