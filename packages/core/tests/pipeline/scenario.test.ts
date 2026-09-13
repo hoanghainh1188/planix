@@ -167,3 +167,126 @@ describe('pipeline chạy được trên bối cảnh đầy đủ', () => {
     expect(engine.capacityOn(h.sharedResourceId, d(h.overlappedHolidayDate))).toBe(0);
   });
 });
+
+/**
+ * §7 pha C bước C1 — đường găng sau khi san tài nguyên.
+ *
+ * Kiểm ở mức pipeline chứ không chỉ unit: lỗi thật đã gặp nằm ĐÚNG ở chỗ ghép, không ở
+ * thuật toán. `resourceCriticalPath` chạy đúng trên mọi ca unit, nhưng pipeline đưa cho
+ * nó bản lịch đã GỠ nút gộp — một đồ thị thủng lỗ. Mỗi chỗ thủng cắt đứt chuỗi.
+ *
+ * Đo trên `data/dev.db` trước khi sửa: đúng một nút gộp trên đường đi đã cắt chuỗi UTG
+ * từ 9 tháng (2026-03-02 → 2026-11-27) xuống còn 6 tuần cuối (2026-10-16 → 2026-11-27).
+ */
+describe('§7 pha C — đường găng sau san tài nguyên', () => {
+  interface Row {
+    readonly uid: string;
+    readonly start_date: string;
+    readonly end_date: string;
+    readonly is_critical: number;
+    readonly is_resource_critical: number;
+  }
+
+  function rows(projectId: string): Row[] {
+    return db
+      .prepare(
+        `SELECT t.uid, s.start_date, s.end_date, s.is_critical, s.is_resource_critical
+           FROM task t JOIN schedule s ON s.task_uid = t.uid
+          WHERE t.project_id = ? ORDER BY t.uid`,
+      )
+      .all(projectId) as Row[];
+  }
+
+  beforeEach(() => {
+    scheduleAllProjects(db, { runId: 'RC', now: SCENARIO_AT, windowDays: 2000 });
+  });
+
+  it('có ghi cột, không còn để nguyên 0 như trước', () => {
+    const marked = rows('P-MAIN').filter((r) => r.is_resource_critical === 1);
+    expect(marked.length).toBeGreaterThan(0);
+  });
+
+  it('chuỗi chạm được ngày kết thúc dự án', () => {
+    const all = rows('P-MAIN');
+    const projectEnd = all.reduce((m, r) => (r.end_date > m ? r.end_date : m), '');
+    const marked = all.filter((r) => r.is_resource_critical === 1);
+    expect(marked.some((r) => r.end_date === projectEnd)).toBe(true);
+  });
+
+  /**
+   * Đây là test bắt được lỗi nút gộp. Chuỗi bị cắt vẫn "chạm ngày kết thúc" — nó chỉ
+   * ngắn đi ở đầu kia. Phải đo ĐỘ PHỦ mới thấy.
+   */
+  it('chuỗi phủ phần lớn vòng đời dự án, không chỉ đoạn cuối', () => {
+    const all = rows('P-MAIN');
+    const marked = all.filter((r) => r.is_resource_critical === 1);
+    expect(marked.length).toBeGreaterThan(0);
+
+    const toTime = (s: string): number => new Date(`${s}T00:00:00Z`).getTime();
+    const projectStart = all.reduce((m, r) => (r.start_date < m ? r.start_date : m), '9999');
+    const projectEnd = all.reduce((m, r) => (r.end_date > m ? r.end_date : m), '');
+    const chainStart = marked.reduce((m, r) => (r.start_date < m ? r.start_date : m), '9999');
+
+    const projectSpan = toTime(projectEnd) - toTime(projectStart);
+    const chainSpan = toTime(projectEnd) - toTime(chainStart);
+    expect(projectSpan).toBeGreaterThan(0);
+    // Với lỗi nút gộp, tỷ lệ này tụt xuống khoảng 0,15 trên dev.db.
+    expect(chainSpan / projectSpan).toBeGreaterThan(0.5);
+  });
+
+  /**
+   * Cả điểm của phương án (b) PM chốt: chuỗi phải KHÁC đường găng pha A.
+   *
+   * Giống hệt nhau nghĩa là cạnh do người không đóng góp gì, và §7.2 gọi chênh lệch giữa
+   * hai pha là "chi phí do thiếu người" — không có chênh lệch thì không có con số đó.
+   */
+  it('khác đường găng pha A — cạnh do người có đóng góp', () => {
+    const all = rows('P-MAIN');
+    const onlyResource = all.filter((r) => r.is_critical === 0 && r.is_resource_critical === 1);
+    expect(onlyResource.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * M2: cùng INPUT ra cùng OUTPUT. Nên phải dựng hai DB sạch giống hệt nhau, không phải
+   * xếp lại hai lần trên cùng một DB.
+   *
+   * Bản đầu tôi viết kiểu xếp-lại và nó đỏ — nhưng không phải vì engine bất định. Sau
+   * lần xếp thứ nhất, assignment của P-SIDE đã nằm trong DB và lần sau P-MAIN nạp chúng
+   * làm chỗ đã bị chiếm (§7.12). Input khác thì output khác là ĐÚNG; 85/426 dòng lệch
+   * ngày chính là cơ chế chia sẻ pool đang hoạt động.
+   */
+  it('tất định — hai DB sạch giống hệt cho cùng kết quả (N2, M2)', () => {
+    const build = (): Db => {
+      const fresh = openDatabase(':memory:');
+      migrate(fresh, SCENARIO_AT);
+      buildScenario(fresh, {
+        primaryPayload: JSON.parse(readFileSync(join(FIXTURES, 'wbs-500.json'), 'utf8')),
+        secondaryPayload: buildPayload(100, 'GEO'),
+      });
+      scheduleAllProjects(fresh, { runId: 'X', now: SCENARIO_AT, windowDays: 2000 });
+      return fresh;
+    };
+    const snap = (x: Db): string[] =>
+      (
+        x
+          .prepare(
+            `SELECT t.uid, s.start_date, s.end_date, s.is_resource_critical
+               FROM task t JOIN schedule s ON s.task_uid = t.uid
+              WHERE t.project_id = 'P-MAIN' ORDER BY t.uid`,
+          )
+          .all() as Array<Record<string, unknown>>
+      ).map(
+        (r) =>
+          `${String(r['uid'])} ${String(r['start_date'])} ${String(r['is_resource_critical'])}`,
+      );
+
+    const one = build();
+    const two = build();
+    try {
+      expect(snap(two)).toEqual(snap(one));
+    } finally {
+      one.close();
+      two.close();
+    }
+  });
+});

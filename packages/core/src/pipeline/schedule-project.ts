@@ -29,6 +29,7 @@ import {
 } from '../domain/schedule-audit.js';
 import { reforecast, type ReforecastTask } from '../domain/reforecast.js';
 import { runSgs, type SgsResource, type SgsTask, type SgsScheduleRow } from '../domain/sgs.js';
+import { resourceCriticalPath } from '../domain/resource-critical.js';
 import { validate } from '../domain/validator.js';
 import { recordValidationRun, type RecordedIssue } from '../db/repo/issue-repo.js';
 import type { ValidationReport } from '../domain/validation-types.js';
@@ -312,6 +313,10 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
           projectId: a.projectId,
         }));
 
+  // Đặt tên cho tập cạnh SGS dùng: pha C phải tính mốc ép trên ĐÚNG tập này. Lọc lại
+  // một lần nữa ở dưới sẽ là hai định nghĩa song song, và chúng sẽ trôi khỏi nhau.
+  const sgsEdges = leafEdges.filter((e) => sgsUids.has(e.predUid) && sgsUids.has(e.succUid));
+
   const sgs = runSgs({
     externalReservations,
     projectId: settings.id,
@@ -323,7 +328,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       ],
     })),
     tasks: sgsTasks,
-    edges: leafEdges.filter((e) => sgsUids.has(e.predUid) && sgsUids.has(e.succUid)),
+    edges: sgsEdges,
     resources,
     engine,
     calendarId: lagCalendarId,
@@ -344,23 +349,47 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   }
 
   // Task `done` giữ nguyên ngày thật, ghép vào cùng bảng kết quả (§7.11).
+  //
+  // Hai bản: `fullSchedule` CÓ nút gộp, `schedule` thì không.
+  //
+  // Nút gộp là cấu trúc nội bộ, không có dòng `task` nên không ghi ra DB được — nhưng
+  // trong đồ thị SGS nó là một nút thật, và nhiều chuỗi ràng buộc đi XUYÊN QUA nó. Tính
+  // đường găng trên bản đã gỡ nút gộp là tính trên một đồ thị thủng lỗ: mỗi chỗ thủng
+  // cắt đứt chuỗi, và toàn bộ phần phía trước biến mất khỏi kết quả.
+  //
+  // Đo được trên dev.db: chỉ MỘT nút gộp trên đường đi đã cắt chuỗi UTG từ 9 tháng
+  // xuống còn 6 tuần cuối.
+  const fullSchedule = new Map<string, SgsScheduleRow>(sgs.schedule);
   const schedule = new Map<string, SgsScheduleRow>();
   for (const [uid, row] of sgs.schedule) {
-    // Nút gộp là cấu trúc nội bộ, không có dòng `task` tương ứng nên không ghi ra DB.
     if (joinUids.has(uid)) continue;
     schedule.set(uid, row);
   }
   for (const [uid, row] of forecast.rows) {
     if (row.mode !== 'fixed') continue;
     if (row.fixedStart === null || row.fixedEnd === null) continue;
-    schedule.set(uid, {
+    const fixed: SgsScheduleRow = {
       startDate: row.fixedStart,
       endDate: row.fixedEnd,
       durationDays: engine.workingDaysBetween(lagCalendarId, row.fixedStart, row.fixedEnd) + 1,
       delayReason: null,
       blockingRef: null,
-    });
+    };
+    schedule.set(uid, fixed);
+    fullSchedule.set(uid, fixed);
   }
+
+  // ── Pha C — bước C1: đường găng sau khi san tài nguyên (§7) ───────────────
+  //
+  // Tính TRƯỚC khi ghi để nó vào cùng một transaction với phần còn lại của lịch: hai
+  // thao tác ghi riêng sẽ có một khoảnh khắc lịch mới đi cùng cờ găng cũ.
+  const resourceCritical = resourceCriticalPath({
+    schedule: fullSchedule,
+    edges: sgsEdges,
+    assignments: sgs.assignments,
+    engine,
+    calendarId: lagCalendarId,
+  });
 
   // ── Pha C — ghi kết quả trong một transaction ngắn (§3.1, §4.3) ───────────
   const { writeLockMs } = scheduleRepo.writeScheduleResults(db, {
@@ -369,6 +398,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     cpm,
     schedule,
     assignments: sgs.assignments,
+    resourceCritical,
   });
 
   let projectEnd: DateOnly | null = null;

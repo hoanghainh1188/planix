@@ -168,6 +168,14 @@ export interface WritePayload {
   readonly cpm: ReadonlyMap<string, CpmRowForWrite>;
   readonly schedule: ReadonlyMap<string, SgsScheduleRow>;
   readonly assignments: readonly SgsAssignment[];
+  /**
+   * Task nằm trên đường găng SAU khi san tài nguyên (§7 pha C, bước C1).
+   *
+   * Trước đây cột `is_resource_critical` bị ghi cứng `0`, nên `wbs_get_critical_path`
+   * mode `resource` luôn trả rỗng. Xem
+   * `docs/decisions/2026-09-13-resource-critical-path-chua-co.md`.
+   */
+  readonly resourceCritical: ReadonlySet<string>;
 }
 
 /**
@@ -187,7 +195,7 @@ export function writeScheduleResults(db: Db, payload: WritePayload): { writeLock
        (task_uid, es, ef, ls, lf, total_float, free_float, is_critical,
         start_date, end_date, duration_days, is_resource_critical,
         delay_reason, blocking_ref, computed_at)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 0, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insAssignment = db.prepare(
     `INSERT INTO assignment (task_uid, resource_id, allocation, from_date, to_date, is_pinned)
@@ -216,6 +224,7 @@ export function writeScheduleResults(db: Db, payload: WritePayload): { writeLock
         s.startDate,
         s.endDate,
         s.durationDays,
+        payload.resourceCritical.has(uid) ? 1 : 0,
         s.delayReason,
         s.blockingRef,
         payload.computedAt,
