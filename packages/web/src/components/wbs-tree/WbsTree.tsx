@@ -407,6 +407,19 @@ export function WbsTree({
                         {node.childSequencing === 'sequential' ? 'SEQ' : 'PAR'}
                       </button>
                     ) : null}
+                    {node.linkCount > 0 ? (
+                      /* Ràng buộc quyết định ngày của task nhưng không nằm trong cột nào
+                         của §10.4. Không có dấu này thì cách duy nhất để biết dòng nào bị
+                         nối là mở panel từng dòng một. */
+                      <span
+                        className="wbs__links"
+                        title={`${String(node.linkCount)} dependency ${
+                          node.linkCount === 1 ? 'link' : 'links'
+                        }`}
+                      >
+                        ⇄{node.linkCount}
+                      </span>
+                    ) : null}
                     {node.issueCodes.length > 0 ? (
                       <span className="wbs__flag" title={node.issueCodes.join(', ')} />
                     ) : null}

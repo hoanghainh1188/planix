@@ -4,13 +4,23 @@ import { EvmStrip } from '../components/evm/EvmStrip.js';
 import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
+import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
 import { createProjectStore } from '../model/project-store.js';
 import { toFriendlyError, trpc } from '../data/client.js';
 import { useAsync } from '../data/use-async.js';
-import type { GanttRowData, ProgressBoardData, ProjectSummary, WbsRow } from '../data/types.js';
+import type {
+  DependencyType,
+  GanttRowData,
+  LinkIssue,
+  ProgressBoardData,
+  ProjectSummary,
+  TaskLink,
+  TaskLinks,
+  WbsRow,
+} from '../data/types.js';
 import type { SaveRow } from '../model/progress-model.js';
 import './app.css';
 
@@ -26,6 +36,14 @@ const SCREENS: ReadonlyArray<{ id: Screen; label: string }> = [
   { id: 'gantt', label: 'Gantt' },
   { id: 'progress', label: 'Progress' },
 ];
+
+/**
+ * Cột phải của S1 chia hai tab thay vì xếp chồng hai panel.
+ *
+ * Issues thuộc về CẢ dự án, Links thuộc về MỘT task đang chọn. Cho cả hai cùng hiện thì
+ * ở 1024px mỗi panel còn chưa tới mười dòng — mà danh sách issue vốn đã cần cuộn.
+ */
+type SidePanel = 'issues' | 'links';
 
 export function App(): JSX.Element {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -60,6 +78,9 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [writeError, setWriteError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
   const [editUid, setEditUid] = useState<string | null>(null);
+  const [sidePanel, setSidePanel] = useState<SidePanel>('issues');
+  /** Phản hồi validate của lần sửa ràng buộc gần nhất (§12.4). */
+  const [linkIssues, setLinkIssues] = useState<readonly LinkIssue[]>([]);
   const [pendingDelete, setPendingDelete] = useState<{
     uid: string;
     taskCount: number;
@@ -81,6 +102,12 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     const stillThere = projects.data.some((p) => p.id === remembered);
     setProjectId(stillThere && remembered !== null ? remembered : (projects.data[0]?.id ?? null));
   }, [projects, projectId, projectStore]);
+
+  // Phản hồi validate gắn với MỘT lần sửa trên MỘT task. Đổi task mà vẫn để nguyên thì
+  // PM đọc cảnh báo của task cũ trên task mới.
+  useEffect(() => {
+    setLinkIssues([]);
+  }, [selectedUid]);
 
   function chooseProject(id: string): void {
     setProjectId(id);
@@ -107,6 +134,11 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.progress.board.query({ projectId });
   }, [projectId, screen]);
 
+  const loadLinks = useCallback((): Promise<TaskLinks | null> => {
+    if (selectedUid === null) return Promise.resolve(null);
+    return trpc.wbs.dependencies.query({ taskUid: selectedUid });
+  }, [selectedUid]);
+
   const loadEvm = useCallback(() => {
     if (projectId === null) return Promise.resolve(null);
     return trpc.evm.get.query({ projectId });
@@ -117,8 +149,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const issues = useAsync(loadIssues, [projectId]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
+  const links = useAsync(loadLinks, [selectedUid, savedAt]);
 
   const rows: WbsRow[] = tree.status === 'ready' ? tree.data : [];
+  const selectedRow = rows.find((r) => r.uid === selectedUid) ?? null;
   // Mốc chuẩn của DỰ ÁN (§7.13), không phải hôm nay của máy. Lấy từ danh sách dự án nên
   // Gantt vẽ được vạch mốc chuẩn mà không cần mở màn nhập tiến độ trước.
   const statusDate =
@@ -291,6 +325,68 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  // ── Ràng buộc giữa các task (§6) ──────────────────────────────────────────
+
+  /**
+   * Hai chiều nhưng một API: "A chặn B" và "B chờ A" là CÙNG một cạnh.
+   *
+   * Panel cho PM đứng ở task đang chọn mà nối về cả hai phía, nên chỗ này quy về đúng
+   * cặp (pred, succ) trước khi gọi — thay vì bắt PM phải chọn đúng task rồi mới nối được.
+   */
+  function edgeOf(
+    direction: LinkDirection,
+    otherUid: string,
+  ): { predUid: string; succUid: string } {
+    const self = selectedUid ?? '';
+    return direction === 'before'
+      ? { predUid: otherUid, succUid: self }
+      : { predUid: self, succUid: otherUid };
+  }
+
+  async function addLink(
+    direction: LinkDirection,
+    otherUid: string,
+    type: DependencyType,
+    lagDays: number,
+  ): Promise<void> {
+    if (selectedUid === null) return;
+    setWriteError(null);
+    setWriting(true);
+    try {
+      const res = await trpc.wbs.setDependency.mutate({
+        ...edgeOf(direction, otherUid),
+        type,
+        lagDays,
+      });
+      setLinkIssues(res.issues);
+      // Nạp lại panel và cây — KHÔNG chạy scheduler. §10.1: lịch chỉ đổi khi PM bấm
+      // Recalculate và duyệt bảng so sánh trước.
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  async function removeLink(direction: LinkDirection, link: TaskLink): Promise<void> {
+    if (selectedUid === null) return;
+    setWriteError(null);
+    setWriting(true);
+    try {
+      const res = await trpc.wbs.deleteDependency.mutate({
+        ...edgeOf(direction, link.uid),
+        type: link.type,
+      });
+      setLinkIssues(res.issues);
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
   async function saveProgress(rows: readonly SaveRow[]): Promise<void> {
     setSaving(true);
     setSaveError(null);
@@ -448,10 +544,49 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
         )}
 
         {screen === 'wbs' ? (
-          <IssuePanel
-            issues={issues.status === 'ready' ? issues.data : []}
-            onJumpToTask={setSelectedUid}
-          />
+          <div className="app__side">
+            <div className="app__tabs" role="tablist" aria-label="Side panel">
+              <button
+                type="button"
+                role="tab"
+                className="app__tab"
+                aria-selected={sidePanel === 'issues'}
+                onClick={() => setSidePanel('issues')}
+              >
+                Issues
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className="app__tab"
+                aria-selected={sidePanel === 'links'}
+                onClick={() => setSidePanel('links')}
+              >
+                Links
+                {selectedRow !== null && selectedRow.linkCount > 0 ? (
+                  <b>{selectedRow.linkCount}</b>
+                ) : null}
+              </button>
+            </div>
+
+            {sidePanel === 'issues' ? (
+              <IssuePanel
+                issues={issues.status === 'ready' ? issues.data : []}
+                onJumpToTask={setSelectedUid}
+              />
+            ) : (
+              <DependencyPanel
+                task={selectedRow}
+                links={links.status === 'ready' ? links.data : null}
+                loading={links.status === 'loading'}
+                rows={rows}
+                issues={linkIssues}
+                onAdd={addLink}
+                onRemove={removeLink}
+                busy={writing}
+              />
+            )}
+          </div>
         ) : null}
       </main>
 

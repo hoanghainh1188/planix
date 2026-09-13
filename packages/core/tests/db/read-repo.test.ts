@@ -109,3 +109,15 @@ describe('loadWbsTree — summary được tính lúc đọc (§7.7)', () => {
     expect(a.planStart).not.toBeNull();
   });
 });
+
+describe('loadWbsTree — số liên kết của mỗi dòng', () => {
+  it('đếm cả hai chiều, để PM thấy dòng nào có ràng buộc mà không phải mở từng dòng', () => {
+    // Fixture chỉ có một cạnh A --FS--> B: mỗi đầu đếm 1.
+    expect(byName('A').linkCount).toBe(1);
+    expect(byName('B').linkCount).toBe(1);
+  });
+
+  it('dòng không nối gì đếm 0', () => {
+    expect(byName('Phase').linkCount).toBe(0);
+  });
+});

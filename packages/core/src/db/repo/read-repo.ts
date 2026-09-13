@@ -42,6 +42,14 @@ export interface WbsRow {
   readonly delayReason: string | null;
   /** §10.4 "ô có issue: chấm đỏ góc phải" — mã issue của ĐÚNG run mới nhất. */
   readonly issueCodes: readonly string[];
+  /**
+   * Số ràng buộc chạm vào dòng này, tính cả hai chiều.
+   *
+   * Ràng buộc là thứ quyết định ngày của task, nhưng nó không nằm trên bảng WBS. Không có
+   * con số này thì cách duy nhất để biết một dòng có bị nối hay không là mở panel từng
+   * dòng một — mà cây thì hàng nghìn dòng.
+   */
+  readonly linkCount: number;
 }
 
 export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
@@ -83,6 +91,24 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
     if (list === undefined) issueCodes.set(uid, [r['code'] as string]);
     else list.push(r['code'] as string);
   }
+
+  // Cũng gộp một lần như trên. Cạnh nào cũng có hai đầu, nên UNION ALL rồi đếm theo uid
+  // cho ra số cạnh CHẠM vào task — pred và succ gộp chung, đúng thứ dòng cây cần hiện.
+  const linkCount = new Map<string, number>();
+  const linkRows = db
+    .prepare(
+      `SELECT uid, COUNT(*) AS n FROM (
+         SELECT d.succ_uid AS uid FROM dependency d
+           JOIN task p ON p.uid = d.pred_uid
+          WHERE p.project_id = ?
+         UNION ALL
+         SELECT d.pred_uid AS uid FROM dependency d
+           JOIN task s ON s.uid = d.succ_uid
+          WHERE s.project_id = ?
+       ) GROUP BY uid`,
+    )
+    .all(projectId, projectId) as Array<Record<string, unknown>>;
+  for (const r of linkRows) linkCount.set(r['uid'] as string, r['n'] as number);
 
   // §7.7: summary KHÔNG có dữ liệu riêng — ngày, effort, status, % đều tính từ con
   // "lúc đọc", không lưu xuống. Bỏ bước này thì mọi dòng summary hiện ra rỗng trơn.
@@ -130,6 +156,7 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
       isCritical: !isSummary && r['is_critical'] === 1,
       delayReason: isSummary ? null : ((r['delay_reason'] as string | null) ?? null),
       issueCodes: issueCodes.get(uid) ?? [],
+      linkCount: linkCount.get(uid) ?? 0,
     };
   });
 }
@@ -1065,6 +1092,64 @@ export function deleteDependency(
   return db
     .prepare('DELETE FROM dependency WHERE pred_uid = ? AND succ_uid = ? AND type = ?')
     .run(p.predUid, p.succUid, p.type).changes;
+}
+
+/** Một đầu bên kia của một ràng buộc, kèm đủ thứ để hiện thành một dòng đọc được. */
+export interface TaskDependency {
+  readonly uid: string;
+  readonly wbsCode: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly depth: number;
+  readonly parentUid: string | null;
+  readonly type: DependencyType;
+  readonly lagDays: number;
+}
+
+export interface TaskDependencies {
+  /** Task phải xong (hoặc bắt đầu) trước — cạnh trỏ VÀO task đang xem. */
+  readonly predecessors: readonly TaskDependency[];
+  /** Task chờ task đang xem — cạnh trỏ RA. */
+  readonly successors: readonly TaskDependency[];
+}
+
+/**
+ * Mọi ràng buộc chạm vào một task, cả hai chiều.
+ *
+ * Trả về tên và mã WBS của đầu bên kia chứ không chỉ `uid`: panel nào cũng phải hiện
+ * "1.2 Thiết kế API", và để client tự tra ngược trong cây đã tải là đẩy việc ghép dữ
+ * liệu sang chỗ không nắm được nguồn (§10.1).
+ *
+ * Hai truy vấn cố định, không phụ thuộc số cạnh (CLAUDE.md §8 cấm N+1). Sắp theo
+ * `wbs_code` rồi `type` — hai cạnh cùng cặp task (SS+FF, §6.4) vẫn ra thứ tự cố định (N2).
+ */
+export function loadTaskDependencies(db: Db, taskUid: string): TaskDependencies {
+  const select = (joinColumn: 'pred_uid' | 'succ_uid', whereColumn: 'succ_uid' | 'pred_uid') =>
+    db
+      .prepare(
+        `SELECT t.uid, t.wbs_code, t.name, t.kind, t.depth, t.parent_uid, d.type, d.lag_days
+           FROM dependency d
+           JOIN task t ON t.uid = d.${joinColumn}
+          WHERE d.${whereColumn} = ?
+          ORDER BY t.wbs_code, d.type`,
+      )
+      .all(taskUid) as Array<Record<string, unknown>>;
+
+  const toDependency = (r: Record<string, unknown>): TaskDependency => ({
+    uid: r['uid'] as string,
+    wbsCode: r['wbs_code'] as string,
+    name: r['name'] as string,
+    kind: r['kind'] as string,
+    depth: r['depth'] as number,
+    parentUid: (r['parent_uid'] as string | null) ?? null,
+    type: r['type'] as DependencyType,
+    lagDays: r['lag_days'] as number,
+  });
+
+  return {
+    predecessors: select('pred_uid', 'succ_uid').map(toDependency),
+    successors: select('succ_uid', 'pred_uid').map(toDependency),
+  };
 }
 
 // ── EVM: ghép baseline với tiến độ hiện tại ─────────────────────────────────

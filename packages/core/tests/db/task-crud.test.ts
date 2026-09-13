@@ -12,6 +12,7 @@ import {
   createTask,
   deleteDependency,
   deleteSubtree,
+  loadTaskDependencies,
   setDependency,
   subtreeOf,
 } from '../../src/db/repo/read-repo.js';
@@ -262,5 +263,45 @@ describe('dependency', () => {
     setDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'FS', lagDays: 0 });
     expect(deleteDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'FS' })).toBe(1);
     expect(deleteDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'FS' })).toBe(0);
+  });
+});
+
+describe('đọc dependency của một task', () => {
+  it('trả cả phía trước và phía sau, kèm tên và mã WBS để UI không phải tra thêm', () => {
+    setDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'FS', lagDays: 2 });
+
+    const ofB = loadTaskDependencies(db, uid('B'));
+    expect(ofB.predecessors).toEqual([
+      {
+        uid: uid('A'),
+        wbsCode: '1.1',
+        name: 'A',
+        kind: 'work',
+        depth: 2,
+        parentUid: uid('Root'),
+        type: 'FS',
+        lagDays: 2,
+      },
+    ]);
+    expect(ofB.successors).toEqual([]);
+
+    const ofA = loadTaskDependencies(db, uid('A'));
+    expect(ofA.predecessors).toEqual([]);
+    expect(ofA.successors.map((d) => d.name)).toEqual(['B']);
+  });
+
+  it('task chưa nối gì thì trả hai danh sách rỗng, không phải null', () => {
+    expect(loadTaskDependencies(db, uid('A'))).toEqual({ predecessors: [], successors: [] });
+  });
+
+  it('cặp SS+FF trên cùng hai task hiện thành hai dòng (§6.4 nói đây là hợp lệ)', () => {
+    setDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'SS', lagDays: 0 });
+    setDependency(db, { predUid: uid('A'), succUid: uid('B'), type: 'FF', lagDays: 1 });
+
+    // Sắp theo wbs_code rồi type: cùng một task nối hai kiểu vẫn ra thứ tự cố định (N2).
+    expect(loadTaskDependencies(db, uid('B')).predecessors.map((d) => d.type)).toEqual([
+      'FF',
+      'SS',
+    ]);
   });
 });

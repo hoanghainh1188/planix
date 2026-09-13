@@ -1,0 +1,348 @@
+/*
+ * Panel nối task — §6, §10.4.
+ *
+ * Cùng ngôn ngữ với panel Issues: cột phải, viền trái mảnh, tiêu đề chữ nhỏ in hoa.
+ * Ràng buộc là thứ đọc nhiều hơn sửa, nên danh sách nằm trên, form nằm dưới.
+ */
+
+.links {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border-left: 1px solid var(--c-rule);
+  background: var(--c-surface);
+}
+
+.links__head {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--c-rule);
+}
+
+.links__title {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.links__subject {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: var(--space-1) 0 0;
+  min-width: 0;
+}
+.links__subjectName {
+  font-size: var(--text-base);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.links__code {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-faint);
+}
+
+/* ── Danh sách hai chiều ─────────────────────────────────────────────────── */
+
+.links__group {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--c-rule);
+}
+
+.links__groupTitle {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+.links__groupTitle b {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+
+.links__hint,
+.links__none {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--c-ink-faint);
+}
+
+.links__list {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.links__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  background: var(--c-surface-sunken);
+}
+
+.links__itemName {
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__meta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  white-space: nowrap;
+}
+.links__meta b {
+  font-family: var(--font-mono);
+  color: var(--c-ink);
+}
+
+.links__remove,
+.links__chipClear {
+  padding: 0 var(--space-1);
+  font-size: var(--text-base);
+  line-height: 1;
+  color: var(--c-ink-faint);
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.links__remove:hover:not(:disabled),
+.links__chipClear:hover:not(:disabled) {
+  color: var(--c-critical);
+}
+
+/* ── Phản hồi validate (§12.4) ───────────────────────────────────────────── */
+
+.links__issues {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  list-style: none;
+  border-bottom: 1px solid var(--c-rule);
+  background: var(--c-critical-soft);
+}
+
+.links__issue {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+}
+.links__issue + .links__issue {
+  margin-top: var(--space-2);
+}
+
+/* Mỗi bước một dòng, có mũi tên dẫn: vòng lặp là một CHUỖI, đọc theo hàng dọc rõ hơn
+   là một câu dài bị ngắt dòng tuỳ tiện. */
+.links__path {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+}
+.links__path > span + span::before {
+  content: '↓ ';
+  color: var(--c-ink-faint);
+}
+
+.links__issueCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+.links__issueCode[data-severity='Critical'] {
+  color: var(--c-critical);
+}
+.links__issueCode[data-severity='Major'] {
+  color: var(--c-warn);
+}
+.links__issueCode[data-severity='Minor'] {
+  color: var(--c-ink-faint);
+}
+
+/* ── Form thêm liên kết ──────────────────────────────────────────────────── */
+
+.links__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+}
+
+.links__formTitle {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+
+.links__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.links__row--split {
+  flex-direction: row;
+  gap: var(--space-2);
+}
+.links__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  flex: 1;
+}
+.links__field--narrow {
+  flex: 0 0 6rem;
+}
+
+.links__label {
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+}
+
+.links__select,
+.links__input,
+.links__number {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+}
+.links__number {
+  font-variant-numeric: tabular-nums;
+}
+.links__select:focus-visible,
+.links__input:focus-visible,
+.links__number:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -1px;
+}
+
+/* ── Chọn task ───────────────────────────────────────────────────────────── */
+
+.links__picker {
+  position: relative;
+  min-width: 0;
+}
+
+.links__matches {
+  position: absolute;
+  z-index: 2;
+  inset-inline: 0;
+  top: calc(100% + 2px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule-strong);
+  box-shadow: 0 4px 12px oklch(0% 0 0 / 12%);
+}
+
+.links__match {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+  font-size: var(--text-sm);
+}
+.links__match[data-active] {
+  background: var(--c-selection);
+}
+.links__matchName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__chip {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  min-width: 0;
+  background: var(--c-surface-sunken);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+}
+.links__chipName {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__warn,
+.links__note {
+  margin: 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+.links__warn {
+  color: var(--c-warn);
+}
+.links__note {
+  color: var(--c-ink-faint);
+}
+
+.links__submit {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--c-ink);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.links__submit:hover:not(:disabled) {
+  border-color: var(--c-ink-muted);
+  background: var(--c-surface-sunken);
+}
+.links__submit:disabled {
+  color: var(--c-ink-faint);
+}
+
+.links__empty {
+  padding: var(--space-6) var(--space-3);
+  color: var(--c-ink-faint);
+  font-size: var(--text-sm);
+}
