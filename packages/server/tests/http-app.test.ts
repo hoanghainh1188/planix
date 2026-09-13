@@ -354,3 +354,88 @@ describe('nhật ký request', () => {
     expect(lines[0]?.status).toBeGreaterThanOrEqual(400);
   });
 });
+
+// ── S7 — tải báo cáo Excel (§11) ────────────────────────────────────────────
+
+describe('GET /api/export', () => {
+  async function signIn(a = app): Promise<string> {
+    const res = await a.request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'pm@x.com', password: PASSWORD }),
+      headers: { 'content-type': 'application/json' },
+    });
+    return cookieFrom(res);
+  }
+
+  it('chưa đăng nhập thì 401, không lộ gì', async () => {
+    const res = await app.request('/api/export?project=P&report=full');
+    expect(res.status).toBe(401);
+  });
+
+  it('bản báo cáo lạ thì 400', async () => {
+    const cookie = await signIn();
+    const res = await app.request('/api/export?project=P&report=khong-co', { headers: { cookie } });
+    expect(res.status).toBe(400);
+  });
+
+  it('trả về file xlsx kèm tên file để trình duyệt tải xuống', async () => {
+    const cookie = await signIn();
+    const res = await app.request('/api/export?project=P&report=full', { headers: { cookie } });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('spreadsheetml');
+    expect(res.headers.get('content-disposition')).toMatch(/attachment; filename=".*\.xlsx"/);
+
+    // Thân phải là một file zip thật: xlsx là zip, và zip mở đầu bằng "PK".
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    expect(bytes.length).toBeGreaterThan(0);
+    expect([bytes[0], bytes[1]]).toEqual([0x50, 0x4b]);
+  });
+
+  it('có Critical thì 409 kèm danh sách, KHÔNG trả file dở', async () => {
+    const cookie = await signIn();
+    db.prepare(`UPDATE task SET role = NULL WHERE kind = 'work'`).run();
+
+    const res = await app.request('/api/export?project=P&report=full', { headers: { cookie } });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: string; issues: Array<{ severity: string }> };
+    expect(body.error).toBe('blocked');
+    expect(body.issues.every((i) => i.severity === 'Critical')).toBe(true);
+  });
+
+  /**
+   * §10.6 cho lead bản `full` thôi. Bản `resource` là ma trận người × tuần của cả đội —
+   * thiếu `reportKind` khi kiểm quyền là mở đúng cánh cửa đó.
+   */
+  it('lead tải được bản full nhưng KHÔNG tải được bản resource', async () => {
+    await createUser(
+      db,
+      {
+        id: 'U-LEAD',
+        email: 'lead@x.com',
+        name: 'Lead',
+        password: PASSWORD,
+        isAdmin: false,
+        now: AT,
+      },
+      FAST,
+    );
+    db.prepare(
+      `INSERT INTO user_project (user_id,project_id,role) VALUES ('U-LEAD','P','lead')`,
+    ).run();
+
+    const res = await app.request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'lead@x.com', password: PASSWORD }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const cookie = cookieFrom(res);
+
+    expect(
+      (await app.request('/api/export?project=P&report=full', { headers: { cookie } })).status,
+    ).toBe(200);
+    expect(
+      (await app.request('/api/export?project=P&report=resource', { headers: { cookie } })).status,
+    ).toBe(403);
+  });
+});
