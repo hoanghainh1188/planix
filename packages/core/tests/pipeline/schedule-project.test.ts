@@ -380,6 +380,56 @@ describe('pipeline — rule cần lịch được nối đúng (§8.2, §8.3)', 
     expect(found[0]?.message).toMatch(/Nearest is 2026-02-/);
   });
 
+  /**
+   * Bài quan trọng nhất của `J06`: nó phải đếm assignment của MỌI dự án.
+   *
+   * §7.12 cho hai dự án dùng chung người. Nếu chỉ đếm dự án đang xét thì một người bận
+   * kín ở nơi khác hiện lên là "rảnh 0%" — cảnh báo sai trên mọi dự án, ngay từ dự án thứ
+   * hai. PM chốt cách đo toàn cục ngày 2026-09-13.
+   *
+   * Bài này bật/tắt đúng MỘT biến — việc của người đó ở dự án khác — và khẳng định kết
+   * luận về chính người đó đảo chiều theo, trong khi những người còn lại không đổi.
+   */
+  it('J06: người bận ở dự án KHÁC không còn bị coi là rảnh', () => {
+    importFixture(20);
+
+    // Pool 30 người cho 13 task lá: phần lớn gần như không có việc, đúng thứ `J06` sinh
+    // ra để chỉ. Lấy một người trong số đó làm đối tượng.
+    const before = run({ windowDays: 9000 }).issues.filter((i) => i.code === 'J06');
+    expect(before.length).toBeGreaterThan(0);
+    const target = before[0]?.taskUid ?? '';
+    const idleIds = () =>
+      new Set(
+        run({ windowDays: 9000 })
+          .issues.filter((i) => i.code === 'J06')
+          .map((i) => i.message.split(' ')[1] ?? ''),
+      );
+    const targetId = before[0]?.message.split(' ')[1] ?? '';
+    expect(targetId).not.toBe('');
+    expect(idleIds().has(targetId)).toBe(true);
+    expect(target).toBe(''); // `J06` là chuyện của resource, không gắn vào task nào
+
+    // Giờ cho ĐÚNG người đó một núi việc ở DỰ ÁN KHÁC, phủ trọn cửa sổ.
+    db.prepare(
+      `INSERT INTO project (id,code,name,priority,start_date,status_date,calendar_id,default_location,created_at)
+       VALUES ('Q','GEO','GEO',2,'2026-01-05','2026-01-05','CAL','VN',?)`,
+    ).run(AT);
+    db.prepare(
+      `INSERT INTO task (uid,project_id,wbs_code,depth,sort_order,name,kind,effort_md,role,phase,module,created_at,updated_at)
+       VALUES ('T-OTHER','Q','1',1,1,'Other project work','work',100,'Dev','P1','m1',?,?)`,
+    ).run(AT, AT);
+    db.prepare(
+      `INSERT INTO assignment (task_uid,resource_id,allocation,from_date,to_date,is_pinned)
+       VALUES ('T-OTHER',?,1,'2026-01-05','2030-12-31',0)`,
+    ).run(targetId);
+
+    const after = idleIds();
+    // Người đó thôi rảnh...
+    expect(after.has(targetId)).toBe(false);
+    // ...còn những người khác thì không đổi, tức rule không bị tắt hẳn.
+    expect(after.size).toBeGreaterThan(0);
+  });
+
   it('N06: allocation mỏng kéo dài thì bị ghi nhận', () => {
     importFixture(20);
     // Một task to với đúng một người đủ role: SGS phải hạ allocation để nhét vừa, và nó

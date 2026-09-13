@@ -11,7 +11,7 @@
  * Hàm thuần (CLAUDE.md §3): nhận dữ liệu, trả issue. Không đọc DB, không đọc đồng hồ.
  */
 
-import type { DateOnly } from './date-only.js';
+import { addDays, compareDateOnly, type DateOnly } from './date-only.js';
 import type { DepIssue } from './dependency.js';
 
 /** Đủ để nhận ra một task trong thông điệp, không cần cả `TaskRow`. */
@@ -44,6 +44,9 @@ const THIN_DAYS_LIMIT = 10;
 
 /** §8.2 `J07` — pha B dài hơn pha A quá ngần này thì là thiếu người nghiêm trọng. */
 const PHASE_SKEW_LIMIT = 0.2;
+
+/** §8.2 `J06` — dưới mức này là người đang rảnh. */
+const LOW_UTILISATION = 0.3;
 
 function major(code: string, message: string, taskUid?: string): DepIssue {
   return {
@@ -171,6 +174,82 @@ export function checkThinAllocations(params: {
         a.taskUid,
       ),
     );
+  }
+  return issues;
+}
+
+/**
+ * `J06` — resource có tỷ lệ sử dụng dưới 30%.
+ *
+ * Ba quyết định, PM chốt ngày 2026-09-13 (xem
+ * `docs/decisions/2026-09-13-j06-pool-chung.md`):
+ *
+ * 1. **Đo trên pool CHUNG.** §7.12 cho hai dự án dùng chung người, nên chỉ đếm assignment
+ *    của dự án đang xét sẽ biến một người bận 100% ở nơi khác thành "rảnh 0%" — cảnh báo
+ *    sai trên mọi dự án, ngay từ dự án thứ hai.
+ * 2. **Chỉ báo cho người CÓ làm dự án này.** Đo toàn cục rồi báo ở mọi dự án thì cùng một
+ *    phát hiện lặp lại khắp nơi.
+ * 3. **Cửa sổ tính từ `status_date`, không phải từ đầu dự án.** Đo cả span thì người tham
+ *    gia ở giai đoạn cuối luôn hiện ra là rảnh — dù họ chưa tới lượt. Câu hỏi PM đặt là
+ *    "ai đang rảnh", ở thì hiện tại.
+ *
+ * Mẫu số là năng lực THẬT của người đó trong cửa sổ — lịch A, đã trừ lễ và nghỉ phép cá
+ * nhân. Lấy số ngày lịch làm mẫu số sẽ biến người nghỉ phép dài thành người lười.
+ */
+export function checkResourceUtilisation(params: {
+  /** Người có ít nhất một assignment trong dự án đang xét. */
+  readonly resourceIds: readonly string[];
+  /** Assignment của MỌI dự án — đó là cả điểm của rule này. */
+  readonly assignments: readonly AuditAssignment[];
+  readonly windowStart: DateOnly;
+  readonly windowEnd: DateOnly;
+  /** Lịch A: năng lực của chính người đó trong một ngày (0 | 0.5 | 1). */
+  readonly capacityOn: (resourceId: string, date: DateOnly) => number;
+}): DepIssue[] {
+  const { resourceIds, assignments, windowStart, windowEnd, capacityOn } = params;
+  if (compareDateOnly(windowStart, windowEnd) > 0) return [];
+
+  const byResource = new Map<string, AuditAssignment[]>();
+  for (const a of assignments) {
+    const list = byResource.get(a.resourceId);
+    if (list === undefined) byResource.set(a.resourceId, [a]);
+    else list.push(a);
+  }
+
+  const issues: DepIssue[] = [];
+  // Sắp theo id: thứ tự issue không được phụ thuộc thứ tự mảng vào (N2).
+  for (const resourceId of [...resourceIds].sort()) {
+    let available = 0;
+    let allocated = 0;
+
+    for (let day = windowStart; compareDateOnly(day, windowEnd) <= 0; day = addDays(day, 1)) {
+      const capacity = capacityOn(resourceId, day);
+      if (capacity <= 0) continue;
+      available += capacity;
+
+      for (const a of byResource.get(resourceId) ?? []) {
+        if (compareDateOnly(day, a.fromDate) < 0 || compareDateOnly(day, a.toDate) > 0) continue;
+        // Nhân với capacity: nửa ngày làm ở mức 0.5 allocation là 0.25 người-ngày, không
+        // phải 0.5. Mẫu số cũng tính theo capacity nên hai vế cùng đơn vị.
+        allocated += a.allocation * capacity;
+      }
+    }
+
+    // Không có ngày làm nào trong cửa sổ (nghỉ phép dài, hoặc mới vào sau) — không có mẫu
+    // số thì không kết luận được gì.
+    if (available <= 0) continue;
+
+    const utilisation = allocated / available;
+    if (utilisation >= LOW_UTILISATION) continue;
+
+    issues.push({
+      code: 'J06',
+      severity: 'Major',
+      message:
+        `Resource ${resourceId} is ${String(Math.round(utilisation * 100))}% utilised ` +
+        `between ${windowStart} and ${windowEnd}.`,
+      detail: { resourceId, utilisation: Math.round(utilisation * 100) / 100 },
+    });
   }
   return issues;
 }

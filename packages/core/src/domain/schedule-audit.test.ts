@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkMilestonesOnHolidays,
   checkPhaseSkew,
+  checkResourceUtilisation,
   checkThinAllocations,
   type AuditAssignment,
   type AuditTask,
@@ -177,5 +178,111 @@ describe('N06 — task bị chia mỏng (§7.5, §8.3)', () => {
       workingDaysBetween: (x, y) => workingDaysBetween(x, y),
     });
     expect(issues).toEqual([]);
+  });
+});
+
+describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () => {
+  /** Lịch A giả lập: làm thứ hai–thứ sáu, trừ những ngày nghỉ riêng của từng người. */
+  function makeCapacity(leave: Readonly<Record<string, readonly string[]>> = {}) {
+    return (resourceId: string, date: string): number => {
+      if ((leave[resourceId] ?? []).includes(date)) return 0;
+      const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+      return day === 0 || day === 6 ? 0 : 1;
+    };
+  }
+
+  function run(
+    assignments: readonly AuditAssignment[],
+    over: { resourceIds?: readonly string[]; leave?: Record<string, readonly string[]> } = {},
+  ) {
+    return checkResourceUtilisation({
+      resourceIds: over.resourceIds ?? ['R-1'],
+      assignments,
+      windowStart: d('2026-01-05'),
+      windowEnd: d('2026-01-30'),
+      capacityOn: (r, date) => makeCapacity(over.leave ?? {})(r, date),
+    });
+  }
+
+  function busy(resourceId: string, allocation: number, from = '2026-01-05', to = '2026-01-30') {
+    return { taskUid: 'T-1', resourceId, allocation, fromDate: d(from), toDate: d(to) };
+  }
+
+  it('gần như không có việc thì báo, mức Major', () => {
+    // Cửa sổ có 20 ngày làm; một assignment 1.0 trong 2 ngày = 10%.
+    const issues = run([busy('R-1', 1, '2026-01-05', '2026-01-06')]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe('J06');
+    expect(issues[0]?.severity).toBe('Major');
+    expect(issues[0]?.message).toContain('10% utilised');
+  });
+
+  it('bận thì không báo', () => {
+    expect(run([busy('R-1', 1)])).toEqual([]);
+  });
+
+  it('đúng 30% thì chưa — "dưới 30%" là nhỏ hơn', () => {
+    // 20 ngày làm; 6 ngày làm ở mức 1.0 = 30%.
+    expect(run([busy('R-1', 1, '2026-01-05', '2026-01-12')])).toEqual([]);
+  });
+
+  /**
+   * Đây là lý do rule này phải đo trên pool CHUNG. §7.12 cho hai dự án dùng chung người;
+   * chỉ đếm assignment của dự án đang xét sẽ biến một người bận kín ở nơi khác thành
+   * "rảnh 0%" — cảnh báo sai trên mọi dự án, ngay từ dự án thứ hai.
+   */
+  it('bận ở dự án KHÁC thì vẫn là bận — không báo', () => {
+    const issues = run([
+      busy('R-1', 0.1, '2026-01-05', '2026-01-06'), // chút việc ở dự án này
+      busy('R-1', 1, '2026-01-05', '2026-01-30'), // kín ở dự án khác
+    ]);
+    expect(issues).toEqual([]);
+  });
+
+  it('chỉ báo cho người CÓ trong danh sách — không dội issue về cả pool', () => {
+    const issues = run([busy('R-1', 1), busy('R-2', 0)], { resourceIds: ['R-1'] });
+    expect(issues.map((i) => i.detail?.['resourceId'])).toEqual([]);
+
+    const both = run([busy('R-1', 1)], { resourceIds: ['R-1', 'R-2'] });
+    // R-2 không có assignment nào → 0% → bị báo, nhưng CHỈ khi nó nằm trong danh sách.
+    expect(both.map((i) => i.detail?.['resourceId'])).toEqual(['R-2']);
+  });
+
+  /**
+   * Mẫu số là năng lực THẬT, không phải số ngày lịch. Người nghỉ phép gần hết cửa sổ mà
+   * vẫn làm trọn những ngày còn lại thì không phải người rảnh.
+   */
+  it('nghỉ phép không biến người ta thành lười', () => {
+    const leaveDays: string[] = [];
+    for (const day of [12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30]) {
+      leaveDays.push(`2026-01-${String(day).padStart(2, '0')}`);
+    }
+    const issues = run([busy('R-1', 1, '2026-01-05', '2026-01-09')], {
+      leave: { 'R-1': leaveDays },
+    });
+    // Chỉ còn 5 ngày làm trong cửa sổ, và cả 5 đều có việc → 100%.
+    expect(issues).toEqual([]);
+  });
+
+  it('không có ngày làm nào trong cửa sổ thì im lặng, không chia cho 0', () => {
+    const allDays: string[] = [];
+    for (let day = 1; day <= 31; day++) allDays.push(`2026-01-${String(day).padStart(2, '0')}`);
+    expect(run([], { leave: { 'R-1': allDays } })).toEqual([]);
+  });
+
+  it('cửa sổ rỗng (mốc chuẩn đã qua ngày kết thúc) thì im lặng', () => {
+    const issues = checkResourceUtilisation({
+      resourceIds: ['R-1'],
+      assignments: [],
+      windowStart: d('2026-02-01'),
+      windowEnd: d('2026-01-01'),
+      capacityOn: () => 1,
+    });
+    expect(issues).toEqual([]);
+  });
+
+  it('thứ tự issue theo id, không theo thứ tự mảng vào (N2)', () => {
+    const issues = run([], { resourceIds: ['R-9', 'R-1', 'R-5'] });
+    expect(issues.map((i) => i.detail?.['resourceId'])).toEqual(['R-1', 'R-5', 'R-9']);
   });
 });
