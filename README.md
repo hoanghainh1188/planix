@@ -98,6 +98,20 @@ cli grant --email lead@congty.com --project UTG --role lead --team TM-BE
 **Mật khẩu đọc từ stdin, không bao giờ từ tham số** — tham số nằm lại trong lịch sử shell
 và hiện ra với mọi tiến trình khác qua `ps`.
 
+Xuất báo cáo Excel (§11) — ba bản:
+
+```bash
+cli export --project UTG --report full     --out /data/full.xlsx
+cli export --project UTG --report summary  --out /data/summary.xlsx --depth 3
+cli export --project UTG --report resource --out /data/resource.xlsx
+```
+
+Có issue **Critical** thì lệnh **từ chối xuất** và in danh sách (§11.4) — bản `summary` đi
+thẳng tới khách Nhật nên không được phép chứa mâu thuẫn tổng/chi tiết. Có Major thì vẫn
+xuất nhưng in cảnh báo.
+
+Xuất hai lần trên cùng dữ liệu ra **file giống hệt từng byte** (§11.5).
+
 Sao lưu (§13.2): `cli backup --out /data/backup-$(date +%F).db` — dùng `VACUUM INTO` nên
 an toàn cả khi server đang chạy.
 

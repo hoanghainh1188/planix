@@ -9,12 +9,13 @@
  * sử shell và hiện ra với mọi tiến trình khác qua `ps`.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { migrate, openDatabase, type Db } from '@planix/core/db/migrate.js';
 import { importTasks } from '@planix/core/io/importer.js';
 import { importHolidays } from '@planix/core/db/repo/calendar-repo.js';
+import { exportExcel, ExportBlockedError } from '@planix/core/io/excel/index.js';
 import { availableYears, resolveSeed } from '@planix/core/db/seed/holiday-seed.js';
 import { createUser } from './auth/session.js';
 
@@ -37,6 +38,10 @@ const USAGE = `planix admin
 
   import        --project <CODE> --file <tasks.json>
                 Nạp danh sách task theo §9.2. Có Critical thì từ chối cả file.
+
+  export        --project <CODE> --report <full|summary|resource> --out <file.xlsx>
+                [--depth <n>]   Mặc định depth 3, chỉ dùng cho bản summary.
+                Có issue Critical thì TỪ CHỐI xuất (§11.4).
 
   backup        --out <file.db>
                 Ảnh chụp nhất quán, an toàn cả khi server đang chạy (§13.2).
@@ -240,6 +245,58 @@ export async function run(argv: readonly string[], now: string): Promise<string>
         `Đã nạp ${String(result.tasksAdded)} task`,
         `Issue: ${String(critical)} Critical · ${String(major)} Major · ${String(minor)} Minor`,
       ].join('\n');
+    } finally {
+      db.close();
+    }
+  }
+
+  if (command === 'export') {
+    const code = required(argv, 'project');
+    const report = required(argv, 'report');
+    if (!['full', 'summary', 'resource'].includes(report)) {
+      throw new Error(`--report phải là full, summary hoặc resource (nhận: ${report})`);
+    }
+    const out = resolve(required(argv, 'out'));
+
+    const db = open(now);
+    try {
+      const project = db.prepare('SELECT id FROM project WHERE code = ?').get(code) as
+        { id: string } | undefined;
+      if (project === undefined) throw new Error(`Không có dự án ${code}`);
+
+      const depth = arg(argv, 'depth');
+      const result = await exportExcel(db, {
+        projectId: project.id,
+        report: report as 'full' | 'summary' | 'resource',
+        runId: `cli-${now}`,
+        ...(depth === undefined ? {} : { depth: Number(depth) }),
+      });
+
+      writeFileSync(out, result.buffer);
+
+      const lines = [`Đã xuất ${result.filename} → ${out}`];
+      if (result.warnings.length > 0) {
+        // §11.4: Major vẫn xuất, nhưng phải in danh sách — file đi tới khách, người xuất
+        // cần biết mình đang gửi cái gì.
+        lines.push(`Cảnh báo (${String(result.warnings.length)} Major):`);
+        for (const w of result.warnings) lines.push(`  · ${w}`);
+      }
+      return lines.join('\n');
+    } catch (e) {
+      if (e instanceof ExportBlockedError) {
+        const codes = e.report.issues
+          .filter((i) => i.severity === 'Critical')
+          .map((i) => `  · ${i.code}: ${i.message}`);
+        throw new Error(
+          [
+            `TỪ CHỐI xuất — có ${String(e.report.counts.critical)} lỗi Critical (§11.4):`,
+            ...codes,
+          ].join('\n'),
+          // Giữ nguyên nhân gốc: người đọc log cần cả câu tóm tắt lẫn báo cáo validate.
+          { cause: e },
+        );
+      }
+      throw e;
     } finally {
       db.close();
     }
