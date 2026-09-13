@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-13
 **Phase:** P10
-**Trạng thái:** đã cài đặt theo cách đọc dưới đây — **cần PM xác nhận**
+**Trạng thái:** **PM đã quyết** 2026-09-13 — ba cấp ba cột; §11.3 đã sửa
 
 ## Chỗ chưa rõ
 
@@ -50,3 +50,22 @@ không phải chuyện kỹ thuật. Hai câu hỏi cho PM:
    thêm cột là sửa spec, không tự làm được.
 
 Đổi chỗ này rẻ: chỉ là hai biểu thức trong `io/excel/summary.ts`.
+
+---
+
+## PM quyết — 2026-09-13
+
+**Ba cấp, mỗi cấp một cột.** Thêm 小項目 làm cột C; §11.3 nay có 11 cột.
+
+| Cấp của dòng | 大項目           | 中項目           | 小項目           |
+| ------------ | ---------------- | ---------------- | ---------------- |
+| 1            | tên của chính nó | —                | —                |
+| 2            | tổ tiên cấp 1    | tên của chính nó | —                |
+| 3            | tổ tiên cấp 1    | tổ tiên cấp 2    | tên của chính nó |
+
+Cách thụt lề trong 中項目 mà tôi cài ban đầu đã bị thay. Cách mới đọc thẳng hơn với khách,
+và mỗi cột mang đúng một nghĩa.
+
+**Hệ quả:** bản summary hiện được **tối đa 3 cấp**, vì có đúng ba cột phân cấp. `depth`
+ngoài khoảng 1–3 nay bị **từ chối** kèm thông báo rõ, thay vì lặng lẽ dồn cấp 4 vào cột
+cấp 3 — dồn như thế thì khách đọc ra một cây sai mà không có dấu hiệu nào.

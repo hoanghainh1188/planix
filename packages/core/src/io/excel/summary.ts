@@ -4,9 +4,12 @@
  * §11.4 nói rõ: "Bản summary đi thẳng tới khách Nhật, không được phép chứa mâu thuẫn
  * tổng/chi tiết." Nên mọi con số ở đây lấy từ rollup §7.7, không tính lại.
  *
- * Một chỗ §11.3 để ngỏ: bảng chỉ có hai cột phân cấp (大項目, 中項目) nhưng lại cho hiện
- * "tới cấp chọn trước (mặc định 3)" — tức ba cấp trên hai cột. Cách đọc đã chọn ghi ở
- * docs/decisions/2026-09-13-summary-report-levels.md; cần PM xác nhận.
+ * Ba cấp, ba cột: 大項目 / 中項目 / 小項目 — PM chốt ngày 2026-09-13. Bản §11.3 đầu tiên
+ * chỉ có hai cột phân cấp nhưng lại cho hiện tới cấp 3, nên tên task cấp 3 không có chỗ
+ * đứng. §11.3 đã được sửa theo.
+ *
+ * Hệ quả: bản này hiện được TỐI ĐA 3 cấp, vì có đúng ba cột. `depth` ngoài khoảng 1–3 bị
+ * từ chối thay vì lặng lẽ dồn cấp 4 vào cột cấp 3.
  */
 
 import type ExcelJS from 'exceljs';
@@ -16,6 +19,7 @@ import { statusJa } from './workbook.js';
 const HEADERS = [
   '大項目',
   '中項目',
+  '小項目',
   '担当',
   '状況',
   '進捗率（工数ベース）',
@@ -26,7 +30,10 @@ const HEADERS = [
   '備考',
 ] as const;
 
-const WIDTHS = [26, 40, 16, 10, 18, 12, 12, 12, 12, 30];
+const WIDTHS = [24, 28, 34, 16, 10, 18, 12, 12, 12, 12, 30];
+
+/** Số cột phân cấp của §11.3 — cũng là số cấp sâu nhất bản này hiện được. */
+export const MAX_SUMMARY_DEPTH = 3;
 
 export interface SummaryOptions {
   readonly maxDepth: number;
@@ -43,16 +50,22 @@ export function buildSummarySheet(
   const ws = wb.addWorksheet('サマリー');
   const byUid = new Map(rows.map((r) => [r.uid, r]));
 
-  /** Tên tổ tiên ở cấp 1 — cột 大項目. */
-  function topLevelName(row: ReportRow): string {
+  /**
+   * Tên tổ tiên của dòng ở đúng `level`, hoặc tên chính nó khi `level` bằng depth.
+   *
+   * Đi ngược lên cây thay vì dựa vào `wbs_code`: mã có thể đổi sau mỗi lần renumber
+   * (§4.3), còn quan hệ cha–con thì không.
+   */
+  function ancestorAt(row: ReportRow, level: number): string {
+    if (level > row.depth) return '';
     let cursor: ReportRow | undefined = row;
     const seen = new Set<string>();
-    while (cursor !== undefined && cursor.depth > 1) {
-      if (seen.has(cursor.uid)) return row.name; // cây hỏng: đừng lặp vô hạn
+    while (cursor !== undefined && cursor.depth > level) {
+      if (seen.has(cursor.uid)) return ''; // cây hỏng: đừng lặp vô hạn
       seen.add(cursor.uid);
       cursor = cursor.parentUid === null ? undefined : byUid.get(cursor.parentUid);
     }
-    return cursor?.name ?? row.name;
+    return cursor?.name ?? '';
   }
 
   // §11.3: "Bắt buộc ghi 基準日" — khách Nhật đọc số liệu phải biết nó chốt ngày nào.
@@ -72,9 +85,10 @@ export function buildSummarySheet(
     if (row.depth > options.maxDepth) continue;
 
     const line = ws.addRow([
-      row.depth === 1 ? row.name : topLevelName(row),
-      // Cấp 1 không có 中項目; cấp sâu hơn thụt lề để phân biệt cấp 2 với cấp 3.
-      row.depth === 1 ? '' : `${'    '.repeat(row.depth - 2)}${row.name}`,
+      // Mỗi cấp một cột: dòng cấp 2 để trống 小項目, dòng cấp 1 để trống cả hai.
+      ancestorAt(row, 1),
+      ancestorAt(row, 2),
+      ancestorAt(row, 3),
       row.pic ?? '',
       statusJa(row.status),
       row.percent / 100,
@@ -86,7 +100,7 @@ export function buildSummarySheet(
       row.status === 'blocked' ? (row.blockedNote ?? '') : '',
     ]);
     if (row.depth === 1) line.font = { bold: true };
-    line.getCell(5).numFmt = '0.0%';
+    line.getCell(6).numFmt = '0.0%';
   }
 
   ws.views = [{ state: 'frozen', ySplit: headerRow.number }];

@@ -1264,16 +1264,21 @@ Excel chỉ đi ra. Không có đường nhập ngược.
 |---|---|
 | A | 大項目 |
 | B | 中項目 |
-| C | 担当 |
-| D | 状況 |
-| E | 進捗率（工数ベース） |
-| F | 計画開始 |
-| G | 計画完了 |
-| H | 実績開始 |
-| I | 実績完了 |
-| J | 備考 |
+| C | 小項目 |
+| D | 担当 |
+| E | 状況 |
+| F | 進捗率（工数ベース） |
+| G | 計画開始 |
+| H | 計画完了 |
+| I | 実績開始 |
+| J | 実績完了 |
+| K | 備考 |
 
-- Chỉ hiện tới cấp chọn trước (mặc định 3).
+- Ba cấp, **mỗi cấp một cột**. Dòng cấp 1 chỉ điền 大項目; cấp 2 điền thêm 中項目; cấp 3
+  điền đủ ba. (PM chốt 2026-09-13: bản đầu chỉ có hai cột phân cấp nhưng lại hiện tới
+  cấp 3, nên tên task cấp 3 không có chỗ đứng.)
+- Chỉ hiện tới cấp chọn trước (mặc định 3). **Tối đa 3** — có đúng ba cột phân cấp, nên
+  `depth` ngoài khoảng 1–3 bị từ chối thay vì dồn cấp sâu hơn vào cột cuối.
 - Status dịch: 未着手 / 進行中 / 完了 / 保留.
 - **Bắt buộc** ghi `基準日: YYYY-MM-DD` (`status_date`) trên đầu sheet.
 - Nếu phần lớn task lá là micro task, ghi thêm `完了タスク数ベース`.
