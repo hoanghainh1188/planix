@@ -1,0 +1,292 @@
+/*
+ * S4 — nhập tiến độ (§10.5).
+ *
+ * Hướng thiết kế Swiss như phần còn lại: lưới rõ, chữ số tabular, màu chỉ dùng để mang
+ * NGHĨA (xám = máy đoán, đỏ = ô sai), không dùng để trang trí.
+ */
+
+.pb {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.pb__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-rule-strong);
+  background: var(--c-surface);
+  flex-wrap: wrap;
+}
+
+.pb__counts {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.pb__reviewed {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+}
+.pb__hint,
+.pb__asof {
+  font-size: var(--text-xs);
+  color: var(--c-ink-faint);
+}
+.pb__asof {
+  font-variant-numeric: tabular-nums;
+}
+
+.pb__search {
+  flex: 1;
+  min-width: 12rem;
+  padding: var(--space-2);
+  border: 1px solid var(--c-rule);
+  background: var(--c-surface-sunken);
+  font: inherit;
+}
+
+.pb__toggles {
+  display: flex;
+  gap: var(--space-3);
+}
+.pb__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  white-space: nowrap;
+}
+
+.pb__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.pb__action {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--c-rule-strong);
+  background: var(--c-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+.pb__action:hover:not(:disabled) {
+  background: var(--c-surface-sunken);
+}
+.pb__action--primary {
+  background: var(--c-ink);
+  border-color: var(--c-ink);
+  color: var(--c-surface);
+}
+.pb__action--primary:hover:not(:disabled) {
+  opacity: 0.88;
+  background: var(--c-ink);
+}
+.pb__action:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Thanh thao tác nhóm — chỉ hiện khi có dòng được chọn. */
+.pb__bulk {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--c-surface-sunken);
+  border-bottom: 1px solid var(--c-rule);
+  flex-wrap: wrap;
+}
+.pb__bulkCount {
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-muted);
+}
+.pb__chip {
+  padding: 0.2rem var(--space-2);
+  border: 1px solid var(--c-rule-strong);
+  background: var(--c-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.pb__chip:hover {
+  background: var(--c-surface-sunken);
+}
+
+/* Cụm micro task (§10.5 "Payment module — 12/18 done"). */
+.pb__micro {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--c-rule);
+  overflow-x: auto;
+}
+.pb__microGroup {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: 0.2rem var(--space-2);
+  border: 1px solid var(--c-rule);
+  background: var(--c-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pb__microGroup:hover {
+  border-color: var(--c-ink);
+}
+.pb__microCount {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-muted);
+}
+
+.pb__grid {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+.pb__grid:focus-visible {
+  outline: 2px solid var(--c-accent, var(--c-ink));
+  outline-offset: -2px;
+}
+
+.pb__row {
+  display: grid;
+  grid-template-columns:
+    5.5rem minmax(12rem, 1fr) 7rem 3.5rem 12rem
+    8.5rem 4.5rem 8.5rem 8.5rem minmax(8rem, 12rem);
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.15rem var(--space-4);
+  border-bottom: 1px solid var(--c-rule);
+  border-left: 3px solid transparent;
+  min-width: 76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.pb__row--head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--c-surface);
+  border-bottom: 1px solid var(--c-rule-strong);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-ink-muted);
+  padding-block: var(--space-2);
+}
+
+/*
+ * Dòng còn là ĐỀ XUẤT: chữ nhạt đi. §10.5 nói "màu xám, chưa lưu" — nó phải khác hẳn
+ * dòng lead đã chốt, nếu không sẽ không ai biết mình đang nhìn số của máy hay của người.
+ */
+.pb__row--suggested {
+  color: var(--c-ink-faint);
+}
+.pb__row--suggested .pb__input {
+  color: var(--c-ink-faint);
+}
+
+.pb__row--selected {
+  background: var(--c-surface-sunken);
+}
+.pb__row--cursor {
+  border-left-color: var(--c-ink);
+}
+.pb__row--invalid {
+  background: color-mix(in oklab, var(--c-danger, oklch(58% 0.19 25)) 7%, transparent);
+}
+
+.pb__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb__tag {
+  margin-left: var(--space-2);
+  padding: 0 0.3rem;
+  border: 1px solid var(--c-rule-strong);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-ink-muted);
+}
+.pb__code,
+.pb__md,
+.pb__plan {
+  font-size: var(--text-xs);
+}
+.pb__pic,
+.pb__plan {
+  color: var(--c-ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pb__md {
+  text-align: right;
+}
+.pb__dash {
+  color: var(--c-ink-faint);
+}
+
+.pb__input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.15rem 0.25rem;
+  border: 1px solid transparent;
+  background: transparent;
+  font: inherit;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.pb__input:hover {
+  border-color: var(--c-rule);
+}
+.pb__input:focus {
+  border-color: var(--c-ink);
+  background: var(--c-surface);
+  outline: none;
+}
+.pb__input--invalid {
+  border-color: var(--c-danger, oklch(58% 0.19 25));
+  background: var(--c-surface);
+}
+
+.pb__errors {
+  grid-column: 1 / -1;
+  padding: 0 0 var(--space-2) 5.5rem;
+  font-size: var(--text-xs);
+  color: var(--c-danger, oklch(58% 0.19 25));
+}
+
+.pb__empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--c-ink-faint);
+}
+
+.pb__ontrack {
+  padding: var(--space-3);
+  border: none;
+  border-top: 1px solid var(--c-rule);
+  background: var(--c-surface-sunken);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  cursor: pointer;
+  text-align: center;
+}
+.pb__ontrack:hover {
+  color: var(--c-ink);
+}

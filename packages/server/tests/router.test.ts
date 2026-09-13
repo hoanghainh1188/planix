@@ -254,3 +254,96 @@ describe('S6 — issues', () => {
     await expectTrpcCode(caller('U-OUT').issues.list({ projectId: 'P' }), 'FORBIDDEN');
   });
 });
+
+// ── P9 · S4 — ràng buộc §10.5 kiểm ở SERVER ─────────────────────────────────
+
+describe('S4 — server KHÔNG tin client (§10.5, §10.6)', () => {
+  /** Lưu một dòng hợp lệ để có mốc so sánh "đường hạnh phúc vẫn chạy". */
+  const okRow = {
+    taskUid: 'T-0002',
+    status: 'in_progress' as const,
+    percent: 50,
+    actualStart: '2026-01-05',
+    actualEnd: null,
+    blockedNote: null,
+  };
+
+  it('dòng hợp lệ lưu được', async () => {
+    expect(await caller('U-PM').progress.save({ rows: [okRow] })).toEqual({ saved: 1 });
+  });
+
+  it('actual_end trước actual_start bị TỪ CHỐI, dù UI có gửi lên', async () => {
+    await expectTrpcCode(
+      caller('U-PM').progress.save({
+        rows: [{ ...okRow, status: 'done', percent: 100, actualEnd: '2026-01-01' }],
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('actual_start sau status_date bị từ chối', async () => {
+    await expectTrpcCode(
+      caller('U-PM').progress.save({ rows: [{ ...okRow, actualStart: '2026-06-01' }] }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('blocked mà không có ghi chú bị từ chối', async () => {
+    await expectTrpcCode(
+      caller('U-PM').progress.save({ rows: [{ ...okRow, status: 'blocked', blockedNote: null }] }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('blocked có ghi chú thì lưu, và ghi chú xuống ĐÚNG cột', async () => {
+    await caller('U-PM').progress.save({
+      rows: [{ ...okRow, status: 'blocked', blockedNote: 'Waiting for client API key' }],
+    });
+    const saved = db
+      .prepare('SELECT status, blocked_note FROM progress WHERE task_uid = ?')
+      .get('T-0002') as { status: string; blocked_note: string };
+    expect(saved.status).toBe('blocked');
+    expect(saved.blocked_note).toBe('Waiting for client API key');
+  });
+
+  it('MỘT dòng hỏng thì CẢ LÔ không được ghi — §10.5 "một transaction"', async () => {
+    await expectTrpcCode(
+      caller('U-PM').progress.save({
+        rows: [okRow, { ...okRow, status: 'blocked', blockedNote: '  ' }],
+      }),
+      'BAD_REQUEST',
+    );
+    const count = db.prepare('SELECT COUNT(*) AS n FROM progress').get() as { n: number };
+    expect(count.n).toBe(0);
+  });
+
+  it('task không tồn tại trả NOT_FOUND', async () => {
+    await expectTrpcCode(
+      caller('U-PM').progress.save({ rows: [{ ...okRow, taskUid: 'T-9999' }] }),
+      'NOT_FOUND',
+    );
+  });
+});
+
+describe('S4 — bảng đề xuất (§10.5)', () => {
+  it('PM thấy cả bảng, kèm status_date và ngưỡng micro task', async () => {
+    const board = await caller('U-PM').progress.board({ projectId: 'P' });
+    expect(board.statusDate).toBe('2026-01-05');
+    expect(board.microThreshold).toBe(0.5);
+    expect(board.rows.map((r) => r.name)).toContain('A');
+  });
+
+  it('không có dòng summary trong bảng nhập tiến độ', async () => {
+    const board = await caller('U-PM').progress.board({ projectId: 'P' });
+    expect(board.rows.map((r) => r.name)).not.toContain('Root');
+  });
+
+  it('lead chỉ thấy task của team mình', async () => {
+    const board = await caller('U-LEAD').progress.board({ projectId: 'P' });
+    expect(board.rows.every((r) => r.teamId === 'TM-BE')).toBe(true);
+  });
+
+  it('người ngoài dự án không đọc được', async () => {
+    await expectTrpcCode(caller('U-OUT').progress.board({ projectId: 'P' }), 'FORBIDDEN');
+  });
+});
