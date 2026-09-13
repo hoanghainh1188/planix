@@ -363,3 +363,89 @@ export function buildClusters(
   }
   return out;
 }
+
+/** Nút gộp sinh thêm khi mở rộng cạnh summary. Không phải task thật, duration 0. */
+export interface SyntheticNode {
+  readonly uid: string;
+}
+
+export interface CompactExpansion {
+  readonly edges: readonly DepEdge[];
+  readonly syntheticNodes: readonly SyntheticNode[];
+}
+
+/**
+ * Mở rộng cạnh summary sang lá theo cách KHÔNG nở tích Descartes.
+ *
+ * §6.2 viết ràng buộc là:
+ *
+ *     với mọi lá b thuộc B: b.earliest_start >= max(lá a thuộc A: a.finish) + lag
+ *
+ * Vế phải là MỘT điểm gộp, không phải quan hệ từng-cặp. `expandSummaryEdges` sinh
+ * |A| × |B| cạnh và cho cùng kết quả, nhưng với cụm 100 lá mỗi bên thì một cạnh thành
+ * 10.000 cạnh — và §6.2 đặt ra cơ chế cụm chính là để đồ thị NHỎ đi, không phải to ra.
+ *
+ * Ở đây chèn một nút gộp duration 0 giữa hai bên: |A| + |B| cạnh thay vì |A| × |B|.
+ * Ngữ nghĩa giữ nguyên vì nút gộp chỉ bắt đầu khi mọi lá của A xong, và mọi lá của B
+ * chỉ bắt đầu sau nó.
+ *
+ * Cạnh giữa hai lá thì giữ nguyên, không chèn gì.
+ */
+export function expandSummaryEdgesCompact(
+  tasks: readonly DepTask[],
+  edges: readonly DepEdge[],
+): CompactExpansion {
+  const byUid = new Map(tasks.map((t) => [t.uid, t]));
+  const children = childrenOf(tasks);
+  const leafCache = new Map<string, string[]>();
+
+  function leaves(uid: string): string[] {
+    const hit = leafCache.get(uid);
+    if (hit !== undefined) return hit;
+    const value = leavesUnder(uid, children, byUid);
+    leafCache.set(uid, value);
+    return value;
+  }
+
+  const out: DepEdge[] = [];
+  const synthetic: SyntheticNode[] = [];
+  let counter = 0;
+
+  // Duyệt theo khoá đã sắp để tên nút gộp tái lập được (N2).
+  const ordered = [...edges].sort((a, b) => {
+    if (a.predUid !== b.predUid) return a.predUid < b.predUid ? -1 : 1;
+    if (a.succUid !== b.succUid) return a.succUid < b.succUid ? -1 : 1;
+    return a.type < b.type ? -1 : a.type > b.type ? 1 : 0;
+  });
+
+  for (const edge of ordered) {
+    const predLeaves = leaves(edge.predUid);
+    const succLeaves = leaves(edge.succUid);
+    if (predLeaves.length === 0 || succLeaves.length === 0) continue;
+
+    // Cặp lá–lá, hoặc bên nào chỉ có một lá: nối thẳng, chèn nút gộp chỉ tốn thêm.
+    if (predLeaves.length === 1 || succLeaves.length === 1) {
+      for (const p of predLeaves) {
+        for (const s of succLeaves) {
+          out.push({ predUid: p, succUid: s, type: edge.type, lagDays: edge.lagDays });
+        }
+      }
+      continue;
+    }
+
+    counter++;
+    const joinUid = `~join-${String(counter).padStart(5, '0')}`;
+    synthetic.push({ uid: joinUid });
+
+    // Lá của A xong → nút gộp. Lag dồn hết vào vế sau để không cộng nhiều lần.
+    for (const p of predLeaves) {
+      out.push({ predUid: p, succUid: joinUid, type: edge.type, lagDays: 0 });
+    }
+    // Nút gộp → lá của B, mang lag của cạnh gốc.
+    for (const s of succLeaves) {
+      out.push({ predUid: joinUid, succUid: s, type: 'FS', lagDays: edge.lagDays });
+    }
+  }
+
+  return { edges: out, syntheticNodes: synthetic };
+}

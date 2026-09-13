@@ -1,0 +1,240 @@
+/**
+ * Đọc dữ liệu cho scheduler và ghi kết quả — SPEC.md §3.1, §4.3.
+ *
+ * §4.3: `schedule` và `assignment` bị **xoá sạch và tính lại từ đầu** mỗi lần chạy
+ * engine. Không update từng dòng. Đây là điều kiện của M2 — update từng dòng sẽ để lại
+ * dòng cũ của lần chạy trước khi cây task đổi, và kết quả thôi tái lập được.
+ *
+ * §3.1: scheduler chạy trong RAM, chỉ ghi xuống DB trong một transaction NGẮN ở cuối,
+ * giữ write lock dưới 200 ms.
+ */
+
+import type { Db } from '../migrate.js';
+import type { DepTask } from '../../domain/dependency.js';
+import type { SgsAssignment, SgsScheduleRow } from '../../domain/sgs.js';
+import type { DateOnly } from '../../domain/date-only.js';
+
+export interface ProjectSettings {
+  readonly id: string;
+  readonly code: string;
+  readonly startDate: DateOnly;
+  readonly statusDate: DateOnly;
+  readonly calendarId: string;
+  readonly defaultLocation: string;
+  readonly defaultMaxParallel: number;
+  readonly minAllocation: number;
+  readonly dependencyMaxLevel: number;
+  readonly microTaskThreshold: number;
+}
+
+export function loadProjectSettings(db: Db, projectId: string): ProjectSettings | undefined {
+  const r = db
+    .prepare(
+      `SELECT id, code, start_date, status_date, calendar_id, default_location,
+              default_max_parallel, min_allocation, dependency_max_level, micro_task_threshold
+       FROM project WHERE id = ?`,
+    )
+    .get(projectId) as Record<string, unknown> | undefined;
+  if (r === undefined) return undefined;
+  return {
+    id: r['id'] as string,
+    code: r['code'] as string,
+    startDate: r['start_date'] as DateOnly,
+    statusDate: r['status_date'] as DateOnly,
+    calendarId: r['calendar_id'] as string,
+    defaultLocation: r['default_location'] as string,
+    defaultMaxParallel: r['default_max_parallel'] as number,
+    minAllocation: r['min_allocation'] as number,
+    dependencyMaxLevel: r['dependency_max_level'] as number,
+    microTaskThreshold: r['micro_task_threshold'] as number,
+  };
+}
+
+/** Lịch B của dự án: §6.1 chốt lag luôn cộng theo lịch của `default_location`. */
+export function loadLagCalendarId(db: Db, defaultLocation: string): string {
+  const r = db.prepare('SELECT calendar_id FROM location WHERE id = ?').get(defaultLocation) as
+    { calendar_id: string } | undefined;
+  if (r === undefined) throw new Error(`Unknown location: ${defaultLocation}`);
+  return r.calendar_id;
+}
+
+/** Task kèm status từ `progress` — task chưa có dòng progress coi như `not_started`. */
+export function loadDepTasks(db: Db, projectId: string): DepTask[] {
+  const rows = db
+    .prepare(
+      `SELECT t.uid, t.parent_uid, t.sort_order, t.depth, t.kind, t.child_sequencing,
+              COALESCE(p.status, 'not_started') AS status
+       FROM task t
+       LEFT JOIN progress p ON p.task_uid = t.uid
+       WHERE t.project_id = ?
+       ORDER BY t.uid`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    uid: r['uid'] as string,
+    parentUid: (r['parent_uid'] as string | null) ?? null,
+    sortOrder: r['sort_order'] as number,
+    depth: r['depth'] as number,
+    kind: r['kind'] as DepTask['kind'],
+    childSequencing: (r['child_sequencing'] as DepTask['childSequencing']) ?? null,
+    status: r['status'] as DepTask['status'],
+  }));
+}
+
+export interface ResourceCapability {
+  readonly resourceId: string;
+  readonly role: string;
+  readonly proficiency: number;
+  readonly maxParallel: number | null;
+}
+
+export function loadResourceCapabilities(db: Db): ResourceCapability[] {
+  const rows = db
+    .prepare(
+      `SELECT rr.resource_id, rr.role, rr.proficiency, r.max_parallel
+       FROM resource_role rr JOIN resource r ON r.id = rr.resource_id
+       ORDER BY rr.resource_id, rr.role`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    resourceId: r['resource_id'] as string,
+    role: r['role'] as string,
+    proficiency: r['proficiency'] as number,
+    maxParallel: (r['max_parallel'] as number | null) ?? null,
+  }));
+}
+
+export interface SchedulingFacts {
+  readonly uid: string;
+  readonly wbsCode: string;
+  readonly kind: 'summary' | 'work' | 'milestone';
+  readonly effortMd: number | null;
+  readonly role: string | null;
+  readonly priority: number;
+  readonly pinnedResource: string | null;
+  readonly constraintType: 'ASAP' | 'SNET' | 'FNLT' | 'MSO' | null;
+  readonly constraintDate: DateOnly | null;
+  readonly status: string;
+  readonly percent: number;
+  readonly remainingMd: number | null;
+  readonly actualStart: DateOnly | null;
+  readonly actualEnd: DateOnly | null;
+}
+
+export function loadSchedulingFacts(db: Db, projectId: string): SchedulingFacts[] {
+  const rows = db
+    .prepare(
+      `SELECT t.uid, t.wbs_code, t.kind, t.effort_md, t.role, t.priority,
+              t.pinned_resource, t.constraint_type, t.constraint_date,
+              COALESCE(p.status,'not_started') AS status,
+              COALESCE(p.percent,0) AS percent,
+              p.remaining_md, p.actual_start, p.actual_end
+       FROM task t
+       LEFT JOIN progress p ON p.task_uid = t.uid
+       WHERE t.project_id = ?
+       ORDER BY t.uid`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    uid: r['uid'] as string,
+    wbsCode: r['wbs_code'] as string,
+    kind: r['kind'] as SchedulingFacts['kind'],
+    effortMd: (r['effort_md'] as number | null) ?? null,
+    role: (r['role'] as string | null) ?? null,
+    priority: r['priority'] as number,
+    pinnedResource: (r['pinned_resource'] as string | null) ?? null,
+    constraintType: (r['constraint_type'] as SchedulingFacts['constraintType']) ?? null,
+    constraintDate: (r['constraint_date'] as DateOnly | null) ?? null,
+    status: r['status'] as string,
+    percent: r['percent'] as number,
+    remainingMd: (r['remaining_md'] as number | null) ?? null,
+    actualStart: (r['actual_start'] as DateOnly | null) ?? null,
+    actualEnd: (r['actual_end'] as DateOnly | null) ?? null,
+  }));
+}
+
+export interface CpmRowForWrite {
+  readonly es: DateOnly;
+  readonly ef: DateOnly;
+  readonly ls: DateOnly;
+  readonly lf: DateOnly;
+  readonly totalFloat: number;
+  readonly isCritical: boolean;
+}
+
+export interface WritePayload {
+  readonly projectId: string;
+  readonly computedAt: string;
+  readonly cpm: ReadonlyMap<string, CpmRowForWrite>;
+  readonly schedule: ReadonlyMap<string, SgsScheduleRow>;
+  readonly assignments: readonly SgsAssignment[];
+}
+
+/**
+ * Ghi kết quả engine. Xoá sạch rồi chèn lại, trong MỘT transaction (§4.3, §3.1).
+ *
+ * Trả về thời gian giữ write lock để gọi bên ngoài kiểm được ngưỡng 200 ms của §3.1.
+ */
+export function writeScheduleResults(db: Db, payload: WritePayload): { writeLockMs: number } {
+  const delSchedule = db.prepare(
+    `DELETE FROM schedule WHERE task_uid IN (SELECT uid FROM task WHERE project_id = ?)`,
+  );
+  const delAssignment = db.prepare(
+    `DELETE FROM assignment WHERE task_uid IN (SELECT uid FROM task WHERE project_id = ?)`,
+  );
+  const insSchedule = db.prepare(
+    `INSERT INTO schedule
+       (task_uid, es, ef, ls, lf, total_float, free_float, is_critical,
+        start_date, end_date, duration_days, is_resource_critical,
+        delay_reason, blocking_ref, computed_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, 0, ?, ?, ?)`,
+  );
+  const insAssignment = db.prepare(
+    `INSERT INTO assignment (task_uid, resource_id, allocation, from_date, to_date, is_pinned)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+  );
+
+  const started = performance.now();
+  db.transaction(() => {
+    delSchedule.run(payload.projectId);
+    delAssignment.run(payload.projectId);
+
+    // Duyệt theo uid đã sắp: thứ tự chèn ảnh hưởng rowid, và rowid lọt vào mọi truy vấn
+    // không có ORDER BY tường minh. Giữ nó cố định để kết quả tái lập (M2).
+    for (const uid of [...payload.schedule.keys()].sort()) {
+      const s = payload.schedule.get(uid);
+      if (s === undefined) continue;
+      const c = payload.cpm.get(uid);
+      insSchedule.run(
+        uid,
+        c?.es ?? null,
+        c?.ef ?? null,
+        c?.ls ?? null,
+        c?.lf ?? null,
+        c?.totalFloat ?? null,
+        c?.isCritical === true ? 1 : 0,
+        s.startDate,
+        s.endDate,
+        s.durationDays,
+        s.delayReason,
+        s.blockingRef,
+        payload.computedAt,
+      );
+    }
+
+    for (const a of [...payload.assignments].sort((x, y) =>
+      x.taskUid < y.taskUid ? -1 : x.taskUid > y.taskUid ? 1 : 0,
+    )) {
+      insAssignment.run(
+        a.taskUid,
+        a.resourceId,
+        a.allocation,
+        a.fromDate,
+        a.toDate,
+        a.isPinned ? 1 : 0,
+      );
+    }
+  })();
+
+  return { writeLockMs: performance.now() - started };
+}
