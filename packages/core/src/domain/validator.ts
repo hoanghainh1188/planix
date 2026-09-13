@@ -1,8 +1,11 @@
 /**
  * Rule Validator — SPEC.md §8.
  *
- * P1 cài đặt đủ mức Critical `C01`–`C12` (§8.1). Mức Major/Minor thuộc các phase sau,
- * khi đã có lịch để đối chiếu.
+ * P1 cài đặt đủ mức Critical `C01`–`C12` (§8.1). Mức Major/Minor phần lớn thuộc các phase
+ * sau, khi đã có lịch để đối chiếu; `N01` và `N08` không cần lịch nên nằm ở đây.
+ *
+ * Các rule §8.2/§8.3 còn thiếu được liệt kê ở
+ * `docs/decisions/2026-09-13-validator-rules-con-thieu.md`.
  *
  * `C06` ở đây là **mức cấu trúc**, không phải mức đầy đủ — xem
  * `docs/decisions/2026-09-12-c06-partial-at-p1.md`. Mức đầy đủ cần forward pass của
@@ -29,6 +32,7 @@ export function validate(input: ValidationInput): ValidationReport {
   checkDependencyRefs(input, byUid, issues);
   checkDependencyLevel(input, byUid, issues);
   checkCycles(input, byUid, issues);
+  checkDependencyStyle(input, byUid, issues);
   checkMsoStructural(input, byUid, issues);
   checkProgress(input, byUid, issues);
 
@@ -66,6 +70,20 @@ function critical(
   detail?: Record<string, unknown>,
 ): ValidationIssue {
   const issue: ValidationIssue = { severity: 'Critical', code, message };
+  return {
+    ...issue,
+    ...(task === undefined ? {} : { taskUid: task.uid, wbsCode: task.wbsCode }),
+    ...(detail === undefined ? {} : { detail }),
+  };
+}
+
+function minor(
+  code: string,
+  message: string,
+  task?: TaskRow,
+  detail?: Record<string, unknown>,
+): ValidationIssue {
+  const issue: ValidationIssue = { severity: 'Minor', code, message };
   return {
     ...issue,
     ...(task === undefined ? {} : { taskUid: task.uid, wbsCode: task.wbsCode }),
@@ -248,6 +266,68 @@ function checkDependencyLevel(
           ),
         );
       }
+    }
+  }
+}
+
+// ── N01, N08 — cách khai báo ràng buộc (§6.1, §6.3) ─────────────────────────
+
+/**
+ * `N01` — cạnh SF, và `N08` — cạnh lá sang lá khác cha.
+ *
+ * Cả hai đều mức Minor: §8.3 là "ghi nhận", không phải "cấm". Engine vẫn xếp lịch bình
+ * thường; đây là chỗ để PM nhìn lại xem có phải mình gõ nhầm không.
+ *
+ * Vì sao `N01` tồn tại: §6.1 — "SF hiếm dùng trong phần mềm, hay bị AI sinh nhầm. Engine
+ * chấp nhận nhưng LUÔN ghi N01". Với một tool mà đầu vào có thể do AI sinh ra (§12), đây
+ * là tấm lưới duy nhất bắt được một quan hệ viết ngược.
+ *
+ * Vì sao `N08` tồn tại: §6.2 xếp lịch THEO CỤM, và cạnh giữa hai lá khác cha vượt ra
+ * ngoài cụm. Cùng cha thì không — đó chính là "Cách 2" mà §6.3 cho phép.
+ *
+ * Chồng lấn với `C12` là có thật và đã biết: một cạnh lá-khác-cha nằm sâu hơn
+ * `dependency_max_level` dính cả hai. Hai rule nói hai điều khác nhau về cùng một cạnh
+ * ("khai báo sai cấp" và "vượt ra ngoài cụm"), nên không rule nào được nuốt rule kia.
+ * Xem docs/decisions/2026-09-13-c12-vs-sibling-edges.md.
+ */
+function checkDependencyStyle(
+  input: ValidationInput,
+  byUid: ReadonlyMap<string, TaskRow>,
+  issues: ValidationIssue[],
+): void {
+  // "Lá" hiểu theo CẤU TRÚC — không có con — chứ không theo `kind`. Một summary rỗng
+  // không có cụm nào để mà xếp theo cụm, nên với §6.2 nó cư xử y như một lá.
+  const hasChildren = new Set<string>();
+  for (const t of input.tasks) {
+    if (t.parentUid !== null) hasChildren.add(t.parentUid);
+  }
+  const isLeaf = (uid: string): boolean => !hasChildren.has(uid);
+
+  for (const d of input.dependencies) {
+    const pred = byUid.get(d.predUid);
+    const succ = byUid.get(d.succUid);
+    // Đầu hỏng đã có C03; gắn issue vào một uid không tồn tại chỉ tạo thêm nhiễu.
+    if (pred === undefined || succ === undefined) continue;
+
+    if (d.type === 'SF') {
+      // Gắn vào task PHÍA SAU: nó là task bị ràng buộc, và là dòng PM sẽ mở ra xem.
+      issues.push(
+        minor('N01', 'SF is rarely correct. Did you mean FS?', succ, {
+          predUid: pred.uid,
+          succUid: succ.uid,
+        }),
+      );
+    }
+
+    if (isLeaf(pred.uid) && isLeaf(succ.uid) && pred.parentUid !== succ.parentUid) {
+      issues.push(
+        minor(
+          'N08',
+          `Leaf task ${succ.wbsCode} depends on leaf task ${pred.wbsCode} under a different parent.`,
+          succ,
+          { predUid: pred.uid, succUid: succ.uid },
+        ),
+      );
     }
   }
 }
