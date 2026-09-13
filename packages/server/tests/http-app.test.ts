@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase } from '@planix/core/db/migrate.js';
 import { importTasks } from '@planix/core/io/importer.js';
 import { createApp } from '../src/http/app.js';
+import { silentSink, type RequestLogEntry } from '../src/http/request-log.js';
 import { createUser } from '../src/auth/session.js';
 
 const AT = '2026-09-13T09:00:00.000Z';
@@ -12,7 +13,15 @@ let db: ReturnType<typeof openDatabase>;
 let app: ReturnType<typeof createApp>;
 
 function makeApp(over = {}) {
-  return createApp({ db, dbPath: ':memory:', enableHsts: true, now: () => AT, ...over });
+  // Mặc định câm: nhật ký ra stdout sẽ trộn vào kết quả test và chẳng ai đọc.
+  return createApp({
+    db,
+    dbPath: ':memory:',
+    enableHsts: true,
+    now: () => AT,
+    log: silentSink,
+    ...over,
+  });
 }
 
 /** Lấy cookie phiên từ phản hồi đăng nhập. */
@@ -246,5 +255,102 @@ describe('tRPC qua HTTP', () => {
     const body = JSON.parse(raw) as { error?: { data?: Record<string, unknown> } };
     expect(body.error?.data?.['code']).toBe('UNAUTHORIZED');
     expect(body.error?.data).not.toHaveProperty('stack');
+  });
+});
+
+// ── Nhật ký request ─────────────────────────────────────────────────────────
+
+describe('nhật ký request', () => {
+  function collector() {
+    const lines: RequestLogEntry[] = [];
+    return { lines, sink: (e: RequestLogEntry) => lines.push(e) };
+  }
+
+  it('ghi một dòng cho mỗi request, kèm mã, trạng thái và thời gian', async () => {
+    const { lines, sink } = collector();
+    const logged = makeApp({ log: sink });
+
+    await logged.request('/api/health');
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({ method: 'GET', path: '/api/health', status: 200 });
+    expect(lines[0]?.id).toMatch(/^[0-9a-f]{12}$/);
+    expect(lines[0]?.ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it('chưa đăng nhập thì userId là null', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request('/api/me');
+    expect(lines[0]).toMatchObject({ status: 401, userId: null });
+  });
+
+  it('đã đăng nhập thì ghi ai gọi — đó là câu hỏi khi đi truy nguyên', async () => {
+    const { lines, sink } = collector();
+    const logged = makeApp({ log: sink });
+    const res = await logged.request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'pm@x.com', password: PASSWORD }),
+      headers: { 'content-type': 'application/json' },
+    });
+    const cookie = cookieFrom(res);
+
+    await logged.request('/trpc/projects.list', { headers: { cookie } });
+
+    const trpcLine = lines.find((l) => l.path === '/trpc/projects.list');
+    expect(trpcLine?.userId).toBe('U-PM');
+  });
+
+  /**
+   * Đây là điều quan trọng nhất của cả file: tRPC nhét input của truy vấn GET vào query
+   * string — mã dự án, tên task, đôi khi cả thứ PM vừa gõ. Ghi nguyên query là biến nhật
+   * ký vận hành thành một bản sao dữ liệu dự án, thứ không ai kiểm soát vòng đời.
+   */
+  it('KHÔNG ghi query string', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request(
+      '/trpc/wbs.tree?input=' + encodeURIComponent(JSON.stringify({ projectId: 'P' })),
+    );
+
+    expect(lines[0]?.path).toBe('/trpc/wbs.tree');
+    expect(JSON.stringify(lines[0])).not.toContain('projectId');
+  });
+
+  it('đăng nhập THÀNH CÔNG ghi lại ai vừa vào', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'pm@x.com', password: PASSWORD }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(lines[0]).toMatchObject({ path: '/api/login', status: 200, userId: 'U-PM' });
+  });
+
+  it('đăng nhập HỎNG thì userId vẫn null — chưa xác thực thì chưa biết là ai', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'pm@x.com', password: 'sai-mat-khau' }),
+      headers: { 'content-type': 'application/json' },
+    });
+    expect(lines[0]).toMatchObject({ status: 401, userId: null });
+  });
+
+  it('cũng không ghi body — mật khẩu đi qua đúng đường này', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: 'pm@x.com', password: PASSWORD }),
+      headers: { 'content-type': 'application/json' },
+    });
+
+    expect(JSON.stringify(lines)).not.toContain(PASSWORD);
+    expect(JSON.stringify(lines)).not.toContain('pm@x.com');
+  });
+
+  it('vẫn ghi khi request hỏng — đó mới là request người ta đi tìm', async () => {
+    const { lines, sink } = collector();
+    await makeApp({ log: sink }).request('/trpc/wbs.tree', { method: 'POST' });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.status).toBeGreaterThanOrEqual(400);
   });
 });
