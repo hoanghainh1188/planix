@@ -238,3 +238,78 @@ export function writeScheduleResults(db: Db, payload: WritePayload): { writeLock
 
   return { writeLockMs: performance.now() - started };
 }
+
+/**
+ * Dự án tham gia lập lịch, theo đúng thứ tự §7.12.
+ *
+ * Chỉ `planning` và `active`: dự án `onhold` hoặc `closed` không được chiếm nhân sự.
+ * Trùng `priority` thì tie-break theo `code` tăng dần — bậc chốt, vì `code` là UNIQUE.
+ */
+export function loadSchedulableProjects(
+  db: Db,
+): Array<{ id: string; code: string; priority: number }> {
+  return db
+    .prepare(
+      `SELECT id, code, priority FROM project
+       WHERE status IN ('planning','active')
+       ORDER BY priority ASC, code ASC`,
+    )
+    .all() as Array<{ id: string; code: string; priority: number }>;
+}
+
+export interface ExternalAssignmentRow {
+  readonly resourceId: string;
+  readonly fromDate: DateOnly;
+  readonly toDate: DateOnly;
+  readonly allocation: number;
+  readonly projectId: string;
+}
+
+/**
+ * Assignment của MỌI dự án khác — pool nhân sự là toàn cục (§7.12).
+ *
+ * Dự án `onhold` / `closed` vẫn được tính: người của họ đã bị giữ chỗ trên thực tế, và
+ * bỏ qua sẽ khiến engine hứa một người đang bận ở nơi khác.
+ */
+export function loadExternalAssignments(db: Db, excludeProjectId: string): ExternalAssignmentRow[] {
+  const rows = db
+    .prepare(
+      `SELECT a.resource_id, a.from_date, a.to_date, a.allocation, t.project_id
+       FROM assignment a JOIN task t ON t.uid = a.task_uid
+       WHERE t.project_id != ?
+       ORDER BY a.resource_id, a.from_date, t.project_id, a.task_uid`,
+    )
+    .all(excludeProjectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    resourceId: r['resource_id'] as string,
+    fromDate: r['from_date'] as DateOnly,
+    toDate: r['to_date'] as DateOnly,
+    allocation: r['allocation'] as number,
+    projectId: r['project_id'] as string,
+  }));
+}
+
+/**
+ * Người đang làm các task `in_progress`, đọc TRƯỚC khi xoá bảng `assignment`.
+ *
+ * §7.12 nói "việc đang chạy không bị dời". Nhưng §4.3 lại xoá sạch `assignment` mỗi lần
+ * chạy engine, trong khi thông tin "ai đang làm task này" chỉ nằm ở đúng bảng đó — một
+ * vòng luẩn quẩn trong spec. Cách thoát: đọc ra trước khi xoá, rồi ghim lại người cũ.
+ *
+ * Không ghim thì mỗi lần recalculate, một người đang làm dở có thể bị thay bằng người
+ * khác chỉ vì RESOURCE_KEY thấy người kia rảnh hơn — và PM sẽ thấy nhân sự nhảy loạn
+ * giữa các tuần mà không hiểu vì sao.
+ */
+export function loadRunningAssignees(db: Db, projectId: string): Map<string, string> {
+  const rows = db
+    .prepare(
+      `SELECT a.task_uid, a.resource_id
+       FROM assignment a
+       JOIN task t ON t.uid = a.task_uid
+       JOIN progress p ON p.task_uid = a.task_uid
+       WHERE t.project_id = ? AND p.status IN ('in_progress','blocked')
+       ORDER BY a.task_uid`,
+    )
+    .all(projectId) as Array<{ task_uid: string; resource_id: string }>;
+  return new Map(rows.map((r) => [r.task_uid, r.resource_id]));
+}
