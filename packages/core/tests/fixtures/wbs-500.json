@@ -660,6 +660,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 300
     },
     {
@@ -670,6 +672,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 400
     },
     {
@@ -680,6 +684,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 500
     },
     {
@@ -690,6 +696,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 600
     },
     {
@@ -700,6 +708,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 700
     },
     {
@@ -710,6 +720,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 300
     },
     {
@@ -720,6 +732,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 400
     },
     {
@@ -730,6 +744,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 500
     },
     {
@@ -740,6 +756,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 600
     },
     {
@@ -750,6 +768,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 700
     },
     {
@@ -760,6 +780,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 300
     },
     {
@@ -770,6 +792,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 400
     },
     {
@@ -780,6 +804,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 500
     },
     {
@@ -790,6 +816,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 600
     },
     {
@@ -800,6 +828,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 700
     },
     {
@@ -810,6 +840,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 300
     },
     {
@@ -820,6 +852,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 400
     },
     {
@@ -830,6 +864,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 500
     },
     {
@@ -840,6 +876,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 600
     },
     {
@@ -850,6 +888,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 700
     },
     {
@@ -860,6 +900,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 300
     },
     {
@@ -870,6 +912,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 400
     },
     {
@@ -880,6 +924,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 500
     },
     {
@@ -890,6 +936,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 600
     },
     {
@@ -900,6 +948,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 700
     },
     {
@@ -910,6 +960,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 300
     },
     {
@@ -920,6 +972,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 400
     },
     {
@@ -930,6 +984,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 500
     },
     {
@@ -940,6 +996,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 600
     },
     {
@@ -950,6 +1008,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 700
     },
     {
@@ -960,6 +1020,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 300
     },
     {
@@ -970,6 +1032,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 400
     },
     {
@@ -980,6 +1044,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 500
     },
     {
@@ -990,6 +1056,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 600
     },
     {
@@ -1000,6 +1068,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 700
     },
     {
@@ -1010,6 +1080,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 300
     },
     {
@@ -1020,6 +1092,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 400
     },
     {
@@ -1030,6 +1104,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 500
     },
     {
@@ -1040,6 +1116,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 600
     },
     {
@@ -1050,6 +1128,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 700
     },
     {
@@ -1060,6 +1140,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 300
     },
     {
@@ -1070,6 +1152,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 400
     },
     {
@@ -1080,6 +1164,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 500
     },
     {
@@ -1090,6 +1176,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 600
     },
     {
@@ -1100,6 +1188,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 700
     },
     {
@@ -1110,6 +1200,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 300
     },
     {
@@ -1120,6 +1212,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 400
     },
     {
@@ -1130,6 +1224,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 500
     },
     {
@@ -1140,6 +1236,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 600
     },
     {
@@ -1150,6 +1248,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 700
     },
     {
@@ -1160,6 +1260,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 300
     },
     {
@@ -1170,6 +1272,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 400
     },
     {
@@ -1180,6 +1284,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 500
     },
     {
@@ -1190,6 +1296,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 600
     },
     {
@@ -1200,6 +1308,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 700
     },
     {
@@ -1210,6 +1320,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 300
     },
     {
@@ -1220,6 +1332,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 400
     },
     {
@@ -1230,6 +1344,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 500
     },
     {
@@ -1240,6 +1356,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 600
     },
     {
@@ -1250,6 +1368,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 700
     },
     {
@@ -1260,6 +1380,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 300
     },
     {
@@ -1270,6 +1392,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 400
     },
     {
@@ -1280,6 +1404,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 500
     },
     {
@@ -1290,6 +1416,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 600
     },
     {
@@ -1300,6 +1428,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 700
     },
     {
@@ -1310,6 +1440,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 300
     },
     {
@@ -1320,6 +1452,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 400
     },
     {
@@ -1330,6 +1464,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 500
     },
     {
@@ -1340,6 +1476,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 600
     },
     {
@@ -1350,6 +1488,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 700
     },
     {
@@ -1360,6 +1500,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 300
     },
     {
@@ -1370,6 +1512,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 400
     },
     {
@@ -1380,6 +1524,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 500
     },
     {
@@ -1390,6 +1536,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 600
     },
     {
@@ -1400,6 +1548,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 700
     },
     {
@@ -1410,6 +1560,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 300
     },
     {
@@ -1420,6 +1572,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 400
     },
     {
@@ -1430,6 +1584,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 500
     },
     {
@@ -1440,6 +1596,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 600
     },
     {
@@ -1450,6 +1608,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 700
     },
     {
@@ -1460,6 +1620,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 300
     },
     {
@@ -1470,6 +1632,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 400
     },
     {
@@ -1480,6 +1644,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 500
     },
     {
@@ -1490,6 +1656,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 600
     },
     {
@@ -1500,6 +1668,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 700
     },
     {
@@ -1510,6 +1680,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 300
     },
     {
@@ -1520,6 +1692,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 400
     },
     {
@@ -1530,6 +1704,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 500
     },
     {
@@ -1540,6 +1716,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 600
     },
     {
@@ -1550,6 +1728,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 700
     },
     {
@@ -1560,6 +1740,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 300
     },
     {
@@ -1570,6 +1752,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 400
     },
     {
@@ -1580,6 +1764,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 500
     },
     {
@@ -1590,6 +1776,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 600
     },
     {
@@ -1600,6 +1788,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 700
     },
     {
@@ -1610,6 +1800,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 300
     },
     {
@@ -1619,6 +1811,8 @@
       "kind": "milestone",
       "effort_md": 0,
       "category": "Milestone",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 100
     },
     {
@@ -1629,6 +1823,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 500
     },
     {
@@ -1639,6 +1835,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 600
     },
     {
@@ -1649,6 +1847,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 700
     },
     {
@@ -1659,6 +1859,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 300
     },
     {
@@ -1669,6 +1871,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 400
     },
     {
@@ -1679,6 +1883,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 500
     },
     {
@@ -1689,6 +1895,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 600
     },
     {
@@ -1699,6 +1907,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 700
     },
     {
@@ -1709,6 +1919,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 300
     },
     {
@@ -1719,6 +1931,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 400
     },
     {
@@ -1729,6 +1943,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 500
     },
     {
@@ -1739,6 +1955,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 600
     },
     {
@@ -1749,6 +1967,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 700
     },
     {
@@ -1759,6 +1979,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 300
     },
     {
@@ -1769,6 +1991,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 400
     },
     {
@@ -1779,6 +2003,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 500
     },
     {
@@ -1789,6 +2015,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 600
     },
     {
@@ -1799,6 +2027,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 700
     },
     {
@@ -1809,6 +2039,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 300
     },
     {
@@ -1819,6 +2051,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 400
     },
     {
@@ -1829,6 +2063,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 500
     },
     {
@@ -1839,6 +2075,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 600
     },
     {
@@ -1849,6 +2087,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 700
     },
     {
@@ -1859,6 +2099,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 300
     },
     {
@@ -1869,6 +2111,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 400
     },
     {
@@ -1879,6 +2123,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 500
     },
     {
@@ -1889,6 +2135,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 600
     },
     {
@@ -1899,6 +2147,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 700
     },
     {
@@ -1909,6 +2159,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 300
     },
     {
@@ -1919,6 +2171,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 400
     },
     {
@@ -1929,6 +2183,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 500
     },
     {
@@ -1939,6 +2195,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 600
     },
     {
@@ -1949,6 +2207,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 700
     },
     {
@@ -1959,6 +2219,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 300
     },
     {
@@ -1969,6 +2231,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 400
     },
     {
@@ -1979,6 +2243,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 500
     },
     {
@@ -1989,6 +2255,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 600
     },
     {
@@ -1999,6 +2267,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 700
     },
     {
@@ -2009,6 +2279,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 300
     },
     {
@@ -2019,6 +2291,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 400
     },
     {
@@ -2029,6 +2303,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 500
     },
     {
@@ -2039,6 +2315,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 600
     },
     {
@@ -2049,6 +2327,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 700
     },
     {
@@ -2059,6 +2339,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 300
     },
     {
@@ -2069,6 +2351,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 400
     },
     {
@@ -2079,6 +2363,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 500
     },
     {
@@ -2089,6 +2375,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 600
     },
     {
@@ -2099,6 +2387,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 700
     },
     {
@@ -2109,6 +2399,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 300
     },
     {
@@ -2119,6 +2411,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 400
     },
     {
@@ -2129,6 +2423,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 500
     },
     {
@@ -2139,6 +2435,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 600
     },
     {
@@ -2149,6 +2447,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 700
     },
     {
@@ -2159,6 +2459,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 300
     },
     {
@@ -2169,6 +2471,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 400
     },
     {
@@ -2179,6 +2483,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 500
     },
     {
@@ -2189,6 +2495,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 600
     },
     {
@@ -2199,6 +2507,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 700
     },
     {
@@ -2209,6 +2519,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 300
     },
     {
@@ -2219,6 +2531,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 400
     },
     {
@@ -2229,6 +2543,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 500
     },
     {
@@ -2239,6 +2555,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 600
     },
     {
@@ -2249,6 +2567,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 700
     },
     {
@@ -2259,6 +2579,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 300
     },
     {
@@ -2269,6 +2591,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 400
     },
     {
@@ -2279,6 +2603,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 500
     },
     {
@@ -2289,6 +2615,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 600
     },
     {
@@ -2299,6 +2627,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 700
     },
     {
@@ -2309,6 +2639,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 300
     },
     {
@@ -2319,6 +2651,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 400
     },
     {
@@ -2329,6 +2663,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 500
     },
     {
@@ -2339,6 +2675,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 600
     },
     {
@@ -2349,6 +2687,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 700
     },
     {
@@ -2359,6 +2699,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 300
     },
     {
@@ -2369,6 +2711,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 400
     },
     {
@@ -2379,6 +2723,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 500
     },
     {
@@ -2389,6 +2735,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 600
     },
     {
@@ -2399,6 +2747,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 700
     },
     {
@@ -2409,6 +2759,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 300
     },
     {
@@ -2419,6 +2771,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 400
     },
     {
@@ -2429,6 +2783,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 500
     },
     {
@@ -2439,6 +2795,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 600
     },
     {
@@ -2449,6 +2807,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 700
     },
     {
@@ -2459,6 +2819,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 300
     },
     {
@@ -2469,6 +2831,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 400
     },
     {
@@ -2479,6 +2843,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 500
     },
     {
@@ -2489,6 +2855,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 600
     },
     {
@@ -2499,6 +2867,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 700
     },
     {
@@ -2509,6 +2879,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 300
     },
     {
@@ -2519,6 +2891,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 400
     },
     {
@@ -2529,6 +2903,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 500
     },
     {
@@ -2539,6 +2915,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 600
     },
     {
@@ -2549,6 +2927,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 700
     },
     {
@@ -2559,6 +2939,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 300
     },
     {
@@ -2569,6 +2951,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 400
     },
     {
@@ -2579,6 +2963,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 500
     },
     {
@@ -2588,6 +2974,8 @@
       "kind": "milestone",
       "effort_md": 0,
       "category": "Milestone",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 100
     },
     {
@@ -2598,6 +2986,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 700
     },
     {
@@ -2608,6 +2998,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 300
     },
     {
@@ -2618,6 +3010,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 400
     },
     {
@@ -2628,6 +3022,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 500
     },
     {
@@ -2638,6 +3034,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 600
     },
     {
@@ -2648,6 +3046,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 700
     },
     {
@@ -2658,6 +3058,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 300
     },
     {
@@ -2668,6 +3070,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 400
     },
     {
@@ -2678,6 +3082,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 500
     },
     {
@@ -2688,6 +3094,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 600
     },
     {
@@ -2698,6 +3106,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 700
     },
     {
@@ -2708,6 +3118,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 300
     },
     {
@@ -2718,6 +3130,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 400
     },
     {
@@ -2728,6 +3142,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 500
     },
     {
@@ -2738,6 +3154,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 600
     },
     {
@@ -2748,6 +3166,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 700
     },
     {
@@ -2758,6 +3178,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 300
     },
     {
@@ -2768,6 +3190,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 400
     },
     {
@@ -2778,6 +3202,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 500
     },
     {
@@ -2788,6 +3214,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 600
     },
     {
@@ -2798,6 +3226,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 700
     },
     {
@@ -2808,6 +3238,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 300
     },
     {
@@ -2818,6 +3250,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 400
     },
     {
@@ -2828,6 +3262,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 500
     },
     {
@@ -2838,6 +3274,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 600
     },
     {
@@ -2848,6 +3286,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 700
     },
     {
@@ -2858,6 +3298,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 300
     },
     {
@@ -2868,6 +3310,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 400
     },
     {
@@ -2878,6 +3322,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 500
     },
     {
@@ -2888,6 +3334,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 600
     },
     {
@@ -2898,6 +3346,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 700
     },
     {
@@ -2908,6 +3358,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 300
     },
     {
@@ -2918,6 +3370,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 400
     },
     {
@@ -2928,6 +3382,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 500
     },
     {
@@ -2938,6 +3394,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 600
     },
     {
@@ -2948,6 +3406,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 700
     },
     {
@@ -2958,6 +3418,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 300
     },
     {
@@ -2968,6 +3430,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 400
     },
     {
@@ -2978,6 +3442,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 500
     },
     {
@@ -2988,6 +3454,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 600
     },
     {
@@ -2998,6 +3466,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 700
     },
     {
@@ -3008,6 +3478,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 300
     },
     {
@@ -3018,6 +3490,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 400
     },
     {
@@ -3028,6 +3502,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 500
     },
     {
@@ -3038,6 +3514,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 600
     },
     {
@@ -3048,6 +3526,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 700
     },
     {
@@ -3058,6 +3538,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 300
     },
     {
@@ -3068,6 +3550,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 400
     },
     {
@@ -3078,6 +3562,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 500
     },
     {
@@ -3088,6 +3574,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 600
     },
     {
@@ -3098,6 +3586,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 700
     },
     {
@@ -3108,6 +3598,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 300
     },
     {
@@ -3118,6 +3610,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 400
     },
     {
@@ -3128,6 +3622,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 500
     },
     {
@@ -3138,6 +3634,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 600
     },
     {
@@ -3148,6 +3646,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 700
     },
     {
@@ -3158,6 +3658,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 300
     },
     {
@@ -3168,6 +3670,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 400
     },
     {
@@ -3178,6 +3682,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 500
     },
     {
@@ -3188,6 +3694,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 600
     },
     {
@@ -3198,6 +3706,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 700
     },
     {
@@ -3208,6 +3718,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 300
     },
     {
@@ -3218,6 +3730,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 400
     },
     {
@@ -3228,6 +3742,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 500
     },
     {
@@ -3238,6 +3754,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 600
     },
     {
@@ -3248,6 +3766,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 700
     },
     {
@@ -3258,6 +3778,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 300
     },
     {
@@ -3268,6 +3790,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 400
     },
     {
@@ -3278,6 +3802,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 500
     },
     {
@@ -3288,6 +3814,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 600
     },
     {
@@ -3298,6 +3826,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 700
     },
     {
@@ -3308,6 +3838,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 300
     },
     {
@@ -3318,6 +3850,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 400
     },
     {
@@ -3328,6 +3862,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 500
     },
     {
@@ -3338,6 +3874,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 600
     },
     {
@@ -3348,6 +3886,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 700
     },
     {
@@ -3358,6 +3898,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 300
     },
     {
@@ -3368,6 +3910,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 400
     },
     {
@@ -3378,6 +3922,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 500
     },
     {
@@ -3388,6 +3934,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 600
     },
     {
@@ -3398,6 +3946,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 700
     },
     {
@@ -3408,6 +3958,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 300
     },
     {
@@ -3418,6 +3970,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 400
     },
     {
@@ -3428,6 +3982,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 500
     },
     {
@@ -3438,6 +3994,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 600
     },
     {
@@ -3448,6 +4006,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 700
     },
     {
@@ -3458,6 +4018,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 300
     },
     {
@@ -3468,6 +4030,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 400
     },
     {
@@ -3478,6 +4042,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 500
     },
     {
@@ -3488,6 +4054,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 600
     },
     {
@@ -3498,6 +4066,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 700
     },
     {
@@ -3508,6 +4078,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 300
     },
     {
@@ -3518,6 +4090,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 400
     },
     {
@@ -3528,6 +4102,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 500
     },
     {
@@ -3538,6 +4114,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 600
     },
     {
@@ -3548,6 +4126,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 700
     },
     {
@@ -3557,6 +4137,8 @@
       "kind": "milestone",
       "effort_md": 0,
       "category": "Milestone",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 100
     },
     {
@@ -3567,6 +4149,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 400
     },
     {
@@ -3577,6 +4161,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 500
     },
     {
@@ -3587,6 +4173,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 600
     },
     {
@@ -3597,6 +4185,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 700
     },
     {
@@ -3607,6 +4197,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 300
     },
     {
@@ -3617,6 +4209,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 400
     },
     {
@@ -3627,6 +4221,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 500
     },
     {
@@ -3637,6 +4233,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 600
     },
     {
@@ -3647,6 +4245,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 700
     },
     {
@@ -3657,6 +4257,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 300
     },
     {
@@ -3667,6 +4269,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 400
     },
     {
@@ -3677,6 +4281,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 500
     },
     {
@@ -3687,6 +4293,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 600
     },
     {
@@ -3697,6 +4305,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 700
     },
     {
@@ -3707,6 +4317,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 300
     },
     {
@@ -3717,6 +4329,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 400
     },
     {
@@ -3727,6 +4341,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 500
     },
     {
@@ -3737,6 +4353,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 600
     },
     {
@@ -3747,6 +4365,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 700
     },
     {
@@ -3757,6 +4377,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 300
     },
     {
@@ -3767,6 +4389,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 400
     },
     {
@@ -3777,6 +4401,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 500
     },
     {
@@ -3787,6 +4413,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 600
     },
     {
@@ -3797,6 +4425,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 700
     },
     {
@@ -3807,6 +4437,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 300
     },
     {
@@ -3817,6 +4449,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 400
     },
     {
@@ -3827,6 +4461,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 500
     },
     {
@@ -3837,6 +4473,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 600
     },
     {
@@ -3847,6 +4485,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 700
     },
     {
@@ -3857,6 +4497,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 300
     },
     {
@@ -3867,6 +4509,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 400
     },
     {
@@ -3877,6 +4521,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 500
     },
     {
@@ -3887,6 +4533,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 600
     },
     {
@@ -3897,6 +4545,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 700
     },
     {
@@ -3907,6 +4557,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 300
     },
     {
@@ -3917,6 +4569,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 400
     },
     {
@@ -3927,6 +4581,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 500
     },
     {
@@ -3937,6 +4593,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 600
     },
     {
@@ -3947,6 +4605,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 700
     },
     {
@@ -3957,6 +4617,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 300
     },
     {
@@ -3967,6 +4629,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 400
     },
     {
@@ -3977,6 +4641,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 500
     },
     {
@@ -3987,6 +4653,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 600
     },
     {
@@ -3997,6 +4665,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 700
     },
     {
@@ -4007,6 +4677,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 300
     },
     {
@@ -4017,6 +4689,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 400
     },
     {
@@ -4027,6 +4701,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 500
     },
     {
@@ -4037,6 +4713,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 600
     },
     {
@@ -4047,6 +4725,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 700
     },
     {
@@ -4057,6 +4737,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 300
     },
     {
@@ -4067,6 +4749,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 400
     },
     {
@@ -4077,6 +4761,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 500
     },
     {
@@ -4087,6 +4773,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 600
     },
     {
@@ -4097,6 +4785,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 700
     },
     {
@@ -4107,6 +4797,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 300
     },
     {
@@ -4117,6 +4809,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 400
     },
     {
@@ -4127,6 +4821,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 500
     },
     {
@@ -4137,6 +4833,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 600
     },
     {
@@ -4147,6 +4845,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 700
     },
     {
@@ -4157,6 +4857,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 300
     },
     {
@@ -4167,6 +4869,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 400
     },
     {
@@ -4177,6 +4881,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 500
     },
     {
@@ -4187,6 +4893,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 600
     },
     {
@@ -4197,6 +4905,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 700
     },
     {
@@ -4207,6 +4917,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 300
     },
     {
@@ -4217,6 +4929,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 400
     },
     {
@@ -4227,6 +4941,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 500
     },
     {
@@ -4237,6 +4953,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 600
     },
     {
@@ -4247,6 +4965,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 700
     },
     {
@@ -4257,6 +4977,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 300
     },
     {
@@ -4267,6 +4989,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-9",
       "priority": 400
     },
     {
@@ -4277,6 +5001,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-10",
       "priority": 500
     },
     {
@@ -4287,6 +5013,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-0",
       "priority": 600
     },
     {
@@ -4297,6 +5025,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-1",
       "priority": 700
     },
     {
@@ -4307,6 +5037,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-2",
       "priority": 300
     },
     {
@@ -4317,6 +5049,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-3",
       "priority": 400
     },
     {
@@ -4327,6 +5061,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-4",
       "priority": 500
     },
     {
@@ -4337,6 +5073,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-5",
       "priority": 600
     },
     {
@@ -4347,6 +5085,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-6",
       "priority": 700
     },
     {
@@ -4357,6 +5097,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-7",
       "priority": 300
     },
     {
@@ -4367,6 +5109,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-8",
       "priority": 400
     },
     {
@@ -4377,6 +5121,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P4",
+      "module": "mod-3-9",
       "priority": 500
     },
     {
@@ -4387,6 +5133,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P4",
+      "module": "mod-3-10",
       "priority": 600
     },
     {
@@ -4397,6 +5145,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-0",
       "priority": 700
     },
     {
@@ -4407,6 +5157,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-1",
       "priority": 300
     },
     {
@@ -4417,6 +5169,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-2",
       "priority": 400
     },
     {
@@ -4427,6 +5181,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-3",
       "priority": 500
     },
     {
@@ -4437,6 +5193,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-4",
       "priority": 600
     },
     {
@@ -4447,6 +5205,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-5",
       "priority": 700
     },
     {
@@ -4457,6 +5217,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-6",
       "priority": 300
     },
     {
@@ -4467,6 +5229,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-7",
       "priority": 400
     },
     {
@@ -4477,6 +5241,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-8",
       "priority": 500
     },
     {
@@ -4487,6 +5253,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P5",
+      "module": "mod-4-9",
       "priority": 600
     },
     {
@@ -4497,6 +5265,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P5",
+      "module": "mod-4-10",
       "priority": 700
     },
     {
@@ -4507,6 +5277,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-0",
       "priority": 300
     },
     {
@@ -4517,6 +5289,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-1",
       "priority": 400
     },
     {
@@ -4526,6 +5300,8 @@
       "kind": "milestone",
       "effort_md": 0,
       "category": "Milestone",
+      "phase": "P6",
+      "module": "mod-5-2",
       "priority": 100
     },
     {
@@ -4536,6 +5312,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-3",
       "priority": 600
     },
     {
@@ -4546,6 +5324,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-4",
       "priority": 700
     },
     {
@@ -4556,6 +5336,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-5",
       "priority": 300
     },
     {
@@ -4566,6 +5348,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-6",
       "priority": 400
     },
     {
@@ -4576,6 +5360,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-7",
       "priority": 500
     },
     {
@@ -4586,6 +5372,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-8",
       "priority": 600
     },
     {
@@ -4596,6 +5384,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P6",
+      "module": "mod-5-9",
       "priority": 700
     },
     {
@@ -4606,6 +5396,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P6",
+      "module": "mod-5-10",
       "priority": 300
     },
     {
@@ -4616,6 +5408,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-0",
       "priority": 400
     },
     {
@@ -4626,6 +5420,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-1",
       "priority": 500
     },
     {
@@ -4636,6 +5432,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-2",
       "priority": 600
     },
     {
@@ -4646,6 +5444,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-3",
       "priority": 700
     },
     {
@@ -4656,6 +5456,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-4",
       "priority": 300
     },
     {
@@ -4666,6 +5468,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-5",
       "priority": 400
     },
     {
@@ -4676,6 +5480,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-6",
       "priority": 500
     },
     {
@@ -4686,6 +5492,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-7",
       "priority": 600
     },
     {
@@ -4696,6 +5504,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-8",
       "priority": 700
     },
     {
@@ -4706,6 +5516,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P1",
+      "module": "mod-0-9",
       "priority": 300
     },
     {
@@ -4716,6 +5528,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P1",
+      "module": "mod-0-10",
       "priority": 400
     },
     {
@@ -4726,6 +5540,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-0",
       "priority": 500
     },
     {
@@ -4736,6 +5552,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-1",
       "priority": 600
     },
     {
@@ -4746,6 +5564,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-2",
       "priority": 700
     },
     {
@@ -4756,6 +5576,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-3",
       "priority": 300
     },
     {
@@ -4766,6 +5588,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-4",
       "priority": 400
     },
     {
@@ -4776,6 +5600,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-5",
       "priority": 500
     },
     {
@@ -4786,6 +5612,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-6",
       "priority": 600
     },
     {
@@ -4796,6 +5624,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-7",
       "priority": 700
     },
     {
@@ -4806,6 +5636,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-8",
       "priority": 300
     },
     {
@@ -4816,6 +5648,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P2",
+      "module": "mod-1-9",
       "priority": 400
     },
     {
@@ -4826,6 +5660,8 @@
       "effort_md": 5,
       "role": "QA",
       "category": "Logic",
+      "phase": "P2",
+      "module": "mod-1-10",
       "priority": 500
     },
     {
@@ -4836,6 +5672,8 @@
       "effort_md": 1.5,
       "role": "Designer",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-0",
       "priority": 600
     },
     {
@@ -4846,6 +5684,8 @@
       "effort_md": 8,
       "role": "TechLead",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-1",
       "priority": 700
     },
     {
@@ -4856,6 +5696,8 @@
       "effort_md": 0.25,
       "role": "BrSE",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-2",
       "priority": 300
     },
     {
@@ -4866,6 +5708,8 @@
       "effort_md": 0.5,
       "role": "Dev",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-3",
       "priority": 400
     },
     {
@@ -4876,6 +5720,8 @@
       "effort_md": 1,
       "role": "QA",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-4",
       "priority": 500
     },
     {
@@ -4886,6 +5732,8 @@
       "effort_md": 2,
       "role": "Designer",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-5",
       "priority": 600
     },
     {
@@ -4896,6 +5744,8 @@
       "effort_md": 0.5,
       "role": "TechLead",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-6",
       "priority": 700
     },
     {
@@ -4906,6 +5756,8 @@
       "effort_md": 3,
       "role": "BrSE",
       "category": "Logic",
+      "phase": "P3",
+      "module": "mod-2-7",
       "priority": 300
     },
     {
@@ -4916,6 +5768,8 @@
       "effort_md": 0.25,
       "role": "Dev",
       "category": "UI",
+      "phase": "P3",
+      "module": "mod-2-8",
       "priority": 400
     }
   ],

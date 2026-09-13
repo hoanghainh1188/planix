@@ -79,7 +79,16 @@ beforeEach(() => {
       mode: 'merge',
       tasks: [
         { tmp_id: 'r', parent_tmp_id: null, name: 'Root', kind: 'summary' },
-        { tmp_id: 'a', parent_tmp_id: 'r', name: 'A', kind: 'work', effort_md: 2, role: 'Dev' },
+        {
+          tmp_id: 'a',
+          parent_tmp_id: 'r',
+          name: 'A',
+          kind: 'work',
+          effort_md: 2,
+          role: 'Dev',
+          phase: 'P1',
+          module: 'mod-1',
+        },
       ],
       dependencies: [],
     },
@@ -820,8 +829,8 @@ describe('S1 — dependency', () => {
   function pair(): { a: string; b: string } {
     const a = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
     db.prepare(
-      `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,created_at,updated_at)
-       VALUES ('T-8001','P','1.2',2,(SELECT uid FROM task WHERE name='Root'),2,'B','work',1,'Dev',?,?)`,
+      `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,phase,module,created_at,updated_at)
+       VALUES ('T-8001','P','1.2',2,(SELECT uid FROM task WHERE name='Root'),2,'B','work',1,'Dev','P1','mod-1',?,?)`,
     ).run(AT, AT);
     return { a, b: 'T-8001' };
   }
@@ -910,8 +919,8 @@ describe('S1 — dependency', () => {
       const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
         .uid;
       const ins = db.prepare(
-        `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,created_at,updated_at)
-         VALUES (?,'P',?,?,?,1,?,?,?,?,?,?)`,
+        `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,phase,module,created_at,updated_at)
+         VALUES (?,'P',?,?,?,1,?,?,?,?,'P1','mod-1',?,?)`,
       );
       ins.run('T-9001', '1.1.1', 3, root, 'Mid A', 'summary', null, null, AT, AT);
       ins.run('T-9002', '1.1.1.1', 4, 'T-9001', 'Deep A', 'work', 1, 'Dev', AT, AT);

@@ -25,6 +25,11 @@ function task(uid: string, over: Partial<TaskRow> = {}): TaskRow {
     role: 'Dev',
     constraintType: null,
     constraintDate: null,
+    // Mặc định SẠCH theo đúng nghĩa: §8.3 `N03` coi lá thiếu `phase`/`module` là một vấn
+    // đề, nên một helper "task hợp lệ" mà bỏ trống hai trường này sẽ làm mọi test khác
+    // mang theo một issue lạc.
+    phase: 'P1',
+    module: 'mod-1',
     ...over,
   };
 }
@@ -874,5 +879,89 @@ describe('N10 — cụm sequential lại có thêm cạnh tường minh (§6.3)'
       }),
     );
     expect(codes(r)).not.toContain('N10');
+  });
+});
+
+describe('N03 — task lá thiếu phase hoặc module (§8.3)', () => {
+  function leaf(over: Partial<TaskRow> = {}) {
+    return input({
+      tasks: [
+        task('S', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+        task('A', {
+          wbsCode: '1.1',
+          depth: 2,
+          parentUid: 'S',
+          phase: 'P1',
+          module: 'mod-1',
+          ...over,
+        }),
+      ],
+    });
+  }
+
+  it('đủ cả hai thì sạch', () => {
+    expect(codes(validate(leaf()))).not.toContain('N03');
+  });
+
+  it('thiếu phase thì cảnh báo', () => {
+    const issue = validate(leaf({ phase: null })).issues.find((i) => i.code === 'N03');
+    expect(issue?.severity).toBe('Minor');
+    expect(issue?.taskUid).toBe('A');
+  });
+
+  it('thiếu module cũng vậy', () => {
+    expect(codes(validate(leaf({ module: null })))).toContain('N03');
+  });
+
+  it('thiếu cả hai vẫn chỉ MỘT dòng — đó là một task cần sửa, không phải hai', () => {
+    const r = validate(leaf({ phase: null, module: null }));
+    expect(r.issues.filter((i) => i.code === 'N03')).toHaveLength(1);
+    // Nhưng thông điệp phải nói thiếu cái gì, nếu không PM mở ra rồi đoán.
+    expect(r.issues.find((i) => i.code === 'N03')?.message).toMatch(/phase and module/);
+  });
+
+  it('chuỗi RỖNG tính là thiếu — `phase: ""` không phải một phase', () => {
+    expect(codes(validate(leaf({ phase: '' })))).toContain('N03');
+  });
+
+  it('SUMMARY thiếu thì không sao — rule nói về lá', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('S', {
+            kind: 'summary',
+            wbsCode: '1',
+            depth: 1,
+            effortMd: null,
+            role: null,
+            phase: null,
+            module: null,
+          }),
+          task('A', { wbsCode: '1.1', depth: 2, parentUid: 'S', phase: 'P1', module: 'm' }),
+        ],
+      }),
+    );
+    expect(r.issues.filter((i) => i.code === 'N03')).toHaveLength(0);
+  });
+
+  it('milestone cũng là lá, cũng bị soi', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('S', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+          task('M', {
+            kind: 'milestone',
+            wbsCode: '1.1',
+            depth: 2,
+            parentUid: 'S',
+            effortMd: 0,
+            role: null,
+            phase: null,
+            module: null,
+          }),
+        ],
+      }),
+    );
+    expect(codes(r)).toContain('N03');
   });
 });
