@@ -15,6 +15,7 @@
 
 import { renumber, type TaskNode } from '../domain/renumber.js';
 import { validate } from '../domain/validator.js';
+import { recordValidationRun } from '../db/repo/issue-repo.js';
 import type { ValidationReport } from '../domain/validation-types.js';
 import type { Db } from '../db/migrate.js';
 import * as repo from '../db/repo/import-repo.js';
@@ -177,6 +178,17 @@ export function importTasks(db: Db, payload: unknown, options: ImportOptions): I
     if (!report.passed) {
       throw new ImportValidationError(report);
     }
+
+    // §8 "chạy sau mỗi lần import". Ghi TRONG transaction, cùng số phận với dữ liệu vừa
+    // nạp: import hỏng thì cả hai cùng biến mất. Không ghi ở nhánh Critical phía trên là
+    // có chủ ý — task vừa nạp bị rollback, nên issue trỏ vào uid của chúng sẽ là rác trỏ
+    // vào hư không. Người gọi vẫn nhận đủ report qua `ImportValidationError`.
+    recordValidationRun(db, {
+      runId: options.runId,
+      projectId: project.id,
+      detectedAt: options.now,
+      issues: report.issues,
+    });
 
     return { tasksAdded: parsed.tasks.length, mapping, report };
   });

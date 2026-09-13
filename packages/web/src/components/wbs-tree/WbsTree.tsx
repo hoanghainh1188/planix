@@ -42,6 +42,13 @@ export interface WbsTreeProps {
   readonly onDelete?: (uid: string) => Promise<void>;
   /** Mở sẵn ô sửa cho dòng này — dùng ngay sau khi tạo, để PM gõ tên thật. */
   readonly editUid?: string | null;
+  /**
+   * Đưa một dòng vào tầm mắt: bung tổ tiên rồi cuộn tới.
+   *
+   * Mang theo `at` chứ không chỉ `uid` vì bấm HAI LẦN vào cùng một task phải cuộn lại
+   * lần nữa — nếu chỉ so `uid` thì lần thứ hai không có gì đổi và effect im lặng.
+   */
+  readonly reveal?: { readonly uid: string; readonly at: number } | null;
   readonly onEditDone?: () => void;
   readonly busy?: boolean;
 }
@@ -58,6 +65,7 @@ export function WbsTree({
   onDelete,
   editUid = null,
   onEditDone,
+  reveal = null,
   busy = false,
 }: WbsTreeProps): JSX.Element {
   const store = useMemo(
@@ -108,17 +116,13 @@ export function WbsTree({
   }
 
   /**
-   * Dòng vừa được tạo: mở ô sửa ngay để PM gõ tên, không phải bấm thêm lần nữa.
+   * Bung mọi tổ tiên của một dòng.
    *
-   * Phải BUNG hết tổ tiên trước. Mặc định cây chỉ mở tới cấp 3 (§10.4), nên task tạo bên
-   * trong một summary đang thu gọn sẽ ra đời mà không ai nhìn thấy — bấm "+child" trông
-   * như không có tác dụng gì.
+   * Mặc định cây chỉ mở tới cấp 3 (§10.4), nên một dòng nằm sâu hơn sẽ không tồn tại trên
+   * màn hình dù đã được chọn. `guard` chặn vòng lặp vô hạn nếu dữ liệu cha-con bị hỏng —
+   * `C08` báo chuyện đó, nhưng UI không được treo trong lúc chờ ai sửa.
    */
-  useEffect(() => {
-    if (editUid === null) return;
-    const node = rows.find((r) => r.uid === editUid);
-    if (node === undefined) return;
-
+  function expandAncestorsOf(node: WbsRow): void {
     const byUid = new Map(rows.map((r) => [r.uid, r]));
     const needed = new Set<string>();
     let cursor = node.parentUid;
@@ -131,6 +135,42 @@ export function WbsTree({
     if ([...needed].some((uid) => !expanded.has(uid))) {
       applyExpanded(new Set([...expanded, ...needed]));
     }
+  }
+
+  /**
+   * Nhảy tới một dòng từ bên ngoài — §14.2 P8 "click nhảy tới task" ở panel Issues.
+   *
+   * Chỉ đặt `selectedUid` là chưa đủ: task bị báo lỗi thường nằm sâu trong một nhánh đang
+   * thu gọn, và cây thì virtualized nên dòng đó không hề tồn tại trong DOM. Bấm vào issue
+   * khi ấy trông y hệt như nút hỏng.
+   *
+   * Hai bước, hai lượt render: bung tổ tiên trước, rồi mới cuộn — vì vị trí của dòng
+   * trong `visible` chỉ có sau khi danh sách được tính lại.
+   */
+  const revealRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (reveal === null) return;
+    const node = rows.find((r) => r.uid === reveal.uid);
+    if (node === undefined) return;
+    expandAncestorsOf(node);
+    revealRef.current = reveal.uid;
+    // `expanded` cố ý không nằm trong deps — xem ghi chú ở effect dưới.
+  }, [reveal, rows]);
+
+  /**
+   * Dòng vừa được tạo: mở ô sửa ngay để PM gõ tên, không phải bấm thêm lần nữa.
+   *
+   * Phải BUNG hết tổ tiên trước. Mặc định cây chỉ mở tới cấp 3 (§10.4), nên task tạo bên
+   * trong một summary đang thu gọn sẽ ra đời mà không ai nhìn thấy — bấm "+child" trông
+   * như không có tác dụng gì.
+   */
+  useEffect(() => {
+    if (editUid === null) return;
+    const node = rows.find((r) => r.uid === editUid);
+    if (node === undefined) return;
+
+    expandAncestorsOf(node);
 
     setEditingUid(node.uid);
     setDraft({
@@ -199,6 +239,19 @@ export function WbsTree({
     estimateSize: () => ROW_HEIGHT,
     overscan: 12,
   });
+
+  // Bước hai của việc nhảy tới dòng (xem `revealRef` phía trên). Phải nằm SAU `visible` và
+  // `virtualizer`: mảng deps được tính lúc render, nên tham chiếu tới hai `const` chưa khai
+  // báo sẽ ném ReferenceError ngay, không phải lỗi chạy ngầm.
+  useEffect(() => {
+    const uid = revealRef.current;
+    if (uid === null) return;
+    const index = visible.findIndex((v) => v.node.uid === uid);
+    // Chưa thấy thì giữ nguyên cờ: lượt bung tổ tiên kế tiếp sẽ tới.
+    if (index < 0) return;
+    revealRef.current = null;
+    virtualizer.scrollToIndex(index, { align: 'center' });
+  }, [visible, virtualizer]);
 
   function applyExpanded(next: Set<string>): void {
     setExpanded(next);

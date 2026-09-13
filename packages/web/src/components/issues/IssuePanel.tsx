@@ -1,5 +1,5 @@
 import { useMemo, useState, type JSX } from 'react';
-import type { IssueRow } from '../../data/types.js';
+import type { IssueRow, ValidationRun } from '../../data/types.js';
 import './issues.css';
 
 const SEVERITIES = ['Critical', 'Major', 'Minor'] as const;
@@ -7,11 +7,40 @@ type Severity = (typeof SEVERITIES)[number];
 
 export interface IssuePanelProps {
   readonly issues: readonly IssueRow[];
+  /**
+   * Lượt validate gần nhất. `null` nghĩa là CHƯA TỪNG chạy — không phải "không có vấn đề".
+   *
+   * Hai trạng thái này cùng cho ra danh sách rỗng, nên nếu không tách ra thì panel sẽ nói
+   * "sạch" về một dự án chưa ai kiểm. Với tool lập kế hoạch, hai câu đó dẫn tới hai quyết
+   * định khác nhau.
+   */
+  readonly lastRun: ValidationRun;
   /** §14.2 P8: "click nhảy tới task". */
   readonly onJumpToTask?: (taskUid: string) => void;
 }
 
-export function IssuePanel({ issues, onJumpToTask }: IssuePanelProps): JSX.Element {
+/**
+ * Mốc thời gian ở dạng đọc được.
+ *
+ * Issue là ảnh chụp tại một thời điểm, không phải trạng thái tức thời: sửa WBS xong thì
+ * danh sách này đã cũ cho tới lần validate kế tiếp. Ghi rõ "as of" để PM biết mình đang
+ * đọc ảnh chụp lúc nào, thay vì tin nhầm là hiện thời.
+ */
+function asOf(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  // `YYYY-MM-DD HH:mm` giờ máy người xem, KHÔNG dùng `toLocaleString`: §10.2 chốt giao
+  // diện tiếng Anh, chuỗi cố định. `toLocaleString` đổi dạng theo locale của trình duyệt
+  // — trên máy khách Nhật nó ra `2026年9月13日`, lệch hẳn với mọi cột ngày khác trên màn
+  // hình vốn đều là ISO. Ảnh chụp màn hình gửi qua lại cũng phải đọc được như nhau.
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    `${String(at.getFullYear())}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}` +
+    ` ${pad(at.getHours())}:${pad(at.getMinutes())}`
+  );
+}
+
+export function IssuePanel({ issues, lastRun, onJumpToTask }: IssuePanelProps): JSX.Element {
   // Mặc định hiện hết: ẩn sẵn một mức nghĩa là giấu vấn đề khỏi người cần thấy nó.
   const [active, setActive] = useState<ReadonlySet<Severity>>(new Set(SEVERITIES));
 
@@ -34,6 +63,7 @@ export function IssuePanel({ issues, onJumpToTask }: IssuePanelProps): JSX.Eleme
     <aside className="issues" aria-label="Validation issues">
       <div className="issues__head">
         <h2 className="issues__title">Issues</h2>
+        {lastRun === null ? null : <p className="issues__asOf">as of {asOf(lastRun.ranAt)}</p>}
         <div className="issues__filters" role="group" aria-label="Filter by severity">
           {SEVERITIES.map((s) => (
             <button
@@ -50,7 +80,14 @@ export function IssuePanel({ issues, onJumpToTask }: IssuePanelProps): JSX.Eleme
         </div>
       </div>
 
-      {shown.length === 0 ? (
+      {lastRun === null ? (
+        /* Chưa kiểm bao giờ. Nói "không có vấn đề" ở đây là nói sai. */
+        <p className="issues__empty">
+          This project has not been checked yet. Run Recalculate to validate it.
+        </p>
+      ) : issues.length === 0 ? (
+        <p className="issues__empty">No issues found.</p>
+      ) : shown.length === 0 ? (
         <p className="issues__empty">Nothing to show for the selected severities.</p>
       ) : (
         <ul className="issues__list">

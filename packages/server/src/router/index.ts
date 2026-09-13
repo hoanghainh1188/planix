@@ -18,7 +18,9 @@ import * as baselineRepo from '@planix/core/db/repo/baseline-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { validate } from '@planix/core/domain/validator.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
-import type { ValidationIssue } from '@planix/core/domain/validation-types.js';
+import type { ValidationIssue, ValidationReport } from '@planix/core/domain/validation-types.js';
+import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
+import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
 import { moveRejectionMessage } from '@planix/core/domain/move.js';
 import { previewRecalculate } from '../scheduler/preview.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
@@ -98,18 +100,22 @@ function toTrpc(error: unknown): never {
  * Đo trên fixture 6.000 task: load + validate hết 5,4 ms, nên chạy mỗi lần ghi không phải
  * thứ cần tối ưu.
  */
-function validateDependencyEdit(
-  db: Db,
-  projectId: string,
-  runId: string,
-  endpoints: readonly string[],
-): ValidationIssue[] {
+/** Chạy validate cho MỘT dự án trên trạng thái DB hiện tại (§8). */
+function validateProject(db: Db, projectId: string, runId: string): ValidationReport {
   const project = db
     .prepare('SELECT dependency_max_level FROM project WHERE id = ?')
     .get(projectId) as { dependency_max_level: number } | undefined;
-  if (project === undefined) return [];
+  if (project === undefined) {
+    return {
+      runId,
+      projectId,
+      passed: true,
+      counts: { critical: 0, major: 0, minor: 0 },
+      issues: [],
+    };
+  }
 
-  const report = validate({
+  return validate({
     runId,
     projectId,
     tasks: importRepo.loadTasks(db, projectId),
@@ -119,9 +125,16 @@ function validateDependencyEdit(
     progress: importRepo.loadProgress(db, projectId),
     dependencyMaxLevel: project.dependency_max_level,
   });
+}
 
+function validateDependencyEdit(
+  db: Db,
+  projectId: string,
+  runId: string,
+  endpoints: readonly string[],
+): ValidationIssue[] {
   const touched = new Set(endpoints);
-  return report.issues.filter(
+  return validateProject(db, projectId, runId).issues.filter(
     (i) => i.code === 'C01' || (i.taskUid !== undefined && touched.has(i.taskUid)),
   );
 }
@@ -625,10 +638,16 @@ export const appRouter = t.router({
         }
 
         // §10.5: "Lưu một lần, một transaction, ghi audit_log từng dòng."
+        //
+        // §8 đòi validate chạy sau mỗi lần lưu progress, và nó chạy TRONG cùng transaction
+        // này: lưu hỏng giữa chừng thì cả tiến độ lẫn issue cùng biến mất, không để lại
+        // báo cáo về một lần lưu chưa từng xảy ra.
+        const touchedProjects = new Set<string>();
         ctx.db.transaction(() => {
           for (const row of input.rows) {
             const projectId = read.projectOfTask(ctx.db, row.taskUid);
             if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+            touchedProjects.add(projectId);
 
             const taskTeam = read.teamOfTask(ctx.db, row.taskUid);
             const perm = permissionContext(ctx, projectId);
@@ -669,6 +688,18 @@ export const appRouter = t.router({
               before ?? {},
               { status: row.status, percent: row.percent },
             );
+          }
+
+          // Một lô có thể trộn task của nhiều dự án, nên validate theo TỪNG dự án đã
+          // đụng tới. Chạy một lượt cho cả lô rồi gán chung sẽ ghi issue của dự án này
+          // sang dự án kia.
+          for (const projectId of [...touchedProjects].sort()) {
+            recordValidationRun(ctx.db, {
+              runId: `progress-${ctx.now}`,
+              projectId,
+              detectedAt: ctx.now,
+              issues: validateProject(ctx.db, projectId, `progress-${ctx.now}`).issues,
+            });
           }
         })();
         return { saved: input.rows.length };
@@ -716,6 +747,21 @@ export const appRouter = t.router({
         toTrpc(e);
       }
       return read.loadIssues(ctx.db, input.projectId);
+    }),
+
+    /**
+     * Lượt validate gần nhất — `null` nếu dự án chưa từng được kiểm.
+     *
+     * Danh sách rỗng KHÔNG đủ để nói "dự án sạch": chưa ai chạy validate lần nào cũng cho
+     * ra rỗng y hệt. Panel cần phân biệt hai câu đó, nên hỏi riêng.
+     */
+    lastRun: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return issueRepo.loadLastValidationRun(ctx.db, input.projectId);
     }),
   }),
 });

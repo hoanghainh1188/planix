@@ -81,6 +81,16 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [sidePanel, setSidePanel] = useState<SidePanel>('issues');
   /** Phản hồi validate của lần sửa ràng buộc gần nhất (§12.4). */
   const [linkIssues, setLinkIssues] = useState<readonly LinkIssue[]>([]);
+  /**
+   * Mốc "vừa có một lượt validate", tách khỏi `savedAt` ("vừa ghi dữ liệu").
+   *
+   * Một lượt tính lịch BỊ CHẶN không ghi được dòng lịch nào — nên `savedAt` không đổi —
+   * nhưng nó vẫn sinh ra issue và ghi xuống DB. Dùng chung một khoá thì panel S6 đứng im
+   * đúng vào lúc vừa có tin cần đọc nhất.
+   */
+  const [validatedAt, setValidatedAt] = useState<string | null>(null);
+  /** Task cần đưa vào tầm mắt. `at` để bấm lại cùng một issue vẫn cuộn lại lần nữa. */
+  const [reveal, setReveal] = useState<{ uid: string; at: number } | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{
     uid: string;
     taskCount: number;
@@ -124,6 +134,11 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.issues.list.query({ projectId });
   }, [projectId]);
 
+  const loadLastRun = useCallback(() => {
+    if (projectId === null) return Promise.resolve(null);
+    return trpc.issues.lastRun.query({ projectId });
+  }, [projectId]);
+
   const loadGantt = useCallback((): Promise<GanttRowData[]> => {
     if (projectId === null || screen !== 'gantt') return Promise.resolve([]);
     return trpc.gantt.get.query({ projectId });
@@ -146,7 +161,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
 
   const tree = useAsync(loadTree, [projectId, savedAt]);
   const evm = useAsync(loadEvm, [projectId, savedAt]);
-  const issues = useAsync(loadIssues, [projectId]);
+  // Khoá theo `savedAt`: mỗi lần ghi (lưu tiến độ, tính lại lịch) là một lượt validate
+  // mới, nên panel phải đọc lại — nếu không nó hiện ảnh chụp cũ mà trông như hiện thời.
+  const issues = useAsync(loadIssues, [projectId, savedAt, validatedAt]);
+  const lastRun = useAsync(loadLastRun, [projectId, savedAt, validatedAt]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
   const links = useAsync(loadLinks, [selectedUid, savedAt]);
@@ -187,6 +205,8 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       const res = await trpc.wbs.previewRecalculate.mutate({ projectId, scope: 'project' });
       if (!res.result.ok) {
         setPreviewError(res.result.message);
+        // Bị chặn vẫn là một lượt validate: engine đã ghi issue xuống, panel phải đọc lại.
+        setValidatedAt(String(Date.now()));
         return;
       }
       setPreview({ before: res.before, after: res.after });
@@ -508,6 +528,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
                 onDelete={deleteTask}
                 editUid={editUid}
                 onEditDone={() => setEditUid(null)}
+                reveal={reveal}
                 busy={writing}
               />
             </div>
@@ -572,7 +593,13 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
             {sidePanel === 'issues' ? (
               <IssuePanel
                 issues={issues.status === 'ready' ? issues.data : []}
-                onJumpToTask={setSelectedUid}
+                lastRun={lastRun.status === 'ready' ? lastRun.data : null}
+                onJumpToTask={(uid) => {
+                  // Chọn thôi là chưa đủ: task bị báo lỗi thường nằm sâu trong một nhánh
+                  // đang thu gọn, nên cây phải bung ra và cuộn tới thì mới gọi là "nhảy".
+                  setSelectedUid(uid);
+                  setReveal({ uid, at: Date.now() });
+                }}
               />
             ) : (
               <DependencyPanel

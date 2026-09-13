@@ -23,6 +23,7 @@ import { runCpm, type CpmTask } from '../domain/cpm.js';
 import { reforecast, type ReforecastTask } from '../domain/reforecast.js';
 import { runSgs, type SgsResource, type SgsTask, type SgsScheduleRow } from '../domain/sgs.js';
 import { validate } from '../domain/validator.js';
+import { recordValidationRun, type RecordedIssue } from '../db/repo/issue-repo.js';
 import type { ValidationReport } from '../domain/validation-types.js';
 import type { DateOnly } from '../domain/date-only.js';
 import type { Db } from '../db/migrate.js';
@@ -98,7 +99,19 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     progress: importRepo.loadProgress(db, settings.id),
     dependencyMaxLevel: settings.dependencyMaxLevel,
   });
-  if (!report.passed) throw new ScheduleBlockedError(report);
+  if (!report.passed) {
+    // Ghi TRƯỚC khi ném. Bị chặn là đúng lúc PM cần biết vì sao nhất, và `scheduleProject`
+    // thoát ra ở đây nên không còn chỗ nào khác để ghi. Hàm này tự mở transaction riêng,
+    // tách khỏi transaction ghi lịch ở pha C — nên vết chẩn đoán ở lại kể cả khi lượt
+    // chạy không ghi được dòng lịch nào.
+    recordValidationRun(db, {
+      runId: options.runId,
+      projectId: settings.id,
+      detectedAt: options.now,
+      issues: report.issues,
+    });
+    throw new ScheduleBlockedError(report);
+  }
 
   const issues: ScheduleIssue[] = [];
 
@@ -349,6 +362,25 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   for (const row of schedule.values()) {
     if (projectEnd === null || row.endDate > projectEnd) projectEnd = row.endDate;
   }
+
+  // §8 "chạy sau mỗi lần schedule". Gộp hai nguồn: `report` là validate trên dữ liệu đầu
+  // vào, `issues` là thứ chỉ lộ ra KHI xếp lịch (N07 bắc cầu hỏng, J01 overallocate...).
+  // Với PM đọc màn S6 thì cả hai đều là vấn đề của dự án, không phải hai loại dữ liệu.
+  const recorded: RecordedIssue[] = [
+    ...report.issues,
+    ...issues.map((i) => ({
+      severity: i.severity,
+      code: i.code,
+      message: i.message,
+      ...(i.taskUid === undefined ? {} : { taskUid: i.taskUid }),
+    })),
+  ];
+  recordValidationRun(db, {
+    runId: options.runId,
+    projectId: settings.id,
+    detectedAt: options.now,
+    issues: recorded,
+  });
 
   return {
     report,

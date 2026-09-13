@@ -22,3 +22,5 @@ export type TaskLink = TaskLinks['predecessors'][number];
 export type DependencyType = TaskLink['type'];
 /** Phản hồi validate đi kèm mỗi lần sửa ràng buộc (§12.4). */
 export type LinkIssue = Outputs['wbs']['setDependency']['issues'][number];
+/** `null` = dự án chưa từng được validate, khác hẳn với "đã kiểm và sạch". */
+export type ValidationRun = Outputs['issues']['lastRun'];

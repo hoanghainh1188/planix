@@ -253,6 +253,78 @@ describe('S6 — issues', () => {
   it('người ngoài dự án bị chặn', async () => {
     await expectTrpcCode(caller('U-OUT').issues.list({ projectId: 'P' }), 'FORBIDDEN');
   });
+
+  // §8: "Chạy sau mỗi lần import, mỗi lần schedule, mỗi lần lưu progress."
+  describe('lưu progress xong thì validate chạy và kết quả xuống bảng', () => {
+    it('C11 hiện ra: `done` mà thiếu actual_start', async () => {
+      // §10.5 chỉ bắt buộc `actual_end` khi done, KHÔNG bắt `actual_start` — nên dòng này
+      // qua được cửa kiểm trường, rồi mới lộ ra ở validate toàn dự án (§8.1 C11).
+      await caller('U-PM').progress.save({
+        rows: [
+          {
+            taskUid: 'T-0002',
+            status: 'done',
+            percent: 100,
+            actualStart: null,
+            actualEnd: '2026-01-06',
+            blockedNote: null,
+          },
+        ],
+      });
+
+      const codes = (await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code);
+      expect(codes).toContain('C11');
+    });
+
+    it('sửa lại cho đủ ngày thì C11 biến mất', async () => {
+      const row = {
+        taskUid: 'T-0002',
+        status: 'done' as const,
+        percent: 100,
+        actualStart: null as string | null,
+        actualEnd: '2026-01-06',
+        blockedNote: null,
+      };
+      await caller('U-PM').progress.save({ rows: [row] });
+      expect((await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code)).toContain(
+        'C11',
+      );
+
+      await caller('U-PM').progress.save({
+        rows: [{ ...row, actualStart: '2026-01-05' }],
+      });
+      expect(
+        (await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code),
+      ).not.toContain('C11');
+    });
+
+    it('lưu hỏng giữa chừng thì không để lại issue của một lần lưu chưa xảy ra', async () => {
+      await expectTrpcCode(
+        caller('U-PM').progress.save({
+          rows: [
+            {
+              taskUid: 'T-0002',
+              status: 'done',
+              percent: 100,
+              actualStart: null,
+              actualEnd: '2026-01-06',
+              blockedNote: null,
+            },
+            {
+              taskUid: 'T-9999',
+              status: 'done',
+              percent: 100,
+              actualStart: null,
+              actualEnd: '2026-01-06',
+              blockedNote: null,
+            },
+          ],
+        }),
+        'NOT_FOUND',
+      );
+      expect(await caller('U-PM').issues.list({ projectId: 'P' })).toEqual([]);
+    });
+  });
 });
 
 // ── P9 · S4 — ràng buộc §10.5 kiểm ở SERVER ─────────────────────────────────

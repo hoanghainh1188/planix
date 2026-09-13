@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
 import { importTasks } from '../../src/io/importer.js';
+import { loadIssues } from '../../src/db/repo/read-repo.js';
 
 const AT = '2026-09-13T00:00:00.000Z';
 
@@ -162,6 +163,53 @@ describe('importer — rollback khi có Critical (§9.3 bước 5)', () => {
     bad.tasks[2] = { ...bad.tasks[2], effort_md: 0 } as never;
     expect(() => importTasks(db, bad, { runId: 'R1', now: AT })).toThrow(/C07/);
     expect(countTasks(db)).toBe(0);
+  });
+
+  /**
+   * Ở ĐÂY thì không ghi issue — khác hẳn đường schedule.
+   *
+   * Import hỏng thì cả transaction rollback (§9.3): task vừa nạp biến mất. Issue trỏ vào
+   * những uid đó sẽ là rác trỏ vào hư không, và panel sẽ tố cáo một dự án theo lỗi của
+   * một lần nạp chưa từng xảy ra. Người gọi vẫn nhận đủ report qua `ImportValidationError`.
+   */
+  it('KHÔNG để lại issue sau khi rollback — task đã biến mất thì issue trỏ vào đâu', () => {
+    const bad = goodPayload();
+    bad.dependencies = [
+      { pred: 'a2', succ: 'a3', type: 'FS', lag_days: 0 },
+      { pred: 'a3', succ: 'a2', type: 'FS', lag_days: 0 },
+    ];
+    expect(() => importTasks(db, bad, { runId: 'R1', now: AT })).toThrow(/C01/);
+    expect(loadIssues(db, 'P-UTG')).toEqual([]);
+  });
+});
+
+describe('importer — ghi kết quả validate (§8 "sau mỗi lần import")', () => {
+  it('nạp trót lọt thì kết quả validate xuống bảng, panel S6 đọc được', () => {
+    // Rác của lượt trước phải bị thay, không cộng dồn.
+    db.prepare(
+      `INSERT INTO validation_issue (run_id,project_id,severity,code,message,detected_at)
+       VALUES ('cu','P-UTG','Critical','C99','rac cua luot truoc',?)`,
+    ).run(AT);
+
+    importTasks(db, goodPayload(), { runId: 'R1', now: AT });
+    expect(loadIssues(db, 'P-UTG').map((i) => i.code)).not.toContain('C99');
+  });
+
+  /**
+   * Hôm nay nhánh này LUÔN ghi xuống rỗng, và đó không phải lỗi của đường ghi.
+   *
+   * `validator.ts` hiện chỉ cài các rule Critical (C01–C12) — mà Critical nào cũng chặn
+   * import và rollback. Nên một lần nạp trót lọt, theo định nghĩa, không còn issue nào.
+   * Các rule Major/Minor mà §8.2–§8.3 liệt kê chưa được cài; J02 chẳng hạn nằm trong
+   * `rollup.ts` và chỉ sinh ra lúc xếp lịch, không đi qua `validate()`.
+   *
+   * Xem docs/decisions/2026-09-13-validator-rules-con-thieu.md. Khi những rule đó có
+   * mặt, đường ghi này đã sẵn sàng — không phải sửa gì thêm.
+   */
+  it('nạp trót lọt trên dữ liệu sạch thì panel trống, không phải trống vì quên ghi', () => {
+    const result = importTasks(db, goodPayload(), { runId: 'R1', now: AT });
+    expect(result.report.issues).toEqual([]);
+    expect(loadIssues(db, 'P-UTG')).toEqual([]);
   });
 });
 

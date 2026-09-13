@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import type { Db } from '@planix/core/db/migrate.js';
 import { openDatabase } from '@planix/core/db/migrate.js';
 import * as read from '@planix/core/db/repo/read-repo.js';
+import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
 import { runSchedulerInWorker } from './run-in-worker.js';
 import type { SchedulerRequest, SchedulerResponse } from './protocol.js';
 
@@ -79,7 +80,19 @@ export async function previewRecalculate(options: PreviewOptions): Promise<Previ
       now: options.now,
     });
 
-    if (!result.ok) return { before, after: before, result };
+    if (!result.ok) {
+      // Lịch thì KHÔNG ghi (§10.1), nhưng issue thì có.
+      //
+      // Engine chạy trên bản sao, nên kết quả validate của lượt bị chặn nằm trong file
+      // tạm sắp bị xoá. Mà bị chặn chính là lúc PM cần đọc issue nhất — và họ không bao
+      // giờ tới được bước xác nhận để engine chạy lại trên DB thật. Không chuyển sang thì
+      // panel S6 trống trơn đúng vào lúc dự án hỏng.
+      //
+      // Chuyển NGUYÊN VĂN từ bản sao chứ không chạy validate lại trên DB thật: đây đúng
+      // là bản báo cáo đã chặn lượt chạy, không phải một bản tính lại có thể khác đi.
+      carryIssuesFromPreview(copyPath, options.db);
+      return { before, after: before, result };
+    }
 
     const copy = openDatabase(copyPath);
     try {
@@ -90,5 +103,31 @@ export async function previewRecalculate(options: PreviewOptions): Promise<Previ
   } finally {
     // Dọn cả thư mục: SQLite để lại `-wal` và `-shm` bên cạnh file chính.
     rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Mang kết quả validate từ bản sao sang DB thật.
+ *
+ * Chỉ chuyển những dự án mà bản sao THẬT SỰ có ghi một lượt. Một lượt hỏng vì lý do khác
+ * (worker chết, DB in-memory) không ghi gì cả; lúc đó tuyệt đối không được đụng vào DB
+ * thật, vì ghi một lượt rỗng lên đó nghĩa là tuyên bố "đã kiểm, sạch" trong khi thực tế
+ * là "không kiểm được".
+ */
+function carryIssuesFromPreview(copyPath: string, target: Db): void {
+  const copy = openDatabase(copyPath);
+  try {
+    for (const projectId of issueRepo.listValidatedProjects(copy)) {
+      const run = issueRepo.loadLastValidationRun(copy, projectId);
+      if (run === null) continue;
+      issueRepo.recordValidationRun(target, {
+        runId: run.runId,
+        projectId,
+        detectedAt: run.ranAt,
+        issues: issueRepo.loadRecordedIssues(copy, projectId),
+      });
+    }
+  } finally {
+    copy.close();
   }
 }
