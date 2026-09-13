@@ -15,7 +15,6 @@ export default tseslint.config(
       // lint chay TRUOC test nen coverage/ chua ton tai.
       '**/coverage/**',
       '**/*.d.ts',
-      'packages/server/**',
       'packages/web/**',
     ],
   },
