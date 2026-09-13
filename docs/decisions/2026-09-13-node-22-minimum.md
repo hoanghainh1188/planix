@@ -1,7 +1,7 @@
 # Node tối thiểu là 22, không phải 20
 
 - **Ngày:** 2026-09-13
-- **Trạng thái:** đã chốt, chờ PM sửa `SPEC.md`
+- **Trạng thái:** đã hoàn tất
 - **Ảnh hưởng:** `SPEC.md` §3.1
 
 ## Vấn đề
@@ -34,7 +34,7 @@ thêm một job tổng hợp tên `verify` phụ thuộc matrix, rồi đổi re
 
 - [x] `.github/workflows/ci.yml` — `node-version: 22`
 - [x] `package.json` — `engines.node: ">=22"`
-- [ ] PM sửa `SPEC.md` §3.1: "Node 20+" thành "Node 22+"
+- [x] PM sửa `SPEC.md` §3.1: "Node 20+" thành "Node 22+"
 - [ ] P11: Dockerfile dùng base image Node 22 trở lên
 
 ## Ghi chú
