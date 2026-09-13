@@ -34,3 +34,4 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 | 2026-09-13 | [P9: hai chỗ §10.5 không nói, đã để nguyên](2026-09-13-p9-spec-questions.md)                           | §10.5 ràng buộc nhập liệu, §7.11      | Đã chốt                          |
 | 2026-09-13 | [Bỏ P10 (Excel) và chọn nền tảng triển khai](2026-09-13-skip-p10-and-platform.md)                      | §14.3 Mốc C, §13.1                    | Đã chốt — Fly.io, P10 hoãn       |
 | 2026-09-13 | [§11.3: ba cấp trên hai cột — 大項目/中項目 chứa gì](2026-09-13-summary-report-levels.md)              | §11.3                                 | Đã chốt — ba cấp ba cột          |
+| 2026-09-13 | [Resource-critical path chưa được tính](2026-09-13-resource-critical-path-chua-co.md)                  | §7 pha C (C1), §12.1                  | **CẦN PM QUYẾT**                 |
