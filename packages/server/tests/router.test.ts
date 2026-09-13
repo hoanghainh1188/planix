@@ -347,3 +347,122 @@ describe('S4 — bảng đề xuất (§10.5)', () => {
     await expectTrpcCode(caller('U-OUT').progress.board({ projectId: 'P' }), 'FORBIDDEN');
   });
 });
+
+// ── P8 · đường GHI của S1 ───────────────────────────────────────────────────
+
+describe('S1 — kéo thả đổi cha (§10.4)', () => {
+  /**
+   * Thêm một summary anh em để có chỗ chuyển qua lại.
+   *
+   * Chèn thẳng bằng SQL chứ không gọi `importTasks` lần nữa: import lần hai ở chế độ
+   * merge sẽ dựng lại cả cây và đụng với cây `beforeEach` đã tạo (C08).
+   */
+  function branch(): { phaseB: string; a: string } {
+    const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
+      .uid;
+    db.prepare(
+      `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,created_at,updated_at)
+       VALUES ('T-9001','P','1.2',2,?,2,'Phase B','summary',?,?)`,
+    ).run(root, AT, AT);
+    const a = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+    return { phaseB: 'T-9001', a };
+  }
+
+  it('PM chuyển được task sang nhánh khác, engine đánh số lại', async () => {
+    const { phaseB, a } = branch();
+    const res = await caller('U-PM').wbs.moveTask({
+      taskUid: a,
+      newParentUid: phaseB,
+      newSortOrder: 10,
+    });
+    expect(res.renumbered).toBeGreaterThan(0);
+
+    const moved = db.prepare('SELECT parent_uid, wbs_code FROM task WHERE uid = ?').get(a) as {
+      parent_uid: string;
+      wbs_code: string;
+    };
+    expect(moved.parent_uid).toBe(phaseB);
+    expect(moved.wbs_code.startsWith('1.')).toBe(true);
+  });
+
+  it('thả vào con của chính nó bị từ chối BAD_REQUEST, không phải lỗi 500', async () => {
+    const { a } = branch();
+    const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
+      .uid;
+    await expectTrpcCode(
+      caller('U-PM').wbs.moveTask({ taskUid: root, newParentUid: a, newSortOrder: 0 }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('lead KHÔNG được đổi cấu trúc cây (§10.6)', async () => {
+    const { phaseB, a } = branch();
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.moveTask({ taskUid: a, newParentUid: phaseB, newSortOrder: 0 }),
+      'FORBIDDEN',
+    );
+  });
+
+  it('ghi vết vào audit_log', async () => {
+    const { phaseB, a } = branch();
+    await caller('U-PM').wbs.moveTask({ taskUid: a, newParentUid: phaseB, newSortOrder: 3 });
+    expect(historyOf(db, 'task', a).length).toBeGreaterThan(0);
+  });
+});
+
+describe('S1 — công tắc Parallel / Sequential (§6.3, §10.4)', () => {
+  const summaryUid = (): string =>
+    (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string }).uid;
+
+  it('PM đặt được sequential rồi parallel', async () => {
+    await caller('U-PM').wbs.setSequencing({ taskUid: summaryUid(), mode: 'sequential' });
+    const read1 = db
+      .prepare('SELECT child_sequencing AS m FROM task WHERE uid = ?')
+      .get(summaryUid());
+    expect((read1 as { m: string }).m).toBe('sequential');
+
+    await caller('U-PM').wbs.setSequencing({ taskUid: summaryUid(), mode: 'parallel' });
+    const read2 = db
+      .prepare('SELECT child_sequencing AS m FROM task WHERE uid = ?')
+      .get(summaryUid());
+    expect((read2 as { m: string }).m).toBe('parallel');
+  });
+
+  it('đặt trên task LÁ bị từ chối — §6.3 chỉ nói về summary', async () => {
+    const leaf = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+    await expectTrpcCode(
+      caller('U-PM').wbs.setSequencing({ taskUid: leaf, mode: 'sequential' }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('lead không được đổi', async () => {
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.setSequencing({ taskUid: summaryUid(), mode: 'sequential' }),
+      'FORBIDDEN',
+    );
+  });
+});
+
+describe('S1 — xem trước recalculate KHÔNG ghi gì (§10.1)', () => {
+  it('DB in-memory thì nói thẳng là không chạy thử được, thay vì trả bảng rỗng', async () => {
+    // `ctx.dbPath` ở test là ':memory:' — không sao ra file được.
+    const res = await caller('U-PM').wbs.previewRecalculate({ projectId: 'P', scope: 'project' });
+    expect(res.result.ok).toBe(false);
+    expect(res.before).toEqual(res.after);
+  });
+
+  it('lead không được chạy', async () => {
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.previewRecalculate({ projectId: 'P', scope: 'project' }),
+      'FORBIDDEN',
+    );
+  });
+
+  it('PM không được xem trước phạm vi "all" — §10.6 chỉ admin', async () => {
+    await expectTrpcCode(
+      caller('U-PM').wbs.previewRecalculate({ projectId: 'P', scope: 'all' }),
+      'FORBIDDEN',
+    );
+  });
+});

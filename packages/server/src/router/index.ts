@@ -15,6 +15,8 @@ import type { Db } from '@planix/core/db/migrate.js';
 import * as authRepo from '@planix/core/db/repo/auth-repo.js';
 import * as read from '@planix/core/db/repo/read-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
+import { moveRejectionMessage } from '@planix/core/domain/move.js';
+import { previewRecalculate } from '../scheduler/preview.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
 import { recordUpdate } from '../audit/audit-log.js';
 import { runSchedulerInWorker } from '../scheduler/run-in-worker.js';
@@ -137,6 +139,124 @@ export const appRouter = t.router({
           );
         })();
         return { ok: true as const };
+      }),
+
+    /** §10.4 — kéo thả đổi cha và `sort_order`, engine tự đánh số lại. */
+    moveTask: authed
+      .input(
+        z.object({
+          taskUid: z.string().min(1),
+          newParentUid: z.string().min(1).nullable(),
+          newSortOrder: z.number().int(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        const before = read.loadTaskForEdit(ctx.db, input.taskUid);
+        if (before === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+
+        try {
+          // Đổi cha + đánh số lại nằm trong MỘT transaction: renumber hỏng giữa chừng
+          // sẽ để lại cây có hai task cùng `wbs_code`, tệ hơn lúc chưa đụng vào.
+          return ctx.db.transaction(() => {
+            const result = read.moveTask(ctx.db, { ...input, now: ctx.now });
+            recordUpdate(
+              ctx.db,
+              { userId: ctx.user.userId, at: ctx.now },
+              'task',
+              input.taskUid,
+              { parentUid: null },
+              { parentUid: input.newParentUid, sortOrder: input.newSortOrder },
+            );
+            return result;
+          })();
+        } catch (e) {
+          if (e instanceof read.MoveRejectedError) {
+            // Lý do hiện thẳng lên UI, không để người dùng đoán vì sao bị chặn.
+            throw new TRPCError({ code: 'BAD_REQUEST', message: moveRejectionMessage(e.reason) });
+          }
+          throw e;
+        }
+      }),
+
+    /** §10.4 — công tắc Parallel / Sequential trên dòng summary (§6.3). */
+    setSequencing: authed
+      .input(
+        z.object({
+          taskUid: z.string().min(1),
+          mode: z.enum(['parallel', 'sequential']),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        // §6.3 đặt `child_sequencing` trên SUMMARY. Đặt lên task lá thì trường đó không
+        // có nghĩa gì và sẽ âm thầm bị bỏ qua — thà từ chối để lỗi lộ ra ngay.
+        if (read.loadTaskKind(ctx.db, input.taskUid) !== 'summary') {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'Only a summary row has a parallel/sequential switch.',
+          });
+        }
+
+        ctx.db.transaction(() => {
+          read.setSequencing(ctx.db, input.taskUid, input.mode, ctx.now);
+          recordUpdate(
+            ctx.db,
+            { userId: ctx.user.userId, at: ctx.now },
+            'task',
+            input.taskUid,
+            {},
+            { childSequencing: input.mode },
+          );
+        })();
+        return { ok: true as const };
+      }),
+
+    /**
+     * §10.1 — chạy thử lịch rồi TRẢ VỀ bảng so sánh, KHÔNG ghi gì.
+     *
+     * "Trước khi ghi kết quả recalculate, hiện bảng so sánh trước/sau... PM xác nhận rồi
+     * mới lưu." Chạy trên một BẢN SAO của DB nên dù engine có đổi gì thì DB thật vẫn
+     * nguyên. M2 (cùng input ra cùng output) bảo đảm lần chạy thật sau đó ra đúng kết
+     * quả vừa xem.
+     */
+    previewRecalculate: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          scope: z.enum(['project', 'all']).default('project'),
+        }),
+      )
+      .mutation(async ({ ctx, input }) => {
+        try {
+          assertCan(
+            input.scope === 'all' ? 'recalculate_all' : 'recalculate_project',
+            permissionContext(ctx, input.projectId),
+          );
+        } catch (e) {
+          toTrpc(e);
+        }
+        return previewRecalculate({
+          db: ctx.db,
+          dbPath: ctx.dbPath,
+          projectId: input.projectId,
+          scope: input.scope,
+          now: ctx.now,
+        });
       }),
 
     recalculate: authed
