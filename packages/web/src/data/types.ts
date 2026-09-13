@@ -25,3 +25,5 @@ export type LinkIssue = Outputs['wbs']['setDependency']['issues'][number];
 /** `null` = dự án chưa từng được validate, khác hẳn với "đã kiểm và sạch". */
 export type ValidationRun = Outputs['issues']['lastRun'];
 export type ValidationRunRow = Outputs['issues']['history'][number];
+export type ImportCheck = Outputs['wbsImport']['dryRun'];
+export type ImportDone = Extract<Outputs['wbsImport']['commit'], { ok: true }>;

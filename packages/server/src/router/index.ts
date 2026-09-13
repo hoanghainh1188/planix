@@ -22,6 +22,7 @@ import type { ValidationIssue, ValidationReport } from '@planix/core/domain/vali
 import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
 import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
 import { moveRejectionMessage } from '@planix/core/domain/move.js';
+import { dryRunImport, ImportValidationError, importTasks } from '@planix/core/io/importer.js';
 import { previewRecalculate } from '../scheduler/preview.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
 import { recordUpdate } from '../audit/audit-log.js';
@@ -155,6 +156,65 @@ function revalidateAfterEdit(
  * Lọc theo hai đầu của cạnh, cộng `C01`: vòng lặp được gắn vào một đỉnh bất kỳ trên đường
  * đi, không nhất thiết là một trong hai đầu.
  */
+/**
+ * Đọc `project_code` / `mode` / `root_uid` từ payload thô, ĐỦ để kiểm quyền.
+ *
+ * Không dùng `ImportPayloadSchema` ở đây: quyền phải được kiểm trước khi ta nói bất cứ
+ * điều gì về file, và một file sai schema vẫn cần nói rõ "bạn không được nạp vào dự án
+ * này" thay vì tiết lộ chi tiết cấu trúc. Chỉ lấy ba trường, phần còn lại để importer lo.
+ */
+function resolveImportTarget(
+  ctx: Context & { user: { userId: string; isAdmin: boolean } },
+  payload: unknown,
+): { projectId: string; projectCode: string; mode: string; rootUid: string | null } {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'The file must be a JSON object.' });
+  }
+  const raw = payload as Record<string, unknown>;
+  const projectCode = raw['project_code'];
+  if (typeof projectCode !== 'string' || projectCode === '') {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'The file has no project_code.' });
+  }
+
+  const project = ctx.db.prepare('SELECT id FROM project WHERE code = ?').get(projectCode) as
+    { id: string } | undefined;
+  if (project === undefined) {
+    throw new TRPCError({ code: 'NOT_FOUND', message: `No project with code ${projectCode}.` });
+  }
+
+  try {
+    assertCan('import_from_ai', permissionContext(ctx, project.id));
+  } catch (e) {
+    toTrpc(e);
+  }
+
+  const mode = raw['mode'] === 'replace-subtree' ? 'replace-subtree' : 'merge';
+  const rootUid =
+    mode === 'replace-subtree' && typeof raw['root_uid'] === 'string' ? raw['root_uid'] : null;
+  return { projectId: project.id, projectCode, mode, rootUid };
+}
+
+/**
+ * Đổi lỗi của importer thành thứ hiện được lên màn hình.
+ *
+ * `ImportValidationError` mang theo `ValidationReport` — đó là thứ PM cần đọc, không phải
+ * câu "Import rejected: C01, C07". Lỗi schema của zod thì ngược lại: thông điệp của nó đã
+ * chỉ đúng trường sai, nên giữ nguyên.
+ */
+function describeImportFailure(error: unknown): {
+  message: string;
+  issues: readonly ValidationIssue[];
+} {
+  if (error instanceof ImportValidationError) {
+    return {
+      message: 'The file was rejected: it would leave the project in an invalid state.',
+      issues: error.report.issues,
+    };
+  }
+  if (error instanceof TRPCError) throw error;
+  return { message: error instanceof Error ? error.message : String(error), issues: [] };
+}
+
 function issuesForEdge(report: ValidationReport, endpoints: readonly string[]): ValidationIssue[] {
   const touched = new Set(endpoints);
   return report.issues.filter(
@@ -780,6 +840,74 @@ export const appRouter = t.router({
   }),
 
   // ── S6 — Issues ──────────────────────────────────────────────────────────
+  // ── S8 — Import (§9) ─────────────────────────────────────────────────────
+  //
+  // Cho tới trước đây đường DUY NHẤT nạp WBS là `cli import` trên máy chủ. PM không có
+  // shell thì không nạp được gì — mà §9.1 nói rõ đầu vào là JSON do AI sinh, tức là thứ
+  // PM nhận qua chat rồi dán vào.
+  wbsImport: t.router({
+    /**
+     * Chạy thử rồi vứt bỏ — §10.1 "hiện hậu quả trước khi ghi".
+     *
+     * Một lần nạp HỎNG vốn đã vô hại (§9.3 rollback). Thứ cần xem trước là lần nạp THÀNH
+     * CÔNG với `replace-subtree`: nó xoá sạch cây con của `root_uid` (§9.5), và
+     * `ON DELETE CASCADE` kéo theo tiến độ đã nhập — thứ tính lại không được.
+     */
+    dryRun: authed.input(z.object({ payload: z.unknown() })).mutation(({ ctx, input }) => {
+      const target = resolveImportTarget(ctx, input.payload);
+
+      // Đếm thứ sẽ mất TRƯỚC khi chạy thử: sau lượt thử thì mọi thứ đã quay lại như cũ,
+      // nhưng ở đây ta cần con số để hiện cho PM.
+      const removing =
+        target.rootUid === null
+          ? null
+          : (() => {
+              const info = read.subtreeOf(ctx.db, target.rootUid);
+              // `subtreeOf` tính CẢ `root_uid`; §9.5 chỉ xoá con cháu nên trừ nó ra.
+              return {
+                taskCount: Math.max(info.uids.length - 1, 0),
+                progressRows: info.progressRows,
+              };
+            })();
+
+      try {
+        const result = dryRunImport(ctx.db, input.payload, {
+          runId: `dryrun-${ctx.now}`,
+          now: ctx.now,
+        });
+        return {
+          ok: true as const,
+          projectCode: target.projectCode,
+          mode: target.mode,
+          tasksAdded: result.tasksAdded,
+          issues: result.report.issues,
+          removing,
+        };
+      } catch (error) {
+        return { ok: false as const, ...describeImportFailure(error), removing };
+      }
+    }),
+
+    /** Nạp thật. PM đã xem bảng ở bước trên rồi mới tới đây. */
+    commit: authed.input(z.object({ payload: z.unknown() })).mutation(({ ctx, input }) => {
+      const target = resolveImportTarget(ctx, input.payload);
+      try {
+        const result = importTasks(ctx.db, input.payload, {
+          runId: `import-${ctx.now}`,
+          now: ctx.now,
+        });
+        return {
+          ok: true as const,
+          projectCode: target.projectCode,
+          tasksAdded: result.tasksAdded,
+          issues: result.report.issues,
+        };
+      } catch (error) {
+        return { ok: false as const, ...describeImportFailure(error) };
+      }
+    }),
+  }),
+
   issues: t.router({
     list: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
       try {

@@ -976,3 +976,149 @@ describe('S1 — dependency', () => {
     });
   });
 });
+
+// ── S8 — Import (§9) ────────────────────────────────────────────────────────
+
+describe('S8 — import', () => {
+  function payload(over: Record<string, unknown> = {}) {
+    return {
+      version: '1.0',
+      project_code: 'UTG',
+      mode: 'merge',
+      tasks: [
+        {
+          tmp_id: 'n1',
+          parent_uid: (
+            db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as {
+              uid: string;
+            }
+          ).uid,
+          name: 'Module moi',
+          kind: 'summary',
+        },
+        {
+          tmp_id: 'n2',
+          parent_tmp_id: 'n1',
+          name: 'Task moi',
+          kind: 'work',
+          effort_md: 1,
+          role: 'Dev',
+        },
+      ],
+      dependencies: [],
+      ...over,
+    };
+  }
+
+  function taskCount(): number {
+    return (db.prepare('SELECT COUNT(*) n FROM task').get() as { n: number }).n;
+  }
+
+  describe('xem trước', () => {
+    it('nói đúng số task sẽ thêm mà KHÔNG thêm gì', async () => {
+      const before = taskCount();
+      const res = await caller('U-PM').wbsImport.dryRun({ payload: payload() });
+
+      expect(res.ok).toBe(true);
+      if (res.ok) expect(res.tasksAdded).toBe(2);
+      expect(taskCount()).toBe(before);
+    });
+
+    it('file hỏng thì trả về lý do kèm issue, không ném lỗi trần', async () => {
+      const bad = payload({
+        tasks: [{ tmp_id: 'x', parent_tmp_id: null, name: 'Khong co role', kind: 'work' }],
+      });
+      const res = await caller('U-PM').wbsImport.dryRun({ payload: bad });
+
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.message).toMatch(/rejected/i);
+      expect(taskCount()).toBe(2);
+    });
+
+    it('replace-subtree nói trước sẽ mất bao nhiêu task và bao nhiêu dòng tiến độ', async () => {
+      const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
+        .uid;
+      db.prepare(
+        `INSERT INTO progress (task_uid,status,percent,updated_by,updated_at)
+         VALUES ('T-0002','done',100,'U-PM',?)`,
+      ).run(AT);
+
+      const res = await caller('U-PM').wbsImport.dryRun({
+        payload: payload({
+          mode: 'replace-subtree',
+          root_uid: root,
+          tasks: [{ tmp_id: 'x', parent_uid: root, name: 'Thay the', kind: 'summary' }],
+        }),
+      });
+
+      // Cây fixture: Root + A. `replace-subtree` xoá CON CHÁU của Root, tức mất A.
+      expect(res.removing).toEqual({ taskCount: 1, progressRows: 1 });
+      // Và vẫn chưa xoá gì thật.
+      expect(taskCount()).toBe(2);
+    });
+  });
+
+  describe('nạp thật', () => {
+    it('thêm task và chạy validate luôn (§8 "sau mỗi lần import")', async () => {
+      const res = await caller('U-PM').wbsImport.commit({ payload: payload() });
+      expect(res.ok).toBe(true);
+      expect(taskCount()).toBe(4);
+      expect(await caller('U-PM').issues.lastRun({ projectId: 'P' })).toMatchObject({
+        source: 'import',
+      });
+    });
+
+    it('file hỏng thì DB không đổi', async () => {
+      const before = taskCount();
+      const res = await caller('U-PM').wbsImport.commit({
+        payload: payload({
+          tasks: [{ tmp_id: 'x', parent_tmp_id: null, name: 'Khong co role', kind: 'work' }],
+        }),
+      });
+      expect(res.ok).toBe(false);
+      expect(taskCount()).toBe(before);
+    });
+  });
+
+  describe('quyền và đầu vào rác', () => {
+    it('lead không được nạp — §10.6 cho `import_from_ai` chỉ PM', async () => {
+      await expectTrpcCode(caller('U-LEAD').wbsImport.dryRun({ payload: payload() }), 'FORBIDDEN');
+      await expectTrpcCode(caller('U-LEAD').wbsImport.commit({ payload: payload() }), 'FORBIDDEN');
+    });
+
+    it('người ngoài dự án cũng không', async () => {
+      await expectTrpcCode(caller('U-OUT').wbsImport.dryRun({ payload: payload() }), 'FORBIDDEN');
+    });
+
+    it('quyền được kiểm TRƯỚC khi đụng tới nội dung file', async () => {
+      // File sai schema hoàn toàn, nhưng `project_code` trỏ vào dự án mà lead không được
+      // nạp: phải trả FORBIDDEN, không phải lỗi schema. Nếu ngược lại, người không có
+      // quyền vẫn dò được cấu trúc file mà tool chấp nhận.
+      await expectTrpcCode(
+        caller('U-LEAD').wbsImport.dryRun({ payload: { project_code: 'UTG', rac: true } }),
+        'FORBIDDEN',
+      );
+    });
+
+    it('không phải object thì từ chối ngay', async () => {
+      await expectTrpcCode(
+        caller('U-PM').wbsImport.dryRun({ payload: 'day khong phai JSON object' }),
+        'BAD_REQUEST',
+      );
+    });
+
+    it('thiếu project_code thì nói rõ là thiếu cái gì', async () => {
+      await expectTrpcCode(
+        caller('U-PM').wbsImport.dryRun({ payload: { tasks: [] } }),
+        'BAD_REQUEST',
+      );
+    });
+
+    it('project_code không tồn tại thì NOT_FOUND', async () => {
+      await expectTrpcCode(
+        caller('U-PM').wbsImport.dryRun({ payload: payload({ project_code: 'KHONG-CO' }) }),
+        'NOT_FOUND',
+      );
+    });
+  });
+});

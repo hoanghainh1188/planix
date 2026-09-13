@@ -53,6 +53,47 @@ export class ImportValidationError extends Error {
   }
 }
 
+/**
+ * Tín hiệu nội bộ để ép transaction rollback sau khi đã có kết quả. Không lọt ra ngoài.
+ */
+class DryRunRollback extends Error {
+  readonly result: ImportResult;
+
+  constructor(result: ImportResult) {
+    super('dry run complete');
+    this.name = 'DryRunRollback';
+    this.result = result;
+  }
+}
+
+/**
+ * Chạy thử import rồi VỨT BỎ mọi thay đổi — cho màn S8 xem trước.
+ *
+ * §9.3 đã rollback khi có Critical, nên một lần nạp HỎNG vốn đã vô hại. Thứ cần xem trước
+ * là lần nạp THÀNH CÔNG: `replace-subtree` xoá sạch cây con của `root_uid` (§9.5), và
+ * `ON DELETE CASCADE` kéo theo cả tiến độ đã nhập. §12.2 đòi "trả về số task sẽ mất, cần
+ * confirm" cho việc xoá; §10.1 đòi hiện hậu quả trước khi ghi. Cùng một nguyên tắc.
+ *
+ * Cách làm: bọc thêm một transaction bên ngoài rồi ném ra để ép rollback. Không cần sao
+ * file DB như `previewRecalculate` vì import chạy ngay trong tiến trình này, không qua
+ * worker thread — transaction của tiến trình chính bao được nó.
+ *
+ * Ném đúng những lỗi mà `importTasks` ném (schema sai, `ImportValidationError`, …): xem
+ * trước phải thất bại y như lần chạy thật, nếu không nó không còn là xem trước.
+ */
+export function dryRunImport(db: Db, payload: unknown, options: ImportOptions): ImportResult {
+  try {
+    db.transaction(() => {
+      throw new DryRunRollback(importTasks(db, payload, options));
+    })();
+  } catch (error) {
+    if (error instanceof DryRunRollback) return error.result;
+    throw error;
+  }
+  // `db.transaction` luôn ném ra ở trên; nhánh này chỉ để thoả kiểu trả về.
+  throw new Error('dryRunImport: transaction did not roll back');
+}
+
 function formatUid(sequence: number): string {
   return `T-${String(sequence).padStart(4, '0')}`;
 }

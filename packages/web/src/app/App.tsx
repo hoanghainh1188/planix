@@ -5,6 +5,7 @@ import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
+import { ImportScreen } from '../components/import/ImportScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
@@ -14,6 +15,8 @@ import { useAsync } from '../data/use-async.js';
 import type {
   DependencyType,
   GanttRowData,
+  ImportCheck,
+  ImportDone,
   LinkIssue,
   ProgressBoardData,
   ProjectSummary,
@@ -28,13 +31,19 @@ import './app.css';
  * §10.2: giao diện và thông báo hệ thống bằng **tiếng Anh**, chuỗi hardcode, không i18n
  * động. Chỉ báo cáo Excel mới có tham số `lang` (§11.1).
  */
-/** §10.3 — ba màn của MVP mà P8/P9 đã dựng. */
-type Screen = 'wbs' | 'gantt' | 'progress';
+/** §10.3 — ba màn của MVP (P8/P9) cộng S8 Import (P12). */
+type Screen = 'wbs' | 'gantt' | 'progress' | 'import';
 
-const SCREENS: ReadonlyArray<{ id: Screen; label: string }> = [
+/**
+ * `pmOnly` không phải là cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ
+ * ẩn nút trên UI", và router vẫn từ chối lead. Nó chỉ để lead không nhìn thấy một màn mà
+ * họ bấm vào đâu cũng bị chặn.
+ */
+const SCREENS: ReadonlyArray<{ id: Screen; label: string; pmOnly?: boolean }> = [
   { id: 'wbs', label: 'WBS' },
   { id: 'gantt', label: 'Gantt' },
   { id: 'progress', label: 'Progress' },
+  { id: 'import', label: 'Import', pmOnly: true },
 ];
 
 /**
@@ -93,6 +102,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [reveal, setReveal] = useState<{ uid: string; at: number } | null>(null);
   /** Lượt validate đang xem. `null` = lượt mới nhất, tức trạng thái hiện tại. */
   const [viewingRunPk, setViewingRunPk] = useState<number | null>(null);
+  const [importCheck, setImportCheck] = useState<ImportCheck | null>(null);
+  const [importDone, setImportDone] = useState<ImportDone | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
     uid: string;
     taskCount: number;
@@ -194,6 +207,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     projects.status === 'ready'
       ? (projects.data.find((p) => p.id === projectId)?.statusDate ?? '')
       : '';
+  // §10.6: `import_from_ai` chỉ PM. Admin được `listUserProjects` trả về vai 'pm' nên
+  // một phép so sánh là đủ.
+  const canImport =
+    projects.status === 'ready' && projects.data.find((p) => p.id === projectId)?.role === 'pm';
 
   /**
    * Bản so sánh THẬT: engine chạy thử trên bản sao DB rồi trả về lịch trước và sau.
@@ -424,6 +441,56 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  // ── S8 — Import (§9) ──────────────────────────────────────────────────────
+
+  /** Đọc chuỗi PM dán vào. Sai cú pháp thì nói ngay, không gửi lên server làm gì. */
+  function parsePayload(text: string): unknown {
+    return JSON.parse(text);
+  }
+
+  async function checkImport(text: string): Promise<void> {
+    setImportError(null);
+    setImportDone(null);
+    setImporting(true);
+    try {
+      const res = await trpc.wbsImport.dryRun.mutate({ payload: parsePayload(text) });
+      setImportCheck(res);
+    } catch (error) {
+      setImportCheck(null);
+      setImportError(
+        error instanceof SyntaxError
+          ? `That is not valid JSON: ${error.message}`
+          : toFriendlyError(error).message,
+      );
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  async function commitImport(text: string): Promise<void> {
+    setImportError(null);
+    setImporting(true);
+    try {
+      const res = await trpc.wbsImport.commit.mutate({ payload: parsePayload(text) });
+      if (!res.ok) {
+        setImportError(res.message);
+        return;
+      }
+      setImportDone(res);
+      setImportCheck(null);
+      // Nạp xong là cây, lịch sử validate và chấm đỏ đều đổi — đọc lại hết.
+      afterWrite();
+    } catch (error) {
+      setImportError(
+        error instanceof SyntaxError
+          ? `That is not valid JSON: ${error.message}`
+          : toFriendlyError(error).message,
+      );
+    } finally {
+      setImporting(false);
+    }
+  }
+
   async function saveProgress(rows: readonly SaveRow[]): Promise<void> {
     setSaving(true);
     setSaveError(null);
@@ -475,7 +542,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
         </nav>
 
         <nav className="app__screens" aria-label="Screens">
-          {SCREENS.map((s) => (
+          {SCREENS.filter((s) => s.pmOnly !== true || canImport).map((s) => (
             <button
               key={s.id}
               type="button"
@@ -520,7 +587,21 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       ) : null}
 
       <main className={screen === 'wbs' ? 'app__main' : 'app__main app__main--wide'}>
-        {screen === 'wbs' ? (
+        {screen === 'import' ? (
+          <ImportScreen
+            check={importCheck}
+            done={importDone}
+            busy={importing}
+            error={importError}
+            onCheck={checkImport}
+            onCommit={commitImport}
+            onDirty={() => {
+              setImportCheck(null);
+              setImportDone(null);
+              setImportError(null);
+            }}
+          />
+        ) : screen === 'wbs' ? (
           tree.status === 'loading' ? (
             <p className="app__state">Loading tasks…</p>
           ) : tree.status === 'error' ? (

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
-import { importTasks } from '../../src/io/importer.js';
+import { dryRunImport, importTasks } from '../../src/io/importer.js';
 import { loadIssues } from '../../src/db/repo/read-repo.js';
 
 const AT = '2026-09-13T00:00:00.000Z';
@@ -308,5 +308,81 @@ describe('importer — báo cáo trả về (§9.3 bước 6)', () => {
     expect(res.report.passed).toBe(true);
     expect(res.report.runId).toBe('R1');
     expect(res.report.counts.critical).toBe(0);
+  });
+});
+
+describe('dryRunImport — xem trước cho màn S8', () => {
+  function snapshot() {
+    return {
+      tasks: db.prepare('SELECT COUNT(*) n FROM task').get(),
+      deps: db.prepare('SELECT COUNT(*) n FROM dependency').get(),
+      runs: db.prepare('SELECT COUNT(*) n FROM validation_run').get(),
+      issues: db.prepare('SELECT COUNT(*) n FROM validation_issue').get(),
+      maxUid: db.prepare('SELECT MAX(uid) u FROM task').get(),
+    };
+  }
+
+  it('trả về đúng thứ mà lần chạy thật sẽ trả', () => {
+    const preview = dryRunImport(db, goodPayload(), { runId: 'DRY', now: AT });
+    const real = importTasks(db, goodPayload(), { runId: 'REAL', now: AT });
+
+    expect(preview.tasksAdded).toBe(real.tasksAdded);
+    expect(preview.mapping).toEqual(real.mapping);
+    expect(preview.report.counts).toEqual(real.report.counts);
+  });
+
+  it('KHÔNG để lại dấu vết nào trong DB', () => {
+    const before = snapshot();
+    dryRunImport(db, goodPayload(), { runId: 'DRY', now: AT });
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('không tiêu mất số thứ tự uid — chạy thử rồi chạy thật vẫn ra đúng uid đó', () => {
+    const preview = dryRunImport(db, goodPayload(), { runId: 'DRY', now: AT });
+    const real = importTasks(db, goodPayload(), { runId: 'REAL', now: AT });
+    // Nếu lượt thử tiêu mất số thứ tự, lần thật sẽ bắt đầu từ T-0004 chứ không phải T-0001,
+    // và bảng ánh xạ PM vừa xem trên màn hình lập tức sai.
+    expect(real.mapping).toEqual(preview.mapping);
+  });
+
+  it('replace-subtree: KHÔNG xoá cây con thật', () => {
+    const first = importTasks(db, goodPayload(), { runId: 'R1', now: AT });
+    const rootUid = first.mapping['a1'];
+    expect(rootUid).toBeDefined();
+    const before = snapshot();
+
+    dryRunImport(
+      db,
+      {
+        version: '1.0',
+        project_code: 'UTG',
+        mode: 'replace-subtree',
+        root_uid: rootUid,
+        // Gắn vào CHÍNH `root_uid`: §9.5 chỉ xoá con cháu, `root_uid` ở lại. Thả task mới
+        // ở mức gốc sẽ tạo cây hai gốc và dính C08 — đúng nhưng lạc đề của test này.
+        tasks: [{ tmp_id: 'x', parent_uid: rootUid, name: 'Thay the', kind: 'summary' }],
+        dependencies: [],
+      },
+      { runId: 'DRY', now: AT },
+    );
+
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('hỏng thì ném y như lần chạy thật, và cũng không để lại gì', () => {
+    const before = snapshot();
+    const bad = goodPayload();
+    bad.dependencies = [
+      { pred: 'a2', succ: 'a3', type: 'FS', lag_days: 0 },
+      { pred: 'a3', succ: 'a2', type: 'FS', lag_days: 0 },
+    ];
+    expect(() => dryRunImport(db, bad, { runId: 'DRY', now: AT })).toThrow(/C01/);
+    expect(snapshot()).toEqual(before);
+  });
+
+  it('schema sai thì ném ngay, không đụng DB', () => {
+    const before = snapshot();
+    expect(() => dryRunImport(db, { version: '1.0' }, { runId: 'DRY', now: AT })).toThrow();
+    expect(snapshot()).toEqual(before);
   });
 });
