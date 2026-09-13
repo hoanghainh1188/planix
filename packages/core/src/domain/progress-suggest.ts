@@ -143,6 +143,20 @@ export function validateProgressEntry(entry: ProgressEntry): ProgressEntryError[
     errors.push({ field: 'actualEnd', message: 'Actual end cannot be before actual start.' });
   }
 
+  // PM quyết 2026-09-13: chặn như lỗi nhập liệu.
+  //
+  // Tình huống có thật: task quá hạn được đề xuất `done` 100%, lead bấm `P` vì thực tế
+  // chưa xong, và `percent` giữ nguyên 100. Khi đó §7.11 tính
+  // `remaining_md = effort_md × (1 − 100/100) = 0` cho một task CHƯA xong, còn rollup
+  // §7.7 cộng dồn 100%. Bắt ngay tại ô thì lead sửa một lần, thay vì con số vô lý đi
+  // thẳng xuống báo cáo cho khách.
+  if (status === 'in_progress' && percent === 100) {
+    errors.push({
+      field: 'percent',
+      message: 'An in-progress task cannot be 100%. Mark it done, or lower the percent.',
+    });
+  }
+
   if (status === 'blocked' && (blockedNote === null || blockedNote.trim() === '')) {
     errors.push({ field: 'blockedNote', message: 'A blocked task needs a note saying why.' });
   }

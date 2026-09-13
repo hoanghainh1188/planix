@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-13
 **Phase:** P9
-**Trạng thái:** **cần PM quyết** — code hiện đang theo đúng mặt chữ của spec
+**Trạng thái:** **PM đã quyết** ngày 2026-09-13 — xem mục cuối
 
 Ghi lại vì trong lúc làm P9 tôi đã tự thêm một luật validate không có trong §10.5, và nó
 làm đỏ một test đã có từ P7. CLAUDE.md §8 cấm thêm thứ spec không yêu cầu, nên luật đó
@@ -64,3 +64,22 @@ nói vẫn đang làm. Rollup §7.7 cũng sẽ cộng dồn 100% cho một task 
 
 Đề xuất của tôi: **cách 2**. Nó bắt đúng lúc sai, không giành quyền nhập liệu, và giữ
 cho §7.11 không bao giờ nhận `remaining_md = 0` trên một task chưa xong.
+
+---
+
+## PM quyết — 2026-09-13
+
+### 1. `actual_end` sau `status_date` — **giữ như spec, KHÔNG chặn**
+
+Đúng mặt chữ §10.5. Test P7 đang có (`lead ghi được cho task team mình`, lưu
+`actual_end = 2026-01-06` khi `status_date = 2026-01-05`) vẫn đúng. Không phải sửa gì.
+
+### 2. `in_progress` + `percent = 100` — **chặn như lỗi nhập liệu**
+
+Đã thêm luật vào `validateProgressEntry`, chặn ngay tại ô như mọi ràng buộc khác của
+§10.5, và bổ sung một dòng vào §10.5:
+
+> `in_progress` + `percent = 100` → chặn. §7.11 sẽ suy ra `remaining_md = 0` cho một task
+> chưa xong, và rollup §7.7 cộng dồn 100%. Xong thì đặt `done`, chưa xong thì hạ `%`.
+
+UI và server dùng chung hàm đó nên hai bên không thể lệch luật nhau.

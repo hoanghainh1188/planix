@@ -62,3 +62,34 @@ thứ mà chỉ PM và team lead biết.
 Con số trên đo trên **fixture tổng hợp**, nơi tỷ lệ micro task do tôi chọn khi sinh dữ
 liệu. Dữ liệu thật có thể lệch nhiều. Nên đo lại trên WBS thật đầu tiên trước khi đổi
 tham số.
+
+---
+
+## PM quyết — 2026-09-13
+
+**Chọn phương án A: nâng `default_max_parallel` từ 2 lên 4.**
+
+Đã cài đặt ở `003_max_parallel_default.sql`. SQLite không có
+`ALTER TABLE ... ALTER COLUMN SET DEFAULT`, nên migration phải **dựng lại bảng `project`**:
+chỉ `UPDATE` các dòng hiện có thì dự án tạo mới về sau vẫn nhận 2 — một cái bẫy im lặng.
+
+Phép dựng lại đòi `PRAGMA foreign_keys = OFF`, vì `DROP TABLE` khi FK đang bật sẽ chạy
+`DELETE FROM` ngầm và **kích hoạt `ON DELETE CASCADE`** — tức xoá sạch task, dependency,
+schedule. Pragma đó lại bị bỏ qua khi đang trong transaction, nên `migrate()` được mở rộng
+để migration đánh dấu `-- planix:no-transaction` tự lo giao dịch của mình.
+
+Dự án đã được chỉnh tay sang giá trị khác thì **giữ nguyên**, không bị đè.
+
+### Đo lại sau khi đổi
+
+Golden test **không đổi một byte**. Đó không phải dấu hiệu thay đổi vô hiệu, mà vì fixture
+golden bị chặn bởi **dependency** chứ không phải năng lực người — `max_parallel` chưa bao
+giờ là ràng buộc quyết định ở đó.
+
+Tác dụng thật đo bằng một fixture khác (`maxparallel-effect.test.ts`): 200 micro task
+0,25 MD, không phụ thuộc nhau, trên 5 người — tức chỉ năng lực người mới giới hạn. Với
+`max_parallel = 4` lịch kết thúc **sớm hơn hẳn** so với 2, và số task một người chạy trong
+một ngày bị chặn đúng bằng tham số (§7.5).
+
+**Vẫn nên đo lại trên WBS thật đầu tiên.** Con số 2,7× ban đầu đo trên fixture tổng hợp,
+nơi tỷ lệ micro task do tôi chọn khi sinh dữ liệu.

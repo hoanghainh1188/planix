@@ -219,6 +219,22 @@ describe('ràng buộc nhập liệu — chặn TẠI Ô (§10.5)', () => {
     expect(errs.length).toBeGreaterThanOrEqual(3);
   });
 
+  it('in_progress KHÔNG được 100% — §7.11 sẽ tính remaining_md = 0 cho việc chưa xong', () => {
+    const errs = validateProgressEntry(entry({ status: 'in_progress', percent: 100 }));
+    expect(errs.map((e) => e.field)).toContain('percent');
+  });
+
+  it('in_progress 99% thì vẫn hợp lệ', () => {
+    expect(validateProgressEntry(entry({ status: 'in_progress', percent: 99 }))).toEqual([]);
+  });
+
+  it('done 100% tất nhiên hợp lệ — luật chỉ nhắm vào in_progress', () => {
+    const errs = validateProgressEntry(
+      entry({ status: 'done', percent: 100, actualEnd: '2026-03-05' }),
+    );
+    expect(errs).toEqual([]);
+  });
+
   it('dòng hợp lệ trả về mảng rỗng', () => {
     expect(validateProgressEntry(entry())).toEqual([]);
   });

@@ -275,7 +275,7 @@ CREATE TABLE project (
   status_date           TEXT NOT NULL,               -- data date, PM chốt
   calendar_id           TEXT NOT NULL REFERENCES calendar(id),
   default_location      TEXT NOT NULL REFERENCES location(id),
-  default_max_parallel  INTEGER NOT NULL DEFAULT 2,
+  default_max_parallel  INTEGER NOT NULL DEFAULT 4,  -- 2 -> 4, PM quyết 2026-09-13
   min_allocation        REAL    NOT NULL DEFAULT 0.25,
   dependency_max_level  INTEGER NOT NULL DEFAULT 3,  -- §6.2
   micro_task_threshold  REAL    NOT NULL DEFAULT 0.5,-- §7.9
@@ -1149,8 +1149,11 @@ Lead chỉ sửa dòng sai thực tế. Nút **"Accept all suggestions"** chốt
 
 - Task thuộc team mình, trong dự án đang chọn.
 - Chưa `done`, và `plan_start <= status_date`.
-- Task khớp đề xuất và chưa từng bị sửa → gom thành một dòng
+- Task mà **việc nhận đề xuất không làm thay đổi gì** → gom thành một dòng
   "142 tasks on track — expand to review".
+  (Trạng thái "hiệu lực" = giá trị đã lưu, hoặc mặc định `not_started`/0 nếu chưa ai nhập.
+  Câu cũ là "khớp đề xuất **và** chưa từng bị sửa"; hai vế đó gần như không bao giờ cùng
+  đúng nên nhóm này luôn rỗng — PM chốt lại cách đọc ngày 2026-09-13.)
 
 Mục tiêu: từ 300 dòng xuống 20–40 dòng thật sự cần nhìn.
 
@@ -1184,6 +1187,8 @@ Gom theo cụm cha: "Payment module — 12/18 done".
 - `actual_end < actual_start` → chặn tại ô.
 - `actual_start > status_date` → chặn.
 - `blocked` → bắt buộc `blocked_note`.
+- `in_progress` + `percent = 100` → chặn. §7.11 sẽ suy ra `remaining_md = 0` cho một task
+  chưa xong, và rollup §7.7 cộng dồn 100%. Xong thì đặt `done`, chưa xong thì hạ `%`.
 - Lưu một lần, một transaction, ghi `audit_log` từng dòng.
 
 **Chỉ báo:** thanh trên cùng hiện "Reviewed 38 / 47 tasks needing attention".
@@ -1339,16 +1344,34 @@ Sắp xếp cuối cùng luôn theo `wbs_code` (natural sort).
 
 ## 13. Vận hành
 
-### 13.1. Docker Compose
+### 13.1. Đóng gói và triển khai
+
+Đơn vị triển khai là **một image Docker**: một tiến trình Node phục vụ cả API lẫn UI tĩnh.
+Không tách web ra CDN riêng — same-origin nên không cần CORS, và cookie phiên `__Host-`
+của §13.3 dùng được nguyên vẹn.
+
+**Bắt buộc: ổ đĩa ghi được và bền vững** gắn vào `/data`. SQLite ghi thẳng xuống file, nên
+mọi nền tảng serverless (Vercel và tương tự) đều **không dùng được** — mỗi lần gọi là một
+filesystem mới, dữ liệu mất sạch sau khi khởi động lại. Đây là ràng buộc kiến trúc, không
+phải chuyện cấu hình.
+
+Hai cách chạy, tuỳ nơi đặt:
 
 ```yaml
+# A. VPS riêng — deploy/docker-compose.yml
 services:
   caddy:        # HTTPS tự động, reverse proxy
   app:          # Node: Hono + tRPC + static UI + MCP
-    volumes: [ ./data:/data ]
+    volumes: [ planix-data:/data ]
   litestream:   # replicate /data/project.db → S3/R2
-    volumes: [ ./data:/data ]
+    volumes: [ planix-data:/data ]
 ```
+
+**B. Nền tảng có quản lý** (Fly.io, Render): bỏ `caddy` — nền tảng tự cấp TLS — và gắn
+volume vào `/data`. `app` và `litestream` giữ nguyên.
+
+PM chốt cách B ngày 2026-09-13, nên ô "Caddy cấp HTTPS tự động" ở §14.2/P11 chỉ áp dụng
+cho cách A.
 
 ### 13.2. Sao lưu
 
@@ -1475,8 +1498,8 @@ flowchart TD
 - [ ] Xuất 2 lần cùng DB ra file giống nhau.
 
 **P11 — deploy** ← **Mốc C**
-- [ ] Docker Compose chạy được từ máy sạch.
-- [ ] Caddy cấp HTTPS tự động.
+- [ ] Image Docker chạy được từ máy sạch, có volume bền vững ở `/data`.
+- [ ] HTTPS hoạt động — Caddy nếu tự dựng VPS, hoặc TLS của nền tảng (§13.1 cách B).
 - [ ] Litestream replicate và **khôi phục thử thành công**.
 - [ ] GitHub Actions: build → push → deploy.
 
