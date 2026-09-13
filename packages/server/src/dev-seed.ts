@@ -18,6 +18,9 @@ import { importHolidays } from '@planix/core/db/repo/calendar-repo.js';
 import { resolveSeed } from '@planix/core/db/seed/holiday-seed.js';
 import { scheduleAllProjects } from '@planix/core/pipeline/schedule-project.js';
 import { createUser } from './auth/session.js';
+import { upsertProgress } from '@planix/core/db/repo/read-repo.js';
+import { closePeriod } from '@planix/core/db/repo/baseline-repo.js';
+import type { Db } from '@planix/core/db/migrate.js';
 
 const DEV_EMAIL = 'pm@planix.dev';
 const DEV_PASSWORD = 'planix-dev-password';
@@ -170,6 +173,76 @@ export function seedDev(dbPath: string, now: string): void {
   db.close();
 }
 
+/** Mốc chuẩn của kịch bản demo: dự án đã chạy được hơn ba tháng. */
+const DEMO_STATUS_DATE = '2026-04-13';
+
+/**
+ * Phủ thêm một "câu chuyện" lên DB vừa seed, để màn hình có số liệu đáng nhìn.
+ *
+ * `seedDev` cho ra một dự án đã xếp lịch nhưng chưa ai làm gì: EVM trống, panel Issues
+ * trống, Gantt không có vạch mốc chuẩn. Đủ để chạy thử, không đủ để xem tool này dùng
+ * như thế nào.
+ *
+ * Ba việc, đúng thứ tự một dự án thật đi qua:
+ *
+ *   1. Đẩy mốc chuẩn tới `DEMO_STATUS_DATE` — "hôm nay" của dự án (§7.13).
+ *   2. Nhập tiến độ cho phần lẽ ra đã xong, nhưng CỐ Ý bỏ sót một phần tư. Đánh dấu xong
+ *      đúng bằng phần đã tới hạn sẽ cho SPI = 1.00 tròn trịa — một con số không dạy được
+ *      gì về màn hình EVM.
+ *   3. Chốt kỳ, sinh baseline `Plan v1.0`.
+ *
+ * Ngày thực lấy từ chính lịch đã xếp. Thiếu chúng thì mỗi task `done` là một `C11`, và
+ * `closePeriod` sẽ từ chối chốt — đúng như nó phải làm.
+ */
+export function seedDemoStory(db: Db, now: string): { done: number; skipped: number } {
+  db.prepare('UPDATE project SET status_date = ? WHERE id = ?').run(DEMO_STATUS_DATE, 'P-UTG');
+
+  const due = db
+    .prepare(
+      `SELECT t.uid, s.start_date, s.end_date
+         FROM task t JOIN schedule s ON s.task_uid = t.uid
+        WHERE t.project_id = 'P-UTG' AND t.kind = 'work' AND s.end_date <= ?
+        ORDER BY t.uid`,
+    )
+    .all(DEMO_STATUS_DATE) as Array<{ uid: string; start_date: string; end_date: string }>;
+
+  let done = 0;
+  let skipped = 0;
+  due.forEach((row, index) => {
+    // Bỏ mỗi task thứ tư: dự án nào cũng trượt một ít, và đó là thứ màn EVM sinh ra để
+    // chỉ ra. Chọn theo chỉ số chứ không ngẫu nhiên — seed phải cho ra cùng một kết quả
+    // mỗi lần chạy (N2).
+    if (index % 4 === 3) {
+      skipped++;
+      return;
+    }
+    upsertProgress(db, {
+      taskUid: row.uid,
+      status: 'done',
+      percent: 100,
+      actualStart: row.start_date,
+      actualEnd: row.end_date,
+      blockedNote: null,
+      updatedBy: 'U-PM',
+      source: 'api',
+      now,
+    });
+    done++;
+  });
+
+  closePeriod(db, {
+    projectId: 'P-UTG',
+    statusDate: DEMO_STATUS_DATE as never,
+    label: 'Plan v1.0',
+    takenBy: 'U-PM',
+    takenAt: now,
+    runId: `demo-${now}`,
+    baselineId: 'B-DEMO-1',
+  });
+
+  return { done, skipped };
+}
+
 export async function main(): Promise<void> {
   const dbPath = resolve(process.argv[2] ?? './data/dev.db');
   const now = new Date().toISOString();
@@ -191,9 +264,19 @@ export async function main(): Promise<void> {
   db.prepare(
     `INSERT INTO user_project (user_id,project_id,role) VALUES ('U-PM','P-GEO','pm')`,
   ).run();
+
+  // Mặc định KHÔNG dựng kịch bản: `smoke.sh` dùng script này và chỉ cần một DB chạy được.
+  // Thêm một lượt chốt kỳ vào đó là kéo dài bài kiểm nhanh, và buộc nó phụ thuộc vào
+  // validate của cả dự án — hỏng ở đâu cũng thành "smoke đỏ".
+  const story = process.argv.includes('--demo') ? seedDemoStory(db, now) : null;
   db.close();
 
-  process.stdout.write(`seeded ${dbPath}\n  sign in: ${DEV_EMAIL} / ${DEV_PASSWORD}\n`);
+  process.stdout.write(
+    `seeded ${dbPath}\n  sign in: ${DEV_EMAIL} / ${DEV_PASSWORD}\n` +
+      (story === null
+        ? '  (them --demo de co tien do + baseline)\n'
+        : `  demo: ${String(story.done)} task xong, ${String(story.skipped)} task tre, baseline Plan v1.0\n`),
+  );
 }
 
 if (process.argv[1] !== undefined && process.argv[1].endsWith('dev-seed.js')) {
