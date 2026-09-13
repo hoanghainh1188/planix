@@ -2,7 +2,8 @@
 
 **Ngày:** 2026-09-13
 **Bối cảnh:** làm panel nối dependency (§6, §10.4)
-**Trạng thái:** `N01` và `N08` đã cài (2026-09-13). Phần còn lại vẫn chờ PM xếp ưu tiên.
+**Trạng thái:** đã cài `N01`, `N08`, rồi `J05`, `N02`, `N04`, `N05`, `N10` (2026-09-13).
+Còn `N03` và nhóm cần lịch.
 
 ---
 
@@ -67,19 +68,56 @@ Ghi chú khi cài:
 - **Golden không phủ `N08`**: `generate.ts` nối summary với summary, không có cạnh
   lá-sang-lá khác cha. Hiện chỉ unit test phủ. Nên bổ sung khi sinh lại fixture ở P6.
 
+## Đã làm tiếp: `J05`, `N02`, `N04`, `N05`, `N10`
+
+Chọn theo tiêu chí **chạy được ở đâu**: cả năm đều tính từ cây và danh sách cạnh, không
+cần `schedule` hay `assignment`.
+
+Hai chỗ đáng nhớ:
+
+- **`N02` cố ý bỏ qua predecessor là summary.** Duration lấy từ effort theo §7.2 để rule
+  chạy được ngay lúc import; nhưng effort của summary là tổng của con, còn khoảng thời gian
+  nó trải ra thì chỉ biết sau khi xếp lịch. Đoán bừa ở đây sẽ cho cảnh báo sai trên đúng
+  loại task mà PM khó kiểm chứng nhất.
+- **`N05` báo một lần cho mỗi bản trùng, không báo cả cặp.** Hai dòng cùng tên là MỘT vấn
+  đề. Báo cả hai thì PM sửa một bên rồi vẫn thấy cảnh báo còn lại và tưởng chưa xong.
+
+`N10` bắt 2 dòng ở fixture 20 và 8 dòng ở 500/6.000 — đều là dương tính thật:
+`generate.ts` đặt `sequential` cho phase chẵn đồng thời sinh cạnh FS tường minh giữa các
+module anh em.
+
+## `N03` — chưa làm, và vì sao
+
+`N03` cùng nhóm "không cần lịch", nhưng **mọi lá trong cả ba fixture đều thiếu `phase` và
+`module`**: 13 / 427 / 5.765 lá. Cài ngay thì golden 6.000 nhận thêm 5.765 dòng issue và
+file kỳ vọng thành thứ không ai đọc nổi — byte-for-byte vẫn đúng về mặt kỹ thuật, nhưng
+không còn ai review được diff, tức mất luôn giá trị của golden test.
+
+Gốc rễ nằm ở `generate.ts`: nó gán `phase`/`module` cho summary cấp phase và cấp module,
+nhưng không gán cho lá. Dữ liệu thật thì có (§9.2 có hai trường đó trong schema task).
+
+**Việc cần làm trước:** sinh lại fixture. Đằng nào cũng đã nợ — CLAUDE.md §4 liệt kê vài
+tình huống fixture còn thiếu (task huỷ giữa chuỗi, người làm nhiều dự án, lễ chồng nghỉ
+phép, `pinned_resource` gây overallocate), và `N08` hiện cũng chưa có trong golden vì
+generator chỉ nối summary với summary. Gộp `N03` vào lần sinh lại đó.
+
 ## Việc còn nợ
 
-Sau `N01` và `N08`, bảng §8 còn thiếu:
+| Mức   | Còn thiếu                           | Chạy được ở đâu                                 |
+| ----- | ----------------------------------- | ----------------------------------------------- |
+| Minor | `N03` lá thiếu phase/module         | `validate()` — chờ sinh lại fixture             |
+| Major | `J11` quá hạn so với `status_date`  | cần `schedule.end_date` + `project.status_date` |
+| Major | `J03` vi phạm FNLT                  | cần lịch                                        |
+| Major | `J04` vượt `target_end`             | cần lịch + `project.target_end`                 |
+| Major | `J06` resource dùng < 30%           | cần `assignment`                                |
+| Major | `J07` lệch pha A/B > 20%            | cần kết quả phân bổ                             |
+| Major | `J08` milestone rơi ngày nghỉ       | cần lịch + calendar                             |
+| Minor | `N06` chia mỏng dưới 0.5 allocation | cần `assignment`                                |
 
-| Mức   | Còn thiếu                                                                                                                                                                                     |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Major | `J03` FNLT, `J04` vượt `target_end`, `J05` task > 10 MD, `J06` resource dùng < 30%, `J07` lệch pha A/B > 20%, `J08` milestone rơi ngày nghỉ, **`J11` quá hạn so với `status_date`**           |
-| Minor | `N02` lag âm quá 50% duration, `N03` lá thiếu phase/module, `N04` nhánh sâu quá 6 cấp, `N05` trùng tên cùng cấp, `N06` chia mỏng dưới 0.5 allocation, `N10` cụm sequential có cạnh tường minh |
+Nhóm "cần lịch" phải chạy ở **pipeline sau khi xếp lịch**, giống `J01` đang nằm trong
+`sgs.ts` — không nhét vào `validate()` thuần được.
 
-`J11` đáng làm trước cả nhóm: đó là thứ PM nhìn mỗi tuần khi chốt kỳ, và nó chỉ cần
-`schedule.end_date` với `project.status_date` — hai thứ đã có sẵn.
-
-Một số rule cần dữ liệu mà validate hiện không nhận: `J04` cần `target_end`, `J06`/`J07`
-cần kết quả phân bổ, `J08` cần lịch nghỉ, `N06` cần `assignment`. Những rule đó phải chạy
-ở pipeline (sau khi xếp lịch) chứ không trong `validate()` thuần — giống cách `J01` đang
-nằm trong `sgs.ts`.
+`J11` đáng làm trước cả nhóm: PM nhìn nó mỗi tuần khi chốt kỳ, và nó chỉ cần hai thứ đã
+có sẵn trong DB. Nhưng nó đặt ra một câu hỏi thiết kế chưa có lời đáp: `validate()` chạy
+TRƯỚC khi xếp lịch, nên nếu đặt `J11` ở đó thì lượt validate của lần recalculate sẽ đọc
+lịch CŨ. Phải quyết định chỗ chạy trước khi cài.
