@@ -363,8 +363,14 @@
       "lag_days": 0
     },
     {
-      "pred_uid": "T-0004",
-      "succ_uid": "T-0006",
+      "pred_uid": "T-0003",
+      "succ_uid": "T-0004",
+      "type": "FS",
+      "lag_days": 0
+    },
+    {
+      "pred_uid": "T-0006",
+      "succ_uid": "T-0007",
       "type": "FS",
       "lag_days": 0
     }

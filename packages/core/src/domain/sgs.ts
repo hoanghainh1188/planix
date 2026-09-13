@@ -228,18 +228,23 @@ export function runSgs(input: SgsInput): SgsResult {
     effort: number,
     allocation: number,
     maxParallel: number,
-  ): { start: DateOnly; end: DateOnly } | null {
+  ): { start: DateOnly; end: DateOnly; days: DateOnly[] } | null {
     const start = pool.firstDayWithRoom(resourceId, earliest, allocation, maxParallel);
     if (start === null) return null;
 
+    // Ghi lại ĐÚNG những ngày task làm việc. Ngày người đó đã kín hoặc đã chạm
+    // `max_parallel` thì task chỉ đi qua, không tiêu tốn gì — và lúc đặt chỗ cũng phải
+    // không trừ gì, nếu không phép đếm và phép trừ lệch nhau.
+    const days: DateOnly[] = [];
     let remainingEffort = effort;
     let cursor = start;
     for (let i = 0; i < windowDays; i++) {
       const room = pool.remaining(resourceId, cursor);
       const running = pool.parallelOn(resourceId, cursor);
       if (room >= allocation && running < maxParallel) {
+        days.push(cursor);
         remainingEffort -= allocation;
-        if (remainingEffort <= 1e-9) return { start, end: cursor };
+        if (remainingEffort <= 1e-9) return { start, end: cursor, days };
       }
       cursor = addDays(cursor, 1);
     }
@@ -359,6 +364,7 @@ export function runSgs(input: SgsInput): SgsResult {
         allocation: number;
         start: DateOnly;
         end: DateOnly;
+        days: DateOnly[];
         key: ResourceCandidate;
       }> = [];
 
@@ -372,6 +378,7 @@ export function runSgs(input: SgsInput): SgsResult {
             allocation,
             start: placed.start,
             end: placed.end,
+            days: placed.days,
             key: {
               resourceId: r.id,
               expectedFinish: placed.end,
@@ -413,6 +420,8 @@ export function runSgs(input: SgsInput): SgsResult {
           allocation: 1,
           start: forcedStart,
           end: forcedEnd,
+          // Ép gán thì chiếm cả dải: đó chính là chỗ quá tải mà J01 đang báo.
+          days: workingDaysBetweenInclusive(engine, calendarId, forcedStart, forcedEnd),
           key: {
             resourceId: pinned.id,
             expectedFinish: forcedEnd,
@@ -460,7 +469,7 @@ export function runSgs(input: SgsInput): SgsResult {
         }
       }
 
-      pool.reserve(best.res.id, best.start, best.end, best.allocation);
+      pool.reserveDays(best.res.id, best.days, best.allocation);
       assignments.push({
         taskUid: t.uid,
         resourceId: best.res.id,
@@ -486,4 +495,20 @@ export function runSgs(input: SgsInput): SgsResult {
   assignments.sort((a, b) => (a.taskUid < b.taskUid ? -1 : a.taskUid > b.taskUid ? 1 : 0));
 
   return { assignments, schedule, issues };
+}
+
+/** Các ngày làm việc trong `[from, to]`, dùng cho trường hợp ép gán. */
+function workingDaysBetweenInclusive(
+  engine: CalendarEngine,
+  calendarId: string,
+  from: DateOnly,
+  to: DateOnly,
+): DateOnly[] {
+  const out: DateOnly[] = [];
+  let cursor = from;
+  while (cursor <= to) {
+    if (engine.capacityOfCalendar(calendarId, cursor) > 0) out.push(cursor);
+    cursor = addDays(cursor, 1);
+  }
+  return out;
 }

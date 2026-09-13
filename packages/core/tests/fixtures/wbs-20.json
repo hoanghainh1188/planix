@@ -201,8 +201,14 @@
       "lag_days": 0
     },
     {
-      "pred": "ph0m1",
-      "succ": "ph1m0",
+      "pred": "ph0m0",
+      "succ": "ph0m1",
+      "type": "FS",
+      "lag_days": 0
+    },
+    {
+      "pred": "ph1m0",
+      "succ": "ph1m1",
       "type": "FS",
       "lag_days": 0
     }

@@ -79,6 +79,8 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
 
   const phaseIds: string[] = [];
   const moduleIds: string[] = [];
+  /** Module theo từng phase — dùng để nối cạnh TRONG phase, không vắt ngang. */
+  const modulesByPhase: string[][] = [];
 
   for (let p = 0; p < phaseCount; p++) {
     const pid = `ph${p}`;
@@ -93,9 +95,13 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
       child_sequencing: p % 2 === 0 ? 'sequential' : 'parallel',
     });
 
+    const phaseModules: string[] = [];
+    modulesByPhase.push(phaseModules);
+
     for (let m = 0; m < modulesPerPhase; m++) {
       const mid = `ph${p}m${m}`;
       moduleIds.push(mid);
+      phaseModules.push(mid);
       tasks.push({
         tmp_id: mid,
         parent_tmp_id: pid,
@@ -152,12 +158,20 @@ export function buildPayload(taskCount: number, projectCode = 'UTG'): FixturePay
     dependencies.push({ pred: prev, succ: cur, type, lag_days: lag });
   }
 
-  for (let m = 1; m < moduleIds.length; m++) {
-    if (m % 2 === 1) continue; // thưa bớt cho giống thật
-    const prev = moduleIds[m - 1];
-    const cur = moduleIds[m];
-    if (prev === undefined || cur === undefined) continue;
-    dependencies.push({ pred: prev, succ: cur, type: 'FS', lag_days: 0 });
+  // Cạnh giữa module chỉ nối TRONG cùng một phase, và mỗi phase chỉ MỘT cặp.
+  //
+  // Bản đầu nối module này sang module kia trên toàn bộ danh sách phẳng, bất kể phase,
+  // tạo một chuỗi gần như tuyệt đối qua cả 60 module — lịch 6.000 task kéo tới 11 năm.
+  // Nối mọi module trong một phase cũng cho kết quả tương tự vì phase đã chuỗi sẵn.
+  //
+  // Dự án thật có vài ràng buộc kiểu "module thanh toán sau module người dùng", không
+  // phải chuỗi toàn bộ. Một cặp mỗi phase phản ánh đúng mức đó và vẫn phủ được đường đi
+  // cạnh-summary-sang-lá mà §6.2 cần test.
+  for (const phaseModules of modulesByPhase) {
+    const first = phaseModules[0];
+    const second = phaseModules[1];
+    if (first === undefined || second === undefined) continue;
+    dependencies.push({ pred: first, succ: second, type: 'FS', lag_days: 0 });
   }
 
   return { version: '1.0', project_code: projectCode, mode: 'merge', tasks, dependencies };

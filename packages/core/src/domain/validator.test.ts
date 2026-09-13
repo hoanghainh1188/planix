@@ -291,17 +291,32 @@ describe('C11 — done phải có actual_start và actual_end', () => {
 // ── C12 cấp khai báo dependency ──────────────────────────────────────────────
 
 describe('C12 — dependency khai ở task sâu hơn dependency_max_level (§6.2)', () => {
+  // Hai cha KHÁC nhau: §6.3 miễn trừ cạnh giữa anh em cùng cha, nên muốn chạm C12 thì
+  // hai đầu phải nằm ở hai nhánh khác nhau.
   const tasks = [
     task('R', { kind: 'summary', effortMd: null, role: null, depth: 1 }),
-    task('D4a', { parentUid: 'R', depth: 4 }),
-    task('D4b', { parentUid: 'R', depth: 4 }),
+    task('M1', { parentUid: 'R', kind: 'summary', effortMd: null, role: null, depth: 3 }),
+    task('M2', { parentUid: 'R', kind: 'summary', effortMd: null, role: null, depth: 3 }),
+    task('D4a', { parentUid: 'M1', depth: 4 }),
+    task('D4b', { parentUid: 'M2', depth: 4 }),
     task('D3a', { parentUid: 'R', depth: 3 }),
     task('D3b', { parentUid: 'R', depth: 3 }),
   ];
 
-  it('bắt khi cả hai đầu đều sâu quá mức', () => {
+  it('bắt khi hai đầu sâu quá mức và KHÁC cha', () => {
     const r = validate(input({ tasks, dependencies: [dep('D4a', 'D4b')] }));
     expect(codes(r)).toContain('C12');
+  });
+
+  it('MIỄN TRỪ cạnh giữa hai anh em cùng cha — §6.3 "Cách 2" cho phép', () => {
+    const siblings = [
+      task('R', { kind: 'summary', effortMd: null, role: null, depth: 1 }),
+      task('M1', { parentUid: 'R', kind: 'summary', effortMd: null, role: null, depth: 3 }),
+      task('s1', { parentUid: 'M1', depth: 4 }),
+      task('s2', { parentUid: 'M1', depth: 4 }),
+    ];
+    const r = validate(input({ tasks: siblings, dependencies: [dep('s1', 's2')] }));
+    expect(codes(r)).not.toContain('C12');
   });
 
   it('không bắt khi ở đúng mức cho phép', () => {
