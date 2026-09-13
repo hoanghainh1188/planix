@@ -9,6 +9,8 @@ function t(uid: string, over: Partial<RollupTask> = {}): RollupTask {
     effortMd: 1,
     status: 'not_started',
     percent: 0,
+    planStart: null,
+    planEnd: null,
     ...over,
   };
 }
@@ -227,5 +229,69 @@ describe('micro task (§7.9)', () => {
 
   it('cancelled vẫn hợp lệ', () => {
     expect(normalizeMicroTask({ effortMd: 0.5, status: 'cancelled', percent: 0 }).percent).toBe(0);
+  });
+});
+
+// ── §7.7 ngày lăn lên summary ───────────────────────────────────────────────
+
+describe('rollup ngày — start = min(con), end = max(con) (§7.7)', () => {
+  it('summary lấy ngày sớm nhất và muộn nhất của con', () => {
+    const r = rollupTree([
+      sum('S'),
+      t('a', { parentUid: 'S', planStart: '2026-03-10', planEnd: '2026-03-12' }),
+      t('b', { parentUid: 'S', planStart: '2026-02-02', planEnd: '2026-02-20' }),
+      t('c', { parentUid: 'S', planStart: '2026-03-01', planEnd: '2026-04-30' }),
+    ]);
+    expect(r.get('S')?.planStart).toBe('2026-02-02');
+    expect(r.get('S')?.planEnd).toBe('2026-04-30');
+  });
+
+  it('ngày lăn qua NHIỀU cấp, không chỉ một cấp', () => {
+    const r = rollupTree([
+      sum('root'),
+      sum('mid', { parentUid: 'root' }),
+      t('leaf', { parentUid: 'mid', planStart: '2026-05-05', planEnd: '2026-05-09' }),
+    ]);
+    expect(r.get('root')?.planStart).toBe('2026-05-05');
+    expect(r.get('root')?.planEnd).toBe('2026-05-09');
+  });
+
+  it('con chưa xếp lịch (ngày null) bị bỏ qua, không kéo summary về null', () => {
+    const r = rollupTree([
+      sum('S'),
+      t('a', { parentUid: 'S', planStart: null, planEnd: null }),
+      t('b', { parentUid: 'S', planStart: '2026-06-01', planEnd: '2026-06-03' }),
+    ]);
+    expect(r.get('S')?.planStart).toBe('2026-06-01');
+    expect(r.get('S')?.planEnd).toBe('2026-06-03');
+  });
+
+  it('không con nào có ngày thì summary cũng null, không phải chuỗi rỗng', () => {
+    const r = rollupTree([sum('S'), t('a', { parentUid: 'S' })]);
+    expect(r.get('S')?.planStart).toBeNull();
+    expect(r.get('S')?.planEnd).toBeNull();
+  });
+
+  it('con cancelled KHÔNG kéo dài thanh của summary', () => {
+    // Task huỷ bị gỡ khỏi mạng lưới (§7) nên thường đã không có ngày; loại nó tường minh
+    // để một hàng dữ liệu cũ còn sót ngày không làm phình summary.
+    const r = rollupTree([
+      sum('S'),
+      t('a', {
+        parentUid: 'S',
+        planStart: '2026-01-05',
+        planEnd: '2026-12-31',
+        status: 'cancelled',
+      }),
+      t('b', { parentUid: 'S', planStart: '2026-06-01', planEnd: '2026-06-03' }),
+    ]);
+    expect(r.get('S')?.planStart).toBe('2026-06-01');
+    expect(r.get('S')?.planEnd).toBe('2026-06-03');
+  });
+
+  it('lá giữ nguyên ngày của chính nó', () => {
+    const r = rollupTree([t('x', { planStart: '2026-07-07', planEnd: '2026-07-08' })]);
+    expect(r.get('x')?.planStart).toBe('2026-07-07');
+    expect(r.get('x')?.planEnd).toBe('2026-07-08');
   });
 });

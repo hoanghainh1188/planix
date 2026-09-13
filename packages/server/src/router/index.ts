@@ -27,7 +27,20 @@ export interface Context {
   readonly dbPath: string;
 }
 
-const t = initTRPC.context<Context>().create();
+/**
+ * `stack` bị GỠ khỏi mọi lỗi trả về.
+ *
+ * Mặc định tRPC kèm stack trace khi `NODE_ENV !== 'production'`, nghĩa là một client CHƯA
+ * đăng nhập nhận được đường dẫn tuyệt đối trên máy chủ chỉ bằng một request hỏng. Không
+ * dựa vào biến môi trường được đặt đúng: quên đặt một lần là rò ngay ở production.
+ */
+const t = initTRPC.context<Context>().create({
+  errorFormatter({ shape }) {
+    const data = { ...shape.data };
+    delete data.stack;
+    return { ...shape, data };
+  },
+});
 
 /** Mọi procedure đều đòi đăng nhập: §13.3 không có đăng ký công khai, không có khách. */
 const authed = t.procedure.use(({ ctx, next }) => {

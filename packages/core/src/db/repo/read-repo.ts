@@ -6,6 +6,8 @@
  */
 
 import type { Db } from '../migrate.js';
+import { rollupTree, type RollupTask } from '../../domain/rollup.js';
+import type { ProgressStatus, TaskKind } from '../../domain/validation-types.js';
 
 /** S1 — một dòng của cây WBS (§10.4 danh sách cột). */
 export interface WbsRow {
@@ -26,6 +28,8 @@ export interface WbsRow {
   readonly totalFloat: number | null;
   readonly isCritical: boolean;
   readonly delayReason: string | null;
+  /** §10.4 "ô có issue: chấm đỏ góc phải" — mã issue của ĐÚNG run mới nhất. */
+  readonly issueCodes: readonly string[];
 }
 
 export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
@@ -47,25 +51,74 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
     )
     .all(projectId) as Array<Record<string, unknown>>;
 
-  return rows.map((r) => ({
-    uid: r['uid'] as string,
-    wbsCode: r['wbs_code'] as string,
-    depth: r['depth'] as number,
-    parentUid: (r['parent_uid'] as string | null) ?? null,
-    name: r['name'] as string,
-    kind: r['kind'] as string,
-    effortMd: (r['effort_md'] as number | null) ?? null,
-    role: (r['role'] as string | null) ?? null,
-    childSequencing: (r['child_sequencing'] as string | null) ?? null,
-    pic: (r['pic'] as string | null) ?? null,
-    status: r['status'] as string,
-    percent: r['percent'] as number,
-    planStart: (r['start_date'] as string | null) ?? null,
-    planEnd: (r['end_date'] as string | null) ?? null,
-    totalFloat: (r['total_float'] as number | null) ?? null,
-    isCritical: r['is_critical'] === 1,
-    delayReason: (r['delay_reason'] as string | null) ?? null,
-  }));
+  // Một truy vấn gộp sẵn, KHÔNG phải mỗi dòng một lần (CLAUDE.md §8 cấm N+1). Cũng
+  // không JOIN vào câu trên: một task nhiều issue sẽ nhân đôi dòng của cây.
+  const issueCodes = new Map<string, string[]>();
+  const issueRows = db
+    .prepare(
+      `SELECT task_uid, code
+       FROM validation_issue
+       WHERE project_id = ? AND task_uid IS NOT NULL AND run_id = (
+         SELECT run_id FROM validation_issue WHERE project_id = ?
+         ORDER BY detected_at DESC, id DESC LIMIT 1
+       )
+       ORDER BY code`,
+    )
+    .all(projectId, projectId) as Array<Record<string, unknown>>;
+  for (const r of issueRows) {
+    const uid = r['task_uid'] as string;
+    const list = issueCodes.get(uid);
+    if (list === undefined) issueCodes.set(uid, [r['code'] as string]);
+    else list.push(r['code'] as string);
+  }
+
+  // §7.7: summary KHÔNG có dữ liệu riêng — ngày, effort, status, % đều tính từ con
+  // "lúc đọc", không lưu xuống. Bỏ bước này thì mọi dòng summary hiện ra rỗng trơn.
+  const rollup = rollupTree(
+    rows.map((r): RollupTask => ({
+      uid: r['uid'] as string,
+      parentUid: (r['parent_uid'] as string | null) ?? null,
+      kind: r['kind'] as TaskKind,
+      effortMd: (r['effort_md'] as number | null) ?? null,
+      status: r['status'] as ProgressStatus,
+      percent: r['percent'] as number,
+      planStart: (r['start_date'] as string | null) ?? null,
+      planEnd: (r['end_date'] as string | null) ?? null,
+    })),
+  );
+
+  return rows.map((r) => {
+    const uid = r['uid'] as string;
+    const kind = r['kind'] as string;
+    const rolled = rollup.get(uid);
+    const isSummary = kind === 'summary';
+
+    return {
+      uid,
+      wbsCode: r['wbs_code'] as string,
+      depth: r['depth'] as number,
+      parentUid: (r['parent_uid'] as string | null) ?? null,
+      name: r['name'] as string,
+      kind,
+      // Summary hiện tổng MD của con; §7.7 cấm ghi số đó vào `task.effort_md`.
+      effortMd: isSummary
+        ? (rolled?.effortRollup ?? null)
+        : ((r['effort_md'] as number | null) ?? null),
+      role: (r['role'] as string | null) ?? null,
+      childSequencing: (r['child_sequencing'] as string | null) ?? null,
+      pic: (r['pic'] as string | null) ?? null,
+      status: rolled?.status ?? (r['status'] as string),
+      percent: rolled?.percentDisplay ?? (r['percent'] as number),
+      planStart: rolled?.planStart ?? null,
+      planEnd: rolled?.planEnd ?? null,
+      // Float và đường găng chỉ có nghĩa trên task thật: CPM chạy trên lá, không trên
+      // summary. Bịa một con số ở đây sẽ thành "đường găng" sai trên màn hình.
+      totalFloat: isSummary ? null : ((r['total_float'] as number | null) ?? null),
+      isCritical: !isSummary && r['is_critical'] === 1,
+      delayReason: isSummary ? null : ((r['delay_reason'] as string | null) ?? null),
+      issueCodes: issueCodes.get(uid) ?? [],
+    };
+  });
 }
 
 /** S4 — dòng nhập tiến độ, kèm team để lead chỉ thấy team mình (§10.5, §10.6). */
@@ -140,7 +193,9 @@ export function projectOfTask(db: Db, taskUid: string): string | undefined {
 
 /** S6 — danh sách issue của lần validate mới nhất. */
 export interface IssueRow {
-  readonly severity: string;
+  // Cột `severity` đã có CHECK ba giá trị trong §4.2, nên kiểu ở đây phản ánh đúng thế.
+  // Khai `string` là ném việc thu hẹp kiểu sang mọi nơi gọi.
+  readonly severity: 'Critical' | 'Major' | 'Minor';
   readonly code: string;
   readonly taskUid: string | null;
   readonly message: string;
@@ -160,7 +215,7 @@ export function loadIssues(db: Db, projectId: string): IssueRow[] {
     )
     .all(projectId, projectId) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
-    severity: r['severity'] as string,
+    severity: r['severity'] as IssueRow['severity'],
     code: r['code'] as string,
     taskUid: (r['task_uid'] as string | null) ?? null,
     message: r['message'] as string,
