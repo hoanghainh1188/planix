@@ -339,8 +339,7 @@ export async function run(argv: readonly string[], now: string): Promise<string>
     const db = open(now);
     try {
       const user = db.prepare('SELECT id FROM app_user WHERE email = ?').get(email) as
-        | { id: string }
-        | undefined;
+        { id: string } | undefined;
       if (user === undefined) throw new Error(`Không có người dùng ${email}`);
 
       const created = createMcpToken(db, { userId: user.id, label, now });
@@ -386,8 +385,7 @@ export async function run(argv: readonly string[], now: string): Promise<string>
       // Phân biệt "không có" với "đã thu hồi từ trước": hai cái đòi hai phản ứng khác nhau.
       if (changed === 0) {
         const exists = db.prepare('SELECT revoked_at FROM mcp_token WHERE id = ?').get(id) as
-          | { revoked_at: string | null }
-          | undefined;
+          { revoked_at: string | null } | undefined;
         if (exists === undefined) throw new Error(`Không có token ${id}`);
         return `Token ${id} đã bị thu hồi từ ${String(exists.revoked_at)}.`;
       }
