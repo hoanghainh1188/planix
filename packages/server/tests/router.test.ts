@@ -1131,3 +1131,79 @@ describe('S8 — import', () => {
     });
   });
 });
+
+// ── S7 — Chốt kỳ (§7.13) ────────────────────────────────────────────────────
+
+describe('S7 — close period', () => {
+  /** Fixture mặc định có task `work` chưa xếp lịch; chốt kỳ cần dữ liệu sạch. */
+  function makeCleanable(): void {
+    db.prepare(
+      `INSERT INTO progress (task_uid,status,percent,actual_start,actual_end,updated_by,updated_at)
+       VALUES ('T-0002','done',100,'2026-01-05','2026-01-06','U-PM',?)`,
+    ).run(AT);
+  }
+
+  it('chốt được: đặt mốc chuẩn, sinh baseline, trả về số task đã chụp', async () => {
+    makeCleanable();
+    const res = await caller('U-PM').period.close({
+      projectId: 'P',
+      statusDate: '2026-02-01',
+      label: 'Plan v1.0',
+    });
+
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.taskCount).toBeGreaterThan(0);
+    expect(db.prepare(`SELECT status_date AS d FROM project WHERE id='P'`).get()).toEqual({
+      d: '2026-02-01',
+    });
+    expect(db.prepare(`SELECT label FROM baseline WHERE project_id='P'`).get()).toEqual({
+      label: 'Plan v1.0',
+    });
+  });
+
+  it('có Critical thì KHÔNG chốt, và mốc chuẩn giữ nguyên', async () => {
+    // `T-0002` là task `work` chưa có tiến độ — nhưng C04/C07 mới là thứ chặn. Bỏ role đi.
+    db.prepare(`UPDATE task SET role = NULL WHERE uid = 'T-0002'`).run();
+    const before = db.prepare(`SELECT status_date AS d FROM project WHERE id='P'`).get();
+
+    const res = await caller('U-PM').period.close({
+      projectId: 'P',
+      statusDate: '2026-02-01',
+      label: 'Plan v1.0',
+    });
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.issues.some((i) => i.severity === 'Critical')).toBe(true);
+    // §7.13 làm ba việc trong MỘT transaction: hỏng thì `status_date` cũng phải quay lại.
+    expect(db.prepare(`SELECT status_date AS d FROM project WHERE id='P'`).get()).toEqual(before);
+    expect(db.prepare(`SELECT COUNT(*) n FROM baseline`).get()).toEqual({ n: 0 });
+  });
+
+  it('lead không được chốt kỳ (§10.6)', async () => {
+    await expectTrpcCode(
+      caller('U-LEAD').period.close({
+        projectId: 'P',
+        statusDate: '2026-02-01',
+        label: 'x',
+      }),
+      'FORBIDDEN',
+    );
+  });
+
+  it('liệt kê baseline, mới nhất trước', async () => {
+    makeCleanable();
+    await caller('U-PM').period.close({
+      projectId: 'P',
+      statusDate: '2026-02-01',
+      label: 'Plan v1.0',
+    });
+    const list = await caller('U-PM').period.list({ projectId: 'P' });
+    expect(list).toHaveLength(1);
+    expect(list[0]?.label).toBe('Plan v1.0');
+  });
+
+  it('lead ĐỌC được danh sách baseline — xem không phải là chốt', async () => {
+    const list = await caller('U-LEAD').period.list({ projectId: 'P' });
+    expect(list).toEqual([]);
+  });
+});

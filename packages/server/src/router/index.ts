@@ -23,6 +23,7 @@ import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
 import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
 import { moveRejectionMessage } from '@planix/core/domain/move.js';
 import { dryRunImport, ImportValidationError, importTasks } from '@planix/core/io/importer.js';
+import { closePeriod, PeriodNotClosedError } from '@planix/core/db/repo/baseline-repo.js';
 import { previewRecalculate } from '../scheduler/preview.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
 import { recordUpdate } from '../audit/audit-log.js';
@@ -907,6 +908,72 @@ export const appRouter = t.router({
       } catch (error) {
         return { ok: false as const, ...describeImportFailure(error) };
       }
+    }),
+  }),
+
+  // ── S7 — Chốt kỳ (§7.13) ─────────────────────────────────────────────────
+  period: t.router({
+    /**
+     * Ba việc trong MỘT transaction (§7.13): đặt `status_date`, validate, ghi baseline.
+     *
+     * Có Critical thì KHÔNG chốt — và đó là điểm khác biệt so với mọi đường ghi khác
+     * trong router này. Ở chỗ khác, §12.4 cho ghi rồi báo; ở đây §7.13 nói thẳng "dừng,
+     * không chốt". Lý do hợp lý: baseline là mốc cam kết, mọi so sánh scope creep về sau
+     * dựa vào nó. Chốt một mốc dựng trên dữ liệu hỏng là làm hỏng cả thước đo.
+     */
+    close: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          statusDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          label: z.string().min(1).max(60),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        try {
+          assertCan('close_period', permissionContext(ctx, input.projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        try {
+          const result = closePeriod(ctx.db, {
+            projectId: input.projectId,
+            statusDate: input.statusDate as never,
+            label: input.label,
+            takenBy: ctx.user.userId,
+            takenAt: ctx.now,
+            runId: `close-${ctx.now}`,
+            baselineId: `B-${ctx.now}-${input.projectId}`,
+          });
+          return {
+            ok: true as const,
+            baselineId: result.baselineId,
+            taskCount: result.taskCount,
+            issues: result.report.issues,
+          };
+        } catch (error) {
+          if (error instanceof PeriodNotClosedError) {
+            // Trả về thay vì ném: PM cần ĐỌC danh sách vấn đề để đi sửa, và một mã lỗi
+            // tRPC chỉ mang được một câu.
+            return {
+              ok: false as const,
+              message: 'Cannot close: the project has blocking issues.',
+              issues: error.report.issues,
+            };
+          }
+          throw error;
+        }
+      }),
+
+    /** Baseline đã chốt, mới nhất trước. Bản đã ẩn không hiện (§7.13 không cho xoá). */
+    list: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+      return baselineRepo.listBaselines(ctx.db, input.projectId);
     }),
   }),
 

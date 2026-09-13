@@ -1,0 +1,258 @@
+/*
+ * S7 — chốt kỳ và báo cáo (§7.13, §11).
+ *
+ * Cùng hướng với màn Import: đọc nhiều hơn thao tác, nên giới hạn bề ngang cho dễ đọc
+ * thay vì trải hết màn hình như bảng WBS.
+ */
+
+.period {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-width: 58rem;
+  width: 100%;
+  padding: var(--space-8) var(--space-4);
+  margin: 0 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.period__title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.period__lead {
+  margin: var(--space-2) 0 0;
+  max-width: 44rem;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--c-ink-muted);
+}
+
+.period__block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.period__heading {
+  margin: 0;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--c-rule);
+}
+
+/* ── Chốt kỳ ─────────────────────────────────────────────────────────────── */
+
+.period__form {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.period__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.period__field--wide {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.period__label {
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+}
+
+.period__input {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+}
+.period__input--narrow {
+  width: 4rem;
+}
+.period__input:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -1px;
+}
+
+.period__button {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--c-ink);
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+.period__button:hover:not(:disabled) {
+  border-color: var(--c-ink-muted);
+  background: var(--c-surface-sunken);
+}
+.period__button:disabled {
+  color: var(--c-ink-faint);
+}
+
+/* Chốt kỳ là việc không hoàn tác được (§7.13 không cho xoá baseline) — nút phải nặng hơn. */
+.period__button--go {
+  color: var(--c-surface);
+  background: var(--c-ink);
+  border-color: var(--c-ink);
+}
+.period__button--go:hover:not(:disabled) {
+  background: var(--c-ink-muted);
+  border-color: var(--c-ink-muted);
+}
+
+/* ── Baseline ────────────────────────────────────────────────────────────── */
+
+.period__baselines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.period__baseline {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--c-surface-sunken);
+  font-size: var(--text-sm);
+}
+
+.period__baselineLabel {
+  font-weight: 600;
+}
+.period__baselineDate {
+  color: var(--c-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.period__tag {
+  margin-left: auto;
+  padding: 1px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+}
+
+/* ── Báo cáo ─────────────────────────────────────────────────────────────── */
+
+.period__reports {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.period__report {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--c-surface-sunken);
+}
+
+.period__reportText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.period__reportWho {
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+}
+
+.period__depth {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+/* ── Kết quả ─────────────────────────────────────────────────────────────── */
+
+.period__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule);
+  border-left: 3px solid var(--c-rule-strong);
+  border-radius: 2px;
+}
+.period__panel--bad {
+  background: var(--c-critical-soft);
+  border-left-color: var(--c-critical);
+}
+.period__panel--good {
+  border-left-color: var(--c-done);
+}
+
+.period__panelHead {
+  margin: 0;
+  font-weight: 600;
+}
+
+.period__issues {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.period__issue {
+  display: grid;
+  grid-template-columns: 3.25rem minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.period__issueCode {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--c-critical);
+}
+
+.period__empty {
+  margin: 0;
+  color: var(--c-ink-faint);
+  font-size: var(--text-sm);
+}

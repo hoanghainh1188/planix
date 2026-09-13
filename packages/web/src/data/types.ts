@@ -27,3 +27,13 @@ export type ValidationRun = Outputs['issues']['lastRun'];
 export type ValidationRunRow = Outputs['issues']['history'][number];
 export type ImportCheck = Outputs['wbsImport']['dryRun'];
 export type ImportDone = Extract<Outputs['wbsImport']['commit'], { ok: true }>;
+export type BaselineRow = Outputs['period']['list'][number];
+export type CloseResult = Outputs['period']['close'];
+/**
+ * Issue do validate sinh ra tại chỗ — KHÁC `IssueRow` đọc từ bảng.
+ *
+ * `IssueRow` có `detectedAt` vì nó là một dòng đã ghi xuống; thứ trả về từ `close` hay từ
+ * export bị chặn thì chưa từng được ghi, nên không có mốc đó. Dùng lẫn hai kiểu là cách
+ * chắc chắn để một hôm nào đó `detectedAt` hiện ra là `undefined` trên màn hình.
+ */
+export type BlockingIssue = CloseResult['issues'][number];

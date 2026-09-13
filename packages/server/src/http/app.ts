@@ -19,6 +19,9 @@ import {
   SESSION_TTL_DAYS,
 } from '../auth/session.js';
 import { securityHeaders } from './security.js';
+import { exportExcel, ExportBlockedError, type ReportKind } from '@planix/core/io/excel/index.js';
+import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { findProjectRole } from '@planix/core/db/repo/auth-repo.js';
 import { redactPath, stdoutSink, type LogSink } from './request-log.js';
 
 export interface AppConfig {
@@ -151,6 +154,73 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
   });
 
   app.get('/api/health', (c) => c.json({ ok: true }));
+
+  /**
+   * S7 — tải báo cáo Excel (§11).
+   *
+   * Route HTTP thường chứ không phải procedure tRPC: đây là một FILE NHỊ PHÂN. Nhét
+   * buffer qua tRPC thì phải mã hoá base64, phình một phần ba, và trình duyệt vẫn không
+   * tải xuống được nếu không có `Content-Disposition`. Một GET với header đúng thì thẻ
+   * `<a download>` làm được ngay.
+   */
+  app.get('/api/export', async (c) => {
+    const sessionId = getCookie(c, SESSION_COOKIE);
+    const user = sessionId === undefined ? null : getSession(config.db, sessionId, now());
+    if (user === null) return c.json({ error: 'unauthorized' }, 401);
+    c.set('userId', user.userId);
+
+    const projectId = c.req.query('project') ?? '';
+    const report = c.req.query('report') ?? '';
+    if (!['full', 'summary', 'resource'].includes(report)) {
+      return c.json({ error: 'invalid_report' }, 400);
+    }
+
+    const assignment = findProjectRole(config.db, user.userId, projectId);
+    try {
+      // §10.6 cho lead bản `full` thôi, nên `reportKind` phải đi kèm — thiếu nó là mở
+      // cửa cho lead tải bản `resource` (ma trận năng lực toàn đội).
+      assertCan('export_report', {
+        isAdmin: user.isAdmin,
+        projectRole: assignment?.role ?? null,
+        reportKind: report as ReportKind,
+      });
+    } catch (e) {
+      if (e instanceof ForbiddenError) return c.json({ error: 'forbidden' }, 403);
+      throw e;
+    }
+
+    const rawDepth = c.req.query('depth');
+    const depth = rawDepth === undefined ? undefined : Number(rawDepth);
+    if (depth !== undefined && !Number.isInteger(depth)) {
+      return c.json({ error: 'invalid_depth' }, 400);
+    }
+
+    try {
+      const result = await exportExcel(config.db, {
+        projectId,
+        report: report as ReportKind,
+        runId: `export-${now()}`,
+        ...(depth === undefined ? {} : { depth }),
+      });
+      c.header('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      c.header('content-disposition', `attachment; filename="${result.filename}"`);
+      // §11.4: Major vẫn xuất, nhưng người tải phải biết. Header thay vì chèn vào file —
+      // sửa nội dung file là làm hỏng chính thứ §14.5 so byte-for-byte.
+      c.header('x-planix-warnings', String(result.warnings.length));
+      return c.body(new Uint8Array(result.buffer));
+    } catch (error) {
+      if (error instanceof ExportBlockedError) {
+        return c.json(
+          {
+            error: 'blocked',
+            issues: error.report.issues.filter((i) => i.severity === 'Critical'),
+          },
+          409,
+        );
+      }
+      return c.json({ error: error instanceof Error ? error.message : 'export_failed' }, 400);
+    }
+  });
 
   // ── tRPC ──────────────────────────────────────────────────────────────────
   app.all('/trpc/*', (c) => {

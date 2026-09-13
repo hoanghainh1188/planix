@@ -6,6 +6,7 @@ import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
+import { PeriodScreen } from '../components/period/PeriodScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
@@ -13,10 +14,13 @@ import { createProjectStore } from '../model/project-store.js';
 import { toFriendlyError, trpc } from '../data/client.js';
 import { useAsync } from '../data/use-async.js';
 import type {
+  BaselineRow,
+  CloseResult,
   DependencyType,
   GanttRowData,
   ImportCheck,
   ImportDone,
+  BlockingIssue,
   LinkIssue,
   ProgressBoardData,
   ProjectSummary,
@@ -32,7 +36,7 @@ import './app.css';
  * động. Chỉ báo cáo Excel mới có tham số `lang` (§11.1).
  */
 /** §10.3 — ba màn của MVP (P8/P9) cộng S8 Import (P12). */
-type Screen = 'wbs' | 'gantt' | 'progress' | 'import';
+type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period';
 
 /**
  * `pmOnly` không phải là cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ
@@ -44,6 +48,7 @@ const SCREENS: ReadonlyArray<{ id: Screen; label: string; pmOnly?: boolean }> = 
   { id: 'gantt', label: 'Gantt' },
   { id: 'progress', label: 'Progress' },
   { id: 'import', label: 'Import', pmOnly: true },
+  { id: 'period', label: 'Reports', pmOnly: true },
 ];
 
 /**
@@ -106,6 +111,12 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [importDone, setImportDone] = useState<ImportDone | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [closeResult, setCloseResult] = useState<CloseResult | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<readonly BlockingIssue[] | string | null>(
+    null,
+  );
   /**
    * Payload đang chờ PM xác nhận vì nó sẽ XOÁ dữ liệu.
    *
@@ -175,6 +186,11 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.issues.lastRun.query({ projectId });
   }, [projectId]);
 
+  const loadBaselines = useCallback((): Promise<BaselineRow[]> => {
+    if (projectId === null) return Promise.resolve([]);
+    return trpc.period.list.query({ projectId });
+  }, [projectId]);
+
   const loadHistory = useCallback(() => {
     if (projectId === null) return Promise.resolve([]);
     return trpc.issues.history.query({ projectId });
@@ -207,6 +223,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const issues = useAsync(loadIssues, [projectId, savedAt, validatedAt, viewingRunPk]);
   const lastRun = useAsync(loadLastRun, [projectId, savedAt, validatedAt]);
   const history = useAsync(loadHistory, [projectId, savedAt, validatedAt]);
+  const baselines = useAsync(loadBaselines, [projectId, savedAt]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
   const links = useAsync(loadLinks, [selectedUid, savedAt]);
@@ -519,6 +536,75 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  // ── S7 — chốt kỳ và báo cáo (§7.13, §11) ──────────────────────────────────
+
+  async function closePeriod(statusDate: string, label: string): Promise<void> {
+    if (projectId === null) return;
+    setClosing(true);
+    setCloseResult(null);
+    try {
+      const res = await trpc.period.close.mutate({ projectId, statusDate, label });
+      setCloseResult(res);
+      // Chốt xong thì mốc chuẩn, baseline và EVM đều đổi — đọc lại hết.
+      if (res.ok) afterWrite();
+    } catch (error) {
+      // Lỗi mạng hay lỗi quyền: dựng một kết quả "không chốt được" để màn hình hiện cùng
+      // một chỗ với lỗi nghiệp vụ, thay vì thêm một đường báo lỗi thứ hai.
+      setCloseResult({ ok: false, message: toFriendlyError(error).message, issues: [] });
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  /**
+   * Tải file qua `fetch` rồi mới dựng link, thay vì trỏ thẳng `<a href>`.
+   *
+   * Trỏ thẳng thì khi export bị chặn (§11.4 — có Critical là không xuất), trình duyệt sẽ
+   * tải về một file JSON lỗi mang tên `.xlsx`. Đọc phản hồi trước cho phép hiện đúng danh
+   * sách vấn đề, và chỉ dựng link khi thật sự có file.
+   */
+  async function downloadReport(
+    report: 'full' | 'summary' | 'resource',
+    depth: number,
+  ): Promise<void> {
+    if (projectId === null) return;
+    setDownloading(report);
+    setDownloadError(null);
+    try {
+      const params = new URLSearchParams({ project: projectId, report });
+      if (report === 'summary') params.set('depth', String(depth));
+      const res = await fetch(`/api/export?${params.toString()}`);
+
+      if (!res.ok) {
+        const body: unknown = await res.json().catch(() => null);
+        const issues =
+          typeof body === 'object' &&
+          body !== null &&
+          Array.isArray((body as { issues?: unknown }).issues)
+            ? (body as { issues: BlockingIssue[] }).issues
+            : null;
+        setDownloadError(issues ?? `Could not export (HTTP ${String(res.status)}).`);
+        return;
+      }
+
+      const blob = await res.blob();
+      const name =
+        /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1] ??
+        `${report}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      // Thu hồi ngay: giữ object URL sống là giữ cả file trong RAM cho tới khi đóng tab.
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setDownloadError(toFriendlyError(error).message);
+    } finally {
+      setDownloading(null);
+    }
+  }
+
   async function saveProgress(rows: readonly SaveRow[]): Promise<void> {
     setSaving(true);
     setSaveError(null);
@@ -615,7 +701,27 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       ) : null}
 
       <main className={screen === 'wbs' ? 'app__main' : 'app__main app__main--wide'}>
-        {screen === 'import' ? (
+        {screen === 'period' ? (
+          /*
+           * `key` theo dự án để React DỰNG LẠI màn khi PM đổi dự án.
+           *
+           * Ô ngày và tên baseline là state khởi tạo từ prop, mà `useState` chỉ đọc giá
+           * trị khởi tạo đúng một lần. Không có `key` thì đổi sang dự án khác vẫn giữ
+           * nguyên mốc chuẩn và tên gợi ý của dự án CŨ — bấm Close period là lẳng lặng
+           * kéo mốc chuẩn về một ngày thuộc dự án khác.
+           */
+          <PeriodScreen
+            key={projectId ?? 'none'}
+            statusDate={statusDate}
+            baselines={baselines.status === 'ready' ? baselines.data : []}
+            closing={closing}
+            closeResult={closeResult}
+            onClose={closePeriod}
+            downloading={downloading}
+            downloadError={downloadError}
+            onDownload={downloadReport}
+          />
+        ) : screen === 'import' ? (
           <ImportScreen
             check={importCheck}
             done={importDone}

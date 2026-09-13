@@ -62,6 +62,10 @@ export async function exportExcel(db: Db, options: ExportOptions): Promise<Expor
     resourceRoles: importRepo.loadResourceRoles(db),
     progress: importRepo.loadProgress(db, options.projectId),
     dependencyMaxLevel: settings.dependencyMaxLevel,
+    // Cùng bộ đầu vào với mọi lời gọi validate khác. Thiếu chúng thì `J03`/`J04`/`J11`
+    // im lặng ở đúng chỗ cần nói nhất: báo cáo gửi cho khách.
+    schedule: importRepo.loadSchedule(db, options.projectId),
+    ...importRepo.loadProjectDates(db, options.projectId),
   });
   if (!report.passed) throw new ExportBlockedError(report);
 
