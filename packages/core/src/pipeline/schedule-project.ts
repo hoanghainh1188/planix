@@ -49,6 +49,13 @@ export interface ScheduleOptions {
   readonly now: string;
   /** Số ngày cửa sổ lập lịch. §1.5 thiết kế 400 ngày làm việc. */
   readonly windowDays?: number;
+  /**
+   * Coi assignment của dự án khác là đã chiếm chỗ (§7.12). Mặc định BẬT.
+   *
+   * Tắt chỉ hợp lý khi người gọi đang chạy "Recalculate all" và đã tự xoá sạch lịch của
+   * mọi dự án — khi đó chưa có gì để tôn trọng.
+   */
+  readonly respectOtherProjects?: boolean;
 }
 
 export interface ScheduleIssue {
@@ -94,6 +101,11 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   if (!report.passed) throw new ScheduleBlockedError(report);
 
   const issues: ScheduleIssue[] = [];
+
+  // §7.12 "việc đang chạy không bị dời": đọc người đang làm TRƯỚC khi §4.3 xoá bảng
+  // assignment ở cuối lượt. Không đọc trước thì thông tin này mất vĩnh viễn.
+  const runningAssignees = scheduleRepo.loadRunningAssignees(db, settings.id);
+
   const engine = createCalendarEngine(loadCalendarSnapshot(db));
   const depTasks = scheduleRepo.loadDepTasks(db, settings.id);
   const facts = scheduleRepo.loadSchedulingFacts(db, settings.id);
@@ -243,7 +255,10 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       priority: f.priority,
       role: f.role,
       effortMd: row.remainingMd,
-      pinnedResource: f.pinnedResource,
+      // Người đang làm dở được ghim lại. Không ghim thì mỗi lần recalculate,
+      // RESOURCE_KEY có thể trao task cho người khác chỉ vì họ rảnh hơn, và PM thấy
+      // nhân sự nhảy loạn giữa các tuần mà không hiểu vì sao.
+      pinnedResource: f.pinnedResource ?? runningAssignees.get(t.uid) ?? null,
       constraintType: f.constraintType,
       constraintDate: f.constraintDate,
       ls: cpmRow.ls,
@@ -260,7 +275,20 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     else list.push(joinUid);
   }
 
+  const externalReservations =
+    options.respectOtherProjects === false
+      ? []
+      : scheduleRepo.loadExternalAssignments(db, settings.id).map((a) => ({
+          resourceId: a.resourceId,
+          fromDate: a.fromDate,
+          toDate: a.toDate,
+          allocation: a.allocation,
+          projectId: a.projectId,
+        }));
+
   const sgs = runSgs({
+    externalReservations,
+    projectId: settings.id,
     clusters: clusters.map((c) => ({
       uid: c.uid,
       leafUids: [
@@ -330,4 +358,50 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     writeLockMs,
     projectEnd,
   };
+}
+
+// ── §7.12 — lập lịch xuyên dự án ────────────────────────────────────────────
+
+export interface ScheduleAllOptions {
+  readonly runId: string;
+  readonly now: string;
+  readonly windowDays?: number;
+}
+
+export interface ScheduleAllResult {
+  /** Theo đúng thứ tự đã chạy: priority tăng dần, trùng thì code tăng dần. */
+  readonly order: readonly string[];
+  readonly perProject: ReadonlyMap<string, ScheduleResult>;
+}
+
+/**
+ * "Recalculate all" — chạy hết mọi dự án theo thứ tự ưu tiên (§7.12).
+ *
+ * Dự án ưu tiên 1 xếp trên lịch trống; assignment của nó ghi vào pool chung; dự án tiếp
+ * theo coi phần đó là đã chiếm. Dồn qua DB chứ không qua bộ nhớ chung: mỗi lượt
+ * `scheduleProject` đọc lại assignment của các dự án đã xếp xong, nên trạng thái trung
+ * gian luôn nhất quán kể cả khi một dự án ở giữa bị chặn vì Critical.
+ *
+ * Lệnh này đụng lịch của MỌI dự án, nên §10.6 chỉ cho admin chạy.
+ */
+export function scheduleAllProjects(db: Db, options: ScheduleAllOptions): ScheduleAllResult {
+  const projects = scheduleRepo.loadSchedulableProjects(db);
+  const perProject = new Map<string, ScheduleResult>();
+  const order: string[] = [];
+
+  for (const project of projects) {
+    const result = scheduleProject(db, {
+      projectId: project.id,
+      runId: options.runId,
+      now: options.now,
+      ...(options.windowDays === undefined ? {} : { windowDays: options.windowDays }),
+      // Dự án đã xếp xong ở lượt trước phải được tôn trọng; dự án chưa xếp thì chưa có
+      // assignment nào trong DB nên không ảnh hưởng.
+      respectOtherProjects: true,
+    });
+    perProject.set(project.id, result);
+    order.push(project.id);
+  }
+
+  return { order, perProject };
 }

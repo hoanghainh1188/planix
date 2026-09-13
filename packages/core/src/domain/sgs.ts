@@ -89,6 +89,21 @@ export interface SgsInput {
   readonly minAllocation: number;
   readonly defaultMaxParallel: number;
   readonly windowDays: number;
+  /**
+   * Chỗ đã bị dự án khác chiếm, nạp vào pool trước khi xếp (§7.12).
+   * Mỗi mục là một assignment của dự án khác trên cùng pool nhân sự toàn cục.
+   */
+  readonly externalReservations?: readonly ExternalReservation[];
+  /** Dự án đang lập lịch — dùng để phân biệt chỗ của mình và của người khác. */
+  readonly projectId?: string;
+}
+
+export interface ExternalReservation {
+  readonly resourceId: string;
+  readonly fromDate: DateOnly;
+  readonly toDate: DateOnly;
+  readonly allocation: number;
+  readonly projectId: string;
 }
 
 export interface SgsResult {
@@ -168,6 +183,7 @@ export function runSgs(input: SgsInput): SgsResult {
     defaultMaxParallel,
     windowDays,
   } = input;
+  const externalReservations = input.externalReservations ?? [];
 
   const byUid = new Map(tasks.map((t) => [t.uid, t]));
   const resourceById = new Map(resources.map((r) => [r.id, r]));
@@ -178,6 +194,16 @@ export function runSgs(input: SgsInput): SgsResult {
     windowStart,
     windowDays,
   );
+
+  // §7.12 — chỗ của dự án khác chiếm TRƯỚC, rồi mới xếp dự án này lên phần còn lại.
+  // Duyệt theo khoá đã sắp để kết quả không phụ thuộc thứ tự dòng DB trả về (N2).
+  for (const ext of [...externalReservations].sort((a, b) => {
+    if (a.resourceId !== b.resourceId) return a.resourceId < b.resourceId ? -1 : 1;
+    if (a.fromDate !== b.fromDate) return a.fromDate < b.fromDate ? -1 : 1;
+    return a.projectId < b.projectId ? -1 : a.projectId > b.projectId ? 1 : 0;
+  })) {
+    pool.reserveExternal(ext.resourceId, ext.fromDate, ext.toDate, ext.allocation, ext.projectId);
+  }
 
   const predecessors = new Map<string, DepEdge[]>();
   for (const e of edges) {
@@ -405,8 +431,33 @@ export function runSgs(input: SgsInput): SgsResult {
 
       // Nếu bị đẩy muộn hơn cận dưới thì lý do là chờ người (§7.6).
       if (best.start > earliest && reason === null) {
-        reason = 'resource';
-        blockingRef = best.res.id;
+        // Phân biệt "chờ người trong dự án này" với "bị dự án khác chiếm chỗ".
+        // §7.6 tách hai lý do vì cách xử lý khác hẳn: một bên là xếp lại trong dự án,
+        // bên kia phải đi thương lượng với PM dự án kia.
+        const blockerProject = pool.externalBlockerIn(
+          best.res.id,
+          earliest,
+          addDays(best.start, -1),
+        );
+        if (blockerProject !== null) {
+          reason = 'cross_project';
+          blockingRef = blockerProject;
+          issues.push({
+            code: 'J14',
+            severity: 'Major',
+            message: `Task ${t.uid} was pushed from ${earliest} to ${best.start} because project ${blockerProject} holds ${best.res.id}.`,
+            taskUid: t.uid,
+            detail: {
+              resourceId: best.res.id,
+              blockingProjectId: blockerProject,
+              wantedStart: earliest,
+              actualStart: best.start,
+            },
+          });
+        } else {
+          reason = 'resource';
+          blockingRef = best.res.id;
+        }
       }
 
       pool.reserve(best.res.id, best.start, best.end, best.allocation);

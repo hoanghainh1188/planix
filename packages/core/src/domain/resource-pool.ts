@@ -35,6 +35,13 @@ export class ResourcePool {
    * O(số task × cửa sổ) — đây là thứ đưa 6.000 task × 30 người về dưới ngưỡng §14.2.
    */
   readonly #firstOpen: Int32Array;
+  /**
+   * Ô nào đang bị một dự án KHÁC chiếm, và là dự án nào.
+   *
+   * §14.2 P6 đòi `J14` nêu ĐÚNG dự án chiếm chỗ. Không ghi lại nguồn chiếm dụng thì chỉ
+   * nói được "hết chỗ", còn PM cần biết nên đi thương lượng với ai.
+   */
+  readonly #occupiedBy = new Map<number, string>();
 
   constructor(
     engine: CalendarEngine,
@@ -115,6 +122,50 @@ export class ResourcePool {
 
   reserve(resourceId: string, from: DateOnly, to: DateOnly, allocation: number): void {
     this.#walk(resourceId, from, to, allocation, 1);
+  }
+
+  /**
+   * Đặt chỗ cho một dự án KHÁC, có ghi nguồn.
+   *
+   * Dùng khi lập lịch dự án ưu tiên thấp hơn: assignment của dự án ưu tiên cao đã ghi
+   * vào pool chung và phải được coi là đã chiếm (§7.12).
+   */
+  reserveExternal(
+    resourceId: string,
+    from: DateOnly,
+    to: DateOnly,
+    allocation: number,
+    projectId: string,
+  ): void {
+    this.#walk(resourceId, from, to, allocation, 1);
+
+    const r = this.#index.get(resourceId);
+    if (r === undefined) return;
+    let cursor = from;
+    while (cursor <= to) {
+      const slot = this.#slot(resourceId, cursor);
+      if (slot !== null) this.#occupiedBy.set(slot, projectId);
+      cursor = addDays(cursor, 1);
+    }
+  }
+
+  /**
+   * Dự án nào chiếm chỗ của người này trong khoảng `[from, to]`, nếu có.
+   *
+   * Trả về dự án gặp SỚM NHẤT: đó là cái đã đẩy task ra khỏi vị trí mong muốn, nên là
+   * cái đáng nêu trong `J14`.
+   */
+  externalBlockerIn(resourceId: string, from: DateOnly, to: DateOnly): string | null {
+    let cursor = from;
+    while (cursor <= to) {
+      const slot = this.#slot(resourceId, cursor);
+      if (slot !== null) {
+        const owner = this.#occupiedBy.get(slot);
+        if (owner !== undefined) return owner;
+      }
+      cursor = addDays(cursor, 1);
+    }
+    return null;
   }
 
   release(resourceId: string, from: DateOnly, to: DateOnly, allocation: number): void {
