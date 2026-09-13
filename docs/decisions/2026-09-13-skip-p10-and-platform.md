@@ -2,11 +2,12 @@
 
 **Ngày:** 2026-09-13
 **Phase:** P10, P11
-**Trạng thái:** P10 — PM quyết bỏ qua; nền tảng — **chờ PM chốt**
+**Trạng thái:** P10 — **HOÃN** (không phải bỏ); nền tảng — **Fly.io**, PM chốt 2026-09-13
 
-## 1. Bỏ P10 (Excel)
+## 1. Hoãn P10 (Excel)
 
-PM quyết bỏ qua P10 để đi thẳng tới triển khai.
+PM quyết **hoãn** P10 để đi thẳng tới triển khai — hoãn, không phải bỏ. P10 xếp lại ngay
+**sau** P11.
 
 **Hệ quả cần biết:** §14.3 định nghĩa **Mốc C** là _"Báo cáo dùng được cho khách"_, và
 §1.2 chốt vai trò của Excel là _"tool = nơi làm việc, Excel = báo cáo một chiều"_. Excel
@@ -15,8 +16,9 @@ PM quyết bỏ qua P10 để đi thẳng tới triển khai.
 Nên bỏ hẳn P10 thì **Mốc C không đạt được theo đúng câu chữ**: sau P11 sẽ có một tool
 chạy được trên mạng, nhưng chưa có đường đưa số liệu ra cho khách.
 
-Nếu ý PM là **hoãn** chứ không phải **bỏ**, đề nghị ghi lại như vậy và xếp P10 ngay sau
-P11. Nếu là bỏ thật, cần sửa §14.3 để Mốc C không còn nhắc tới báo cáo.
+**PM xác nhận ngày 2026-09-13: hoãn.** Nên §14.3 giữ nguyên, và **Mốc C chưa đạt cho tới
+khi P10 xong** — sau P11 sẽ có tool chạy được trên mạng, nhưng chưa có đường đưa số liệu
+ra cho khách.
 
 ## 2. Vercel KHÔNG chạy được server này
 
@@ -50,8 +52,9 @@ còn dùng được như hiện tại. Tách ra là **mất** chứ không đư�
 | **Render**                 | Giao diện đơn giản, chạy thẳng image Docker                                                                  | Disk chỉ có ở gói **trả phí**; free tier mất dữ liệu mỗi lần redeploy. Service có disk chỉ chạy **một instance** (với planix thì đúng, không phải hạn chế). Sao lưu phải tự dựng nhiều hơn. Bỏ Caddy → lệch §13.1 |
 | **VPS riêng** (đúng §13.1) | Khớp spec từng chữ; `deploy/docker-compose.yml` chạy được ngay                                               | Phải tự lo máy, cập nhật hệ điều hành, tường lửa                                                                                                                                                                  |
 
-Chọn Fly.io hoặc Render thì **ô checklist P11 "Caddy cấp HTTPS tự động" không còn áp
-dụng** — nền tảng tự cấp TLS. Cần PM đồng ý sửa §13.1 trước khi tick ô đó.
+**PM chốt Fly.io ngày 2026-09-13**, và đồng ý sửa §13.1. Spec đã cập nhật: §13.1 nay nêu
+hai cách (VPS có Caddy / nền tảng có quản lý), và ô checklist P11 đổi thành "HTTPS hoạt
+động" thay vì gọi đích danh Caddy.
 
 ## Đã làm, không phụ thuộc lựa chọn
 

@@ -74,6 +74,16 @@ docker run -d -v planix-data:/data -p 3000:3000 planix
 bền vững (Vercel và mọi nền serverless khác) sẽ mất toàn bộ lịch sau mỗi lần khởi động
 lại. Đã kiểm bằng lệnh: chạy không volume thì container sau không còn thấy file DB.
 
+### Lên nền tảng có quản lý
+
+| Nền tảng | File          | Cần làm trước                                                                                                                     |
+| -------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Fly.io   | `fly.toml`    | Thêm thẻ (hết hạn dùng thử), rồi `fly apps create planix` + `fly volumes create planix_data --region sin --size 1` + `fly deploy` |
+| Render   | `render.yaml` | Dashboard → New → Blueprint → trỏ vào repo. **Disk chỉ có ở gói trả phí** — gói free sẽ mất dữ liệu mỗi lần deploy                |
+
+Cả hai đều tự cấp TLS nên không cần Caddy (§13.1 cách B). Cả hai đều khai **một instance
+duy nhất**: SQLite chỉ chịu một tiến trình ghi.
+
 Lên VPS riêng thì dùng `deploy/docker-compose.yml` — Caddy lo HTTPS, Litestream sao lưu
 liên tục (§13.2). Lên nền tảng có quản lý (Fly.io, Render) thì bỏ khối `caddy` vì nền
 tảng tự cấp TLS, và gắn một volume vào `/data`.

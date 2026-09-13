@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 export type Db = Database.Database;
 
+/** Migration mở đầu bằng dòng này sẽ KHÔNG được bọc trong transaction. */
+const NO_TRANSACTION_MARKER = '-- planix:no-transaction';
+
 const MIGRATIONS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'migrations');
 
 export interface MigrateResult {
@@ -71,10 +74,21 @@ export function migrate(db: Db, appliedAt: string): MigrateResult {
   for (const name of pending) {
     const sql = readFileSync(join(MIGRATIONS_DIR, name), 'utf8');
 
-    db.transaction(() => {
+    if (sql.startsWith(NO_TRANSACTION_MARKER)) {
+      // Migration tự lo giao dịch của nó. Cần cho việc dựng lại bảng: SQLite không có
+      // `ALTER COLUMN ... SET DEFAULT`, và thủ tục dựng lại đòi `PRAGMA foreign_keys=OFF`
+      // — pragma đó bị bỏ qua khi đang ở trong một transaction.
+      //
+      // Đánh đổi: tiến trình chết giữa chừng thì migration này có thể chạy lại lần sau.
+      // Vì vậy mọi migration dùng cờ này phải viết sao cho chạy hai lần vẫn ra một kết quả.
       db.exec(sql);
       record.run(name, appliedAt);
-    })();
+    } else {
+      db.transaction(() => {
+        db.exec(sql);
+        record.run(name, appliedAt);
+      })();
+    }
 
     applied.push(name);
   }
