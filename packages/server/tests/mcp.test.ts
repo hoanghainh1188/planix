@@ -535,23 +535,28 @@ describe('tool đọc (§12.1)', () => {
   });
 
   /**
-   * Engine chưa tính `is_resource_critical` — xem
-   * `docs/decisions/2026-09-13-resource-critical-path-chua-co.md`.
-   *
-   * Test này khoá lại điều quan trọng: tool phải BÁO LỖI, không trả `[]`. Với người thì
-   * rỗng đọc ra "chắc chưa xếp lịch"; với AI thì `[]` là một câu trả lời — "không task
-   * nào găng" — và nó ngược hẳn sự thật.
+   * §7 pha C bước C1, PM chốt phương án (b) ngày 2026-09-13. Hai chế độ đọc hai cột
+   * khác nhau, và khác biệt giữa chúng là thứ §7.2 gọi là chi phí do thiếu người.
    */
-  it('mode resource báo lỗi chứ KHÔNG trả mảng rỗng', async () => {
+  it('mode resource đọc cột khác mode cpm', async () => {
     const rows = await tasksOf('wbs_list_tasks', { project: 'UTG' });
-    db.prepare(
-      `INSERT INTO schedule (task_uid,start_date,end_date,is_critical,computed_at)
-       VALUES (?,?,?,1,?)`,
-    ).run(rows[0]?.['uid'], '2026-01-07', '2026-01-08', AT);
+    const design = rows.find((t) => t['name'] === 'Design');
+    const build = rows.find((t) => t['name'] === 'Build');
 
-    const res = await callTool('wbs_get_critical_path', { project: 'UTG', mode: 'resource' });
-    expect(res.isError).toBe(true);
-    expect(res.result).toBeUndefined();
-    expect(res.text).toContain('not available');
+    db.prepare(
+      `INSERT INTO schedule (task_uid,start_date,end_date,is_critical,is_resource_critical,computed_at)
+       VALUES (?,?,?,1,0,?)`,
+    ).run(design?.['uid'], '2026-01-07', '2026-01-08', AT);
+    db.prepare(
+      `INSERT INTO schedule (task_uid,start_date,end_date,is_critical,is_resource_critical,computed_at)
+       VALUES (?,?,?,0,1,?)`,
+    ).run(build?.['uid'], '2026-01-09', '2026-01-13', AT);
+
+    const cpm = (await callTool('wbs_get_critical_path', { project: 'UTG', mode: 'cpm' }))
+      .result as Array<{ name: string }>;
+    const resource = (await callTool('wbs_get_critical_path', { project: 'UTG', mode: 'resource' }))
+      .result as Array<{ name: string }>;
+    expect(cpm.map((t) => t.name)).toEqual(['Design']);
+    expect(resource.map((t) => t.name)).toEqual(['Build']);
   });
 });
