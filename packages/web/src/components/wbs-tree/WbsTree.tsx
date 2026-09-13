@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type JSX, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX, type KeyboardEvent } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import {
   createExpandedStore,
@@ -37,6 +37,12 @@ export interface WbsTreeProps {
     newSortOrder: number,
   ) => Promise<void>;
   readonly onSequencing?: (uid: string, mode: 'parallel' | 'sequential') => Promise<void>;
+  /** Thêm task: `parentUid` là cha mới, `afterUid` là anh em đứng ngay trước. */
+  readonly onCreate?: (parentUid: string | null, afterUid: string | null) => Promise<void>;
+  readonly onDelete?: (uid: string) => Promise<void>;
+  /** Mở sẵn ô sửa cho dòng này — dùng ngay sau khi tạo, để PM gõ tên thật. */
+  readonly editUid?: string | null;
+  readonly onEditDone?: () => void;
   readonly busy?: boolean;
 }
 
@@ -48,6 +54,10 @@ export function WbsTree({
   onEdit,
   onMove,
   onSequencing,
+  onCreate,
+  onDelete,
+  editUid = null,
+  onEditDone,
   busy = false,
 }: WbsTreeProps): JSX.Element {
   const store = useMemo(
@@ -94,7 +104,45 @@ export function WbsTree({
   function cancelEdit(): void {
     setEditingUid(null);
     setDraft(null);
+    onEditDone?.();
   }
+
+  /**
+   * Dòng vừa được tạo: mở ô sửa ngay để PM gõ tên, không phải bấm thêm lần nữa.
+   *
+   * Phải BUNG hết tổ tiên trước. Mặc định cây chỉ mở tới cấp 3 (§10.4), nên task tạo bên
+   * trong một summary đang thu gọn sẽ ra đời mà không ai nhìn thấy — bấm "+child" trông
+   * như không có tác dụng gì.
+   */
+  useEffect(() => {
+    if (editUid === null) return;
+    const node = rows.find((r) => r.uid === editUid);
+    if (node === undefined) return;
+
+    const byUid = new Map(rows.map((r) => [r.uid, r]));
+    const needed = new Set<string>();
+    let cursor = node.parentUid;
+    const guard = new Set<string>();
+    while (cursor !== null && !guard.has(cursor)) {
+      guard.add(cursor);
+      needed.add(cursor);
+      cursor = byUid.get(cursor)?.parentUid ?? null;
+    }
+    if ([...needed].some((uid) => !expanded.has(uid))) {
+      applyExpanded(new Set([...expanded, ...needed]));
+    }
+
+    setEditingUid(node.uid);
+    setDraft({
+      name: node.name,
+      effortMd: node.effortMd,
+      role: node.role,
+      priority: node.priority,
+    });
+    // `expanded` cố ý KHÔNG nằm trong deps: thêm nó vào sẽ chạy lại mỗi lần người dùng
+    // thu gọn tay, rồi mở lại nhánh đó ngay lập tức. (Chưa cài plugin react-hooks nên
+    // không có rule nào để tắt bằng comment.)
+  }, [editUid, rows]);
 
   async function commitEdit(): Promise<void> {
     if (editingUid === null || draft === null || onEdit === undefined) return;
@@ -361,6 +409,55 @@ export function WbsTree({
                     ) : null}
                     {node.issueCodes.length > 0 ? (
                       <span className="wbs__flag" title={node.issueCodes.join(', ')} />
+                    ) : null}
+
+                    {/* Hiện khi rê chuột: thêm task ở đây, hoặc xoá. Không chiếm cột
+                        riêng vì §10.4 đã chốt danh sách cột. */}
+                    {onCreate !== undefined || onDelete !== undefined ? (
+                      <span className="wbs__actions">
+                        {onCreate !== undefined && node.kind === 'summary' ? (
+                          <button
+                            type="button"
+                            className="wbs__act"
+                            title="Add a task inside this one"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void onCreate(node.uid, null);
+                            }}
+                          >
+                            +child
+                          </button>
+                        ) : null}
+                        {onCreate !== undefined ? (
+                          <button
+                            type="button"
+                            className="wbs__act"
+                            title="Add a task right after this one"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void onCreate(node.parentUid, node.uid);
+                            }}
+                          >
+                            +after
+                          </button>
+                        ) : null}
+                        {onDelete !== undefined ? (
+                          <button
+                            type="button"
+                            className="wbs__act wbs__act--danger"
+                            title="Delete this task and everything inside it"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void onDelete(node.uid);
+                            }}
+                          >
+                            ×
+                          </button>
+                        ) : null}
+                      </span>
                     ) : null}
                   </span>
 

@@ -11,6 +11,7 @@ import { isMicroTask } from '../../domain/rollup.js';
 import { createCalendarEngine } from '../../domain/calendar.js';
 import { checkMove, type MovableTask, type MoveRejection } from '../../domain/move.js';
 import { renumber } from '../../domain/renumber.js';
+import { maxTaskSequence } from './import-repo.js';
 import { unsafeDateOnly } from '../../domain/date-only.js';
 import { suggestProgress, type Suggestion } from '../../domain/progress-suggest.js';
 import { loadCalendarSnapshot } from './calendar-repo.js';
@@ -873,4 +874,193 @@ export function loadAssignmentSpans(
     to: r['to_date'] as string,
     allocation: r['allocation'] as number,
   }));
+}
+
+// ── Tạo / xoá task, sửa dependency (§10.4, §12.2) ───────────────────────────
+
+/** Đánh số lại cả dự án. Tách ra vì cả tạo, xoá lẫn chuyển đều cần. */
+function renumberProject(db: Db, projectId: string): number {
+  const rows = db
+    .prepare('SELECT uid, parent_uid, sort_order, wbs_code FROM task WHERE project_id = ?')
+    .all(projectId) as Array<Record<string, unknown>>;
+
+  const before = new Map(rows.map((r) => [r['uid'] as string, r['wbs_code'] as string]));
+  const update = db.prepare('UPDATE task SET wbs_code = ?, depth = ? WHERE uid = ?');
+  let changed = 0;
+
+  for (const r of renumber(
+    rows.map((t) => ({
+      uid: t['uid'] as string,
+      parentUid: (t['parent_uid'] as string | null) ?? null,
+      sortOrder: t['sort_order'] as number,
+    })),
+  )) {
+    if (before.get(r.uid) !== r.wbsCode) changed++;
+    update.run(r.wbsCode, r.depth, r.uid);
+  }
+  return changed;
+}
+
+export interface CreateTaskInput {
+  readonly projectId: string;
+  /** `null` = tạo ở gốc cây. */
+  readonly parentUid: string | null;
+  readonly name: string;
+  readonly kind: 'summary' | 'work' | 'milestone';
+  readonly effortMd: number | null;
+  readonly role: string | null;
+  readonly priority: number;
+  /** Chèn NGAY SAU anh em này. Bỏ trống thì thêm vào cuối. */
+  readonly afterUid?: string | null;
+  readonly now: string;
+}
+
+export interface CreateTaskResult {
+  readonly uid: string;
+  readonly wbsCode: string;
+  readonly renumbered: number;
+}
+
+/**
+ * Thêm một task vào cây (§10.4).
+ *
+ * Cho tới trước hàm này, đường DUY NHẤT ghi vào bảng `task` là importer — muốn thêm một
+ * dòng thì phải sửa file JSON rồi nạp lại cả gói. Với một tool lập kế hoạch thì đó là lỗ
+ * hổng cơ bản nhất.
+ *
+ * Người gọi phải bọc transaction: chèn xong mà renumber hỏng giữa chừng sẽ để lại hai
+ * task cùng `wbs_code`.
+ */
+export function createTask(db: Db, input: CreateTaskInput): CreateTaskResult {
+  if (input.parentUid !== null) {
+    const parent = db.prepare('SELECT project_id FROM task WHERE uid = ?').get(input.parentUid) as
+      { project_id: string } | undefined;
+    if (parent === undefined) throw new Error('Cha không tồn tại');
+    // Cây WBS thuộc về đúng một dự án; cho phép chèn xuyên dự án là mở cửa cho C08.
+    if (parent.project_id !== input.projectId) throw new Error('Cha thuộc dự án khác');
+  }
+
+  // Chèn vào giữa bằng cách lấy sort_order của anh em đứng trước + 1, rồi đẩy phần còn
+  // lại xuống. Renumber ngay sau đó nên khoảng cách số không cần đẹp.
+  let sortOrder: number;
+  if (input.afterUid === undefined || input.afterUid === null) {
+    const last = db
+      .prepare(
+        'SELECT COALESCE(MAX(sort_order), 0) AS m FROM task WHERE project_id = ? AND parent_uid IS ?',
+      )
+      .get(input.projectId, input.parentUid) as { m: number };
+    sortOrder = last.m + 1;
+  } else {
+    const sibling = db.prepare('SELECT sort_order FROM task WHERE uid = ?').get(input.afterUid) as
+      { sort_order: number } | undefined;
+    if (sibling === undefined) throw new Error('Anh em để chèn sau không tồn tại');
+    sortOrder = sibling.sort_order + 1;
+    db.prepare(
+      `UPDATE task SET sort_order = sort_order + 1
+       WHERE project_id = ? AND parent_uid IS ? AND sort_order >= ?`,
+    ).run(input.projectId, input.parentUid, sortOrder);
+  }
+
+  const uid = `T-${String(maxTaskSequence(db) + 1).padStart(4, '0')}`;
+  db.prepare(
+    `INSERT INTO task (uid, project_id, wbs_code, depth, parent_uid, sort_order, name, kind,
+                       effort_md, role, priority, created_at, updated_at)
+     VALUES (?, ?, '', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    uid,
+    input.projectId,
+    input.parentUid,
+    sortOrder,
+    input.name,
+    input.kind,
+    input.effortMd,
+    input.role,
+    input.priority,
+    input.now,
+    input.now,
+  );
+
+  const renumbered = renumberProject(db, input.projectId);
+  const row = db.prepare('SELECT wbs_code FROM task WHERE uid = ?').get(uid) as {
+    wbs_code: string;
+  };
+  return { uid, wbsCode: row.wbs_code, renumbered };
+}
+
+export interface SubtreeInfo {
+  readonly uids: readonly string[];
+  /** Số dòng tiến độ sẽ mất theo. Người dùng phải biết trước khi xoá. */
+  readonly progressRows: number;
+}
+
+/**
+ * Những gì sẽ mất nếu xoá cây con này — §12.2: "trả về số task sẽ mất, cần confirm".
+ *
+ * Xoá một summary kéo theo toàn bộ nhánh, và `ON DELETE CASCADE` kéo theo cả tiến độ đã
+ * nhập. Hỏi trước là bắt buộc: lịch thì tính lại được, tiến độ do người gõ thì không.
+ */
+export function subtreeOf(db: Db, rootUid: string): SubtreeInfo {
+  const all = db.prepare('SELECT uid, parent_uid FROM task').all() as Array<
+    Record<string, unknown>
+  >;
+  const children = new Map<string, string[]>();
+  for (const r of all) {
+    const parent = (r['parent_uid'] as string | null) ?? null;
+    if (parent === null) continue;
+    const list = children.get(parent);
+    if (list === undefined) children.set(parent, [r['uid'] as string]);
+    else list.push(r['uid'] as string);
+  }
+
+  const uids: string[] = [];
+  const stack = [rootUid];
+  const seen = new Set<string>();
+  while (stack.length > 0) {
+    const uid = stack.pop();
+    if (uid === undefined || seen.has(uid)) continue;
+    seen.add(uid);
+    uids.push(uid);
+    for (const c of children.get(uid) ?? []) stack.push(c);
+  }
+  uids.sort();
+
+  const holes = uids.map(() => '?').join(',');
+  const progress = db
+    .prepare(`SELECT COUNT(*) AS n FROM progress WHERE task_uid IN (${holes})`)
+    .get(...uids) as { n: number };
+
+  return { uids, progressRows: progress.n };
+}
+
+/** Xoá cả cây con. Người gọi phải hỏi xác nhận trước — xem `subtreeOf`. */
+export function deleteSubtree(db: Db, rootUid: string, projectId: string): number {
+  const info = subtreeOf(db, rootUid);
+  const holes = info.uids.map(() => '?').join(',');
+  // `ON DELETE CASCADE` lo dependency, schedule, assignment, progress.
+  db.prepare(`DELETE FROM task WHERE uid IN (${holes})`).run(...info.uids);
+  renumberProject(db, projectId);
+  return info.uids.length;
+}
+
+export type DependencyType = 'FS' | 'SS' | 'FF' | 'SF';
+
+/** §12.2 `wbs_set_dependency`. Đặt lại cùng cặp+loại thì cập nhật `lag`, không nhân đôi. */
+export function setDependency(
+  db: Db,
+  p: { predUid: string; succUid: string; type: DependencyType; lagDays: number },
+): void {
+  if (p.predUid === p.succUid) throw new Error('Task không thể phụ thuộc chính nó');
+  db.prepare(
+    `INSERT INTO dependency (pred_uid, succ_uid, type, lag_days) VALUES (?, ?, ?, ?)
+     ON CONFLICT(pred_uid, succ_uid, type) DO UPDATE SET lag_days = excluded.lag_days`,
+  ).run(p.predUid, p.succUid, p.type, p.lagDays);
+}
+
+export function deleteDependency(
+  db: Db,
+  p: { predUid: string; succUid: string; type: DependencyType },
+): number {
+  return db
+    .prepare('DELETE FROM dependency WHERE pred_uid = ? AND succ_uid = ? AND type = ?')
+    .run(p.predUid, p.succUid, p.type).changes;
 }

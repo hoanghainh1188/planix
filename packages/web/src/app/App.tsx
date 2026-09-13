@@ -58,6 +58,12 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<string | null>(null);
   const [writing, setWriting] = useState(false);
+  const [editUid, setEditUid] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    uid: string;
+    taskCount: number;
+    progressRows: number;
+  } | null>(null);
 
   const projects = useAsync<ProjectSummary[]>(() => trpc.projects.list.query(), []);
 
@@ -207,6 +213,64 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  /**
+   * Tạo task với tên tạm rồi mở ngay ô sửa để PM gõ tên thật.
+   *
+   * Hỏi tên bằng một hộp thoại riêng rồi mới tạo sẽ thêm một bước; cách này để PM gõ
+   * thẳng vào đúng dòng vừa hiện ra, giống cách thêm dòng trong bảng tính.
+   */
+  async function createTask(parentUid: string | null, afterUid: string | null): Promise<void> {
+    if (projectId === null) return;
+    setWriteError(null);
+    setWriting(true);
+    try {
+      const created = await trpc.wbs.createTask.mutate({
+        projectId,
+        parentUid,
+        name: 'New task',
+        kind: 'work',
+        effortMd: 1,
+        role: null,
+        priority: 500,
+        afterUid,
+      });
+      afterWrite();
+      setSelectedUid(created.uid);
+      setEditUid(created.uid);
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  async function deleteTask(uid: string): Promise<void> {
+    setWriteError(null);
+    try {
+      // §12.2: nói TRƯỚC sẽ mất gì. Lịch tính lại được, tiến độ do người gõ thì không.
+      const preview = await trpc.wbs.subtreePreview.query({ taskUid: uid });
+      setPendingDelete({ uid, ...preview });
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    }
+  }
+
+  async function confirmDelete(): Promise<void> {
+    const target = pendingDelete;
+    setPendingDelete(null);
+    if (target === null) return;
+    setWriting(true);
+    try {
+      await trpc.wbs.deleteSubtree.mutate({ taskUid: target.uid });
+      if (selectedUid === target.uid) setSelectedUid(null);
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
   async function setSequencing(uid: string, mode: 'parallel' | 'sequential'): Promise<void> {
     setWriteError(null);
     setWriting(true);
@@ -335,6 +399,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
               onEdit={editTask}
               onMove={moveTask}
               onSequencing={setSequencing}
+              onCreate={createTask}
+              onDelete={deleteTask}
+              editUid={editUid}
+              onEditDone={() => setEditUid(null)}
               busy={writing}
             />
           )
@@ -376,6 +444,36 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
           />
         ) : null}
       </main>
+
+      {pendingDelete !== null ? (
+        <div className="app__confirm" role="alertdialog" aria-label="Confirm delete">
+          <div className="app__confirmBox">
+            <h2 className="app__confirmTitle">Delete this task?</h2>
+            <p className="app__confirmBody">
+              {pendingDelete.taskCount === 1
+                ? 'This removes 1 task.'
+                : `This removes ${String(pendingDelete.taskCount)} tasks, including everything inside it.`}
+              {pendingDelete.progressRows > 0
+                ? ` ${String(pendingDelete.progressRows)} progress ${
+                    pendingDelete.progressRows === 1 ? 'entry' : 'entries'
+                  } will be lost — the schedule can be recomputed, but progress people typed cannot.`
+                : ''}
+            </p>
+            <div className="app__confirmActions">
+              <button type="button" className="app__action" onClick={() => setPendingDelete(null)}>
+                Keep it
+              </button>
+              <button
+                type="button"
+                className="app__action app__action--danger"
+                onClick={() => void confirmDelete()}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showRecalc && diff !== null ? (
         <RecalcDialog
