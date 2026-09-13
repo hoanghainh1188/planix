@@ -1,0 +1,13 @@
+# Chỉ đưa vào image thứ thật sự cần chạy. node_modules của máy dev chứa binding
+# biên dịch cho macOS — copy vào image linux là hỏng ngay ở dòng require đầu tiên.
+node_modules
+**/node_modules
+**/dist
+**/coverage
+.git
+.github
+data
+docs
+*.md
+!README.md
+.claude

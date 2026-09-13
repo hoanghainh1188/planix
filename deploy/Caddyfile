@@ -1,0 +1,17 @@
+# §13.1 — Caddy đứng trước, tự xin và gia hạn chứng chỉ Let's Encrypt.
+#
+# Đổi `planix.example.com` thành tên miền thật trước khi chạy. Caddy cần tên miền đã
+# trỏ DNS về máy này thì mới cấp được chứng chỉ.
+
+planix.example.com {
+	encode zstd gzip
+
+	# App tự đặt CSP, HSTS và các header bảo mật khác (§13.3) nên Caddy không chèn thêm
+	# để tránh hai nơi cùng đặt một header rồi lệch nhau.
+	reverse_proxy app:3000
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -1,0 +1,58 @@
+# SPEC.md §13.1 — ba dịch vụ: Caddy lo HTTPS, app chạy Node, litestream sao lưu liên tục.
+#
+# Đây là đường triển khai lên VPS RIÊNG. Nếu đưa lên nền tảng có quản lý (Fly.io, Render)
+# thì bỏ khối `caddy` đi — nền tảng tự cấp TLS — và giữ nguyên hai khối còn lại.
+
+name: planix
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data # chứng chỉ đã cấp — mất là bị Let's Encrypt chặn tần suất
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: planix:latest
+    restart: unless-stopped
+    environment:
+      PLANIX_DB: /data/project.db
+      PORT: '3000'
+      # Caddy đã lo TLS ở vòng ngoài, nên app bật HSTS là đúng (§13.3).
+      PLANIX_HTTPS: 'true'
+    volumes:
+      - planix-data:/data
+    expose:
+      - '3000'
+
+  litestream:
+    image: litestream/litestream:0.3
+    restart: unless-stopped
+    # Đọc CÙNG volume với app. Litestream theo dõi WAL nên phải thấy đúng file đó.
+    volumes:
+      - planix-data:/data
+      - ./litestream.yml:/etc/litestream.yml:ro
+    environment:
+      LITESTREAM_ACCESS_KEY_ID: ${LITESTREAM_ACCESS_KEY_ID:?can thiet lap}
+      LITESTREAM_SECRET_ACCESS_KEY: ${LITESTREAM_SECRET_ACCESS_KEY:?can thiet lap}
+    command: replicate
+    depends_on:
+      app:
+        condition: service_healthy
+
+volumes:
+  planix-data:
+  caddy-data:
+  caddy-config:

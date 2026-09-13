@@ -58,6 +58,32 @@ npm run test
 | `npm run format`      | prettier --write                      |
 | `npm run bench`       | Benchmark hiệu năng                   |
 
+## Triển khai
+
+Image Docker là thứ duy nhất đem đi chạy — §13.1 chốt **một tiến trình Node phục vụ cả
+API lẫn UI tĩnh**, nên không tách web ra CDN riêng.
+
+```bash
+docker build -t planix .
+docker volume create planix-data
+docker run --rm -v planix-data:/data planix node packages/server/dist/dev-seed.js /data/project.db
+docker run -d -v planix-data:/data -p 3000:3000 planix
+```
+
+**Ổ đĩa bền vững là bắt buộc.** SQLite ghi thẳng xuống file; nền tảng nào không cho ghi
+bền vững (Vercel và mọi nền serverless khác) sẽ mất toàn bộ lịch sau mỗi lần khởi động
+lại. Đã kiểm bằng lệnh: chạy không volume thì container sau không còn thấy file DB.
+
+Lên VPS riêng thì dùng `deploy/docker-compose.yml` — Caddy lo HTTPS, Litestream sao lưu
+liên tục (§13.2). Lên nền tảng có quản lý (Fly.io, Render) thì bỏ khối `caddy` vì nền
+tảng tự cấp TLS, và gắn một volume vào `/data`.
+
+| Biến môi trường | Mặc định            | Việc                                          |
+| --------------- | ------------------- | --------------------------------------------- |
+| `PLANIX_DB`     | `./data/project.db` | Đường dẫn file SQLite                         |
+| `PORT`          | `3000`              | Cổng HTTP                                     |
+| `PLANIX_HTTPS`  | `false`             | Bật HSTS — chỉ bật khi THẬT SỰ chạy sau HTTPS |
+
 ## Cách làm việc
 
 Đọc `CLAUDE.md`. Tóm tắt:
