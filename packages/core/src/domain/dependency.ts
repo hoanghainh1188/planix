@@ -232,3 +232,134 @@ export function expandSummaryEdges(
     return a.type < b.type ? -1 : a.type > b.type ? 1 : 0;
   });
 }
+
+// ── §6.2 / §7.3 bước 1 — chia cụm và topo sort ──────────────────────────────
+
+export interface Cluster {
+  readonly uid: string;
+  readonly leafUids: readonly string[];
+}
+
+/**
+ * Chia cây thành các **cụm** rồi sắp theo topo (§7.3 bước 1).
+ *
+ * Cụm là summary SÂU NHẤT còn nằm trong `dependency_max_level` — nghĩa là summary có
+ * `depth <= maxLevel` mà không có con nào cũng là summary trong giới hạn đó. Lấy mọi
+ * summary `depth <= maxLevel` sẽ khiến cha và con cùng làm cụm và lá bị xếp hai lần.
+ *
+ * Cạnh khai ở summary bất kỳ được **nâng lên** cụm chứa nó, nên "module thanh toán bắt
+ * đầu sau module người dùng" vẫn ràng buộc đúng dù khai ở cấp nào.
+ */
+export function buildClusters(
+  tasks: readonly DepTask[],
+  edges: readonly DepEdge[],
+  maxLevel: number,
+): Cluster[] {
+  const byUid = new Map(tasks.map((t) => [t.uid, t]));
+  const children = childrenOf(tasks);
+
+  const isClusterRoot = (t: DepTask): boolean => {
+    if (t.kind !== 'summary' || t.depth > maxLevel) return false;
+    return !(children.get(t.uid) ?? []).some((c) => c.kind === 'summary' && c.depth <= maxLevel);
+  };
+
+  const roots = tasks.filter(isClusterRoot).sort((a, b) => (a.uid < b.uid ? -1 : 1));
+
+  // Cây không có summary nào trong giới hạn: coi toàn bộ lá là MỘT cụm, để scheduler
+  // vẫn chạy được thay vì trả về rỗng.
+  if (roots.length === 0) {
+    const leaves = tasks
+      .filter((t) => t.kind !== 'summary' && t.status !== 'cancelled')
+      .map((t) => t.uid)
+      .sort();
+    return leaves.length === 0 ? [] : [{ uid: '<all>', leafUids: leaves }];
+  }
+
+  const clusterOf = new Map<string, string>();
+  const clusters: Cluster[] = roots.map((root) => {
+    const leafUids = leavesUnder(root.uid, children, byUid);
+    clusterOf.set(root.uid, root.uid);
+    // Mọi hậu duệ đều thuộc cụm này, kể cả summary con sâu hơn maxLevel.
+    const stack = [root.uid];
+    while (stack.length > 0) {
+      const uid = stack.pop();
+      if (uid === undefined) continue;
+      clusterOf.set(uid, root.uid);
+      for (const c of children.get(uid) ?? []) stack.push(c.uid);
+    }
+    return { uid: root.uid, leafUids };
+  });
+
+  /**
+   * Các cụm mà một task ĐẠI DIỆN cho.
+   *
+   * Task nằm trong một cụm thì đại diện cho đúng cụm đó. Nhưng cạnh có thể khai ở
+   * summary TỔ TIÊN của cụm — ví dụ khai ở cấp phase trong khi cụm là cấp module. Khi
+   * đó nó đại diện cho MỌI cụm nằm dưới nó. Bỏ sót nhánh này thì cạnh khai ở cấp trên
+   * bị lờ đi và thứ tự cụm sai mà không báo gì.
+   */
+  function clustersRepresentedBy(uid: string): string[] {
+    const direct = clusterOf.get(uid);
+    if (direct !== undefined) return [direct];
+
+    const found: string[] = [];
+    const stack = [uid];
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (current === undefined) continue;
+      const hit = clusterOf.get(current);
+      if (hit !== undefined) {
+        if (!found.includes(hit)) found.push(hit);
+        continue; // không cần đi sâu hơn: cả cây con thuộc cụm đó
+      }
+      for (const c of children.get(current) ?? []) stack.push(c.uid);
+    }
+    return found.sort();
+  }
+
+  // Nâng cạnh lên mức cụm; bỏ cạnh nội bộ trong cùng một cụm.
+  const successors = new Map<string, Set<string>>();
+  const indegree = new Map<string, number>(clusters.map((c) => [c.uid, 0]));
+  for (const e of edges) {
+    for (const a of clustersRepresentedBy(e.predUid)) {
+      for (const b of clustersRepresentedBy(e.succUid)) {
+        if (a === b) continue;
+        const set = successors.get(a) ?? new Set<string>();
+        if (!set.has(b)) {
+          set.add(b);
+          indegree.set(b, (indegree.get(b) ?? 0) + 1);
+        }
+        successors.set(a, set);
+      }
+    }
+  }
+
+  // Duyệt theo uid đã sắp để thứ tự cụm tái lập được (N2).
+  const ready = clusters
+    .filter((c) => (indegree.get(c.uid) ?? 0) === 0)
+    .map((c) => c.uid)
+    .sort();
+  const byId = new Map(clusters.map((c) => [c.uid, c]));
+  const out: Cluster[] = [];
+
+  while (ready.length > 0) {
+    const uid = ready.shift();
+    if (uid === undefined) break;
+    const cluster = byId.get(uid);
+    if (cluster !== undefined) out.push(cluster);
+    for (const next of [...(successors.get(uid) ?? [])].sort()) {
+      const left = (indegree.get(next) ?? 0) - 1;
+      indegree.set(next, left);
+      if (left === 0) {
+        const at = ready.findIndex((x) => x > next);
+        if (at === -1) ready.push(next);
+        else ready.splice(at, 0, next);
+      }
+    }
+  }
+
+  if (out.length !== clusters.length) {
+    throw new Error('Cycle in cluster dependency graph (see C01).');
+  }
+  return out;
+}
