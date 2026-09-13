@@ -466,3 +466,152 @@ describe('S1 — xem trước recalculate KHÔNG ghi gì (§10.1)', () => {
     );
   });
 });
+
+// ── Tạo / xoá task, dependency (§10.4, §12.2) ───────────────────────────────
+
+describe('S1 — tạo task', () => {
+  const rootUid = (): string =>
+    (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string }).uid;
+
+  it('PM thêm được task vào cây', async () => {
+    const r = await caller('U-PM').wbs.createTask({
+      projectId: 'P',
+      parentUid: rootUid(),
+      name: 'Task mới',
+      kind: 'work',
+      effortMd: 2,
+      role: 'Dev',
+      priority: 500,
+      afterUid: null,
+    });
+    expect(r.wbsCode).toMatch(/^1\./);
+    expect(historyOf(db, 'task', r.uid).length).toBeGreaterThan(0);
+  });
+
+  it('lead KHÔNG được thêm task (§10.6)', async () => {
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.createTask({
+        projectId: 'P',
+        parentUid: rootUid(),
+        name: 'X',
+        kind: 'work',
+        effortMd: 1,
+        role: 'Dev',
+        priority: 500,
+        afterUid: null,
+      }),
+      'FORBIDDEN',
+    );
+  });
+
+  it('cha không tồn tại trả BAD_REQUEST, không phải lỗi 500', async () => {
+    await expectTrpcCode(
+      caller('U-PM').wbs.createTask({
+        projectId: 'P',
+        parentUid: 'T-9999',
+        name: 'X',
+        kind: 'work',
+        effortMd: 1,
+        role: 'Dev',
+        priority: 500,
+        afterUid: null,
+      }),
+      'BAD_REQUEST',
+    );
+  });
+});
+
+describe('S1 — xoá cây con (§12.2)', () => {
+  const leafUid = (): string =>
+    (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+
+  it('xem trước nói rõ sẽ mất bao nhiêu task và bao nhiêu dòng tiến độ', async () => {
+    db.prepare(
+      `INSERT INTO progress (task_uid,status,percent,updated_by,updated_at)
+       VALUES (?,'done',100,'U-PM',?)`,
+    ).run(leafUid(), AT);
+
+    const r = await caller('U-PM').wbs.subtreePreview({ taskUid: leafUid() });
+    expect(r.taskCount).toBe(1);
+    expect(r.progressRows).toBe(1);
+  });
+
+  it('xem trước KHÔNG xoá gì', async () => {
+    await caller('U-PM').wbs.subtreePreview({ taskUid: leafUid() });
+    expect(db.prepare('SELECT COUNT(*) n FROM task').get()).toEqual({ n: 2 });
+  });
+
+  it('xoá thật thì mất, và có vết trong audit_log', async () => {
+    const uid = leafUid();
+    const r = await caller('U-PM').wbs.deleteSubtree({ taskUid: uid });
+    expect(r.removed).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) n FROM task').get()).toEqual({ n: 1 });
+    expect(historyOf(db, 'task', uid).length).toBeGreaterThan(0);
+  });
+
+  it('lead không được xoá', async () => {
+    await expectTrpcCode(caller('U-LEAD').wbs.deleteSubtree({ taskUid: leafUid() }), 'FORBIDDEN');
+  });
+});
+
+describe('S1 — dependency', () => {
+  function pair(): { a: string; b: string } {
+    const a = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+    db.prepare(
+      `INSERT INTO task (uid,project_id,wbs_code,depth,parent_uid,sort_order,name,kind,effort_md,role,created_at,updated_at)
+       VALUES ('T-8001','P','1.2',2,(SELECT uid FROM task WHERE name='Root'),2,'B','work',1,'Dev',?,?)`,
+    ).run(AT, AT);
+    return { a, b: 'T-8001' };
+  }
+
+  it('PM nối được hai task', async () => {
+    const { a, b } = pair();
+    await caller('U-PM').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 2 });
+    expect(db.prepare('SELECT lag_days AS l FROM dependency').get()).toEqual({ l: 2 });
+  });
+
+  it('nối XUYÊN dự án bị từ chối', async () => {
+    const { b } = pair();
+    db.prepare(
+      `INSERT INTO project (id,code,name,priority,start_date,status_date,calendar_id,default_location,created_at)
+       VALUES ('Q','GEO','GEO',2,'2026-01-05','2026-01-05','CAL','VN',?)`,
+    ).run(AT);
+    db.prepare(
+      `INSERT INTO task (uid,project_id,wbs_code,depth,sort_order,name,kind,created_at,updated_at)
+       VALUES ('T-8002','Q','1',1,1,'GEO root','summary',?,?)`,
+    ).run(AT, AT);
+
+    await expectTrpcCode(
+      caller('U-PM').wbs.setDependency({
+        predUid: 'T-8002',
+        succUid: b,
+        type: 'FS',
+        lagDays: 0,
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('task phụ thuộc chính nó trả BAD_REQUEST', async () => {
+    const { a } = pair();
+    await expectTrpcCode(
+      caller('U-PM').wbs.setDependency({ predUid: a, succUid: a, type: 'FS', lagDays: 0 }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('xoá được', async () => {
+    const { a, b } = pair();
+    await caller('U-PM').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 0 });
+    const r = await caller('U-PM').wbs.deleteDependency({ predUid: a, succUid: b, type: 'FS' });
+    expect(r.removed).toBe(1);
+  });
+
+  it('lead không được nối', async () => {
+    const { a, b } = pair();
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.setDependency({ predUid: a, succUid: b, type: 'FS', lagDays: 0 }),
+      'FORBIDDEN',
+    );
+  });
+});

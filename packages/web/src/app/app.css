@@ -176,3 +176,43 @@
   padding: 0.1rem var(--space-2);
   cursor: pointer;
 }
+
+/* Hộp xác nhận xoá — §12.2 bắt hỏi trước, và phải nói rõ sẽ mất gì. */
+.app__confirm {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--c-ink) 28%, transparent);
+  z-index: 100;
+}
+.app__confirmBox {
+  max-width: 34rem;
+  background: var(--c-surface);
+  border: 1px solid var(--c-rule-strong);
+  padding: var(--space-6);
+  box-shadow: 0 8px 32px color-mix(in oklab, var(--c-ink) 18%, transparent);
+}
+.app__confirmTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-lg);
+}
+.app__confirmBody {
+  margin: 0 0 var(--space-6);
+  color: var(--c-ink-muted);
+  line-height: 1.6;
+}
+.app__confirmActions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+.app__action--danger {
+  background: var(--c-critical);
+  border-color: var(--c-critical);
+  color: var(--c-surface);
+}
+.app__action--danger:hover:not(:disabled) {
+  opacity: 0.88;
+  background: var(--c-critical);
+}

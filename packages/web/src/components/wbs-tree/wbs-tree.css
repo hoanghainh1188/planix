@@ -293,3 +293,38 @@ button.wbs__seq[data-mode='sequential'] {
   border-color: var(--c-ink);
   color: var(--c-ink);
 }
+
+/* Nút thao tác trên dòng — chỉ hiện khi rê chuột, để bảng dày vẫn đọc được. */
+.wbs__actions {
+  display: none;
+  gap: 2px;
+  margin-left: auto;
+  padding-left: var(--space-2);
+  flex: none;
+}
+.wbs__row:hover .wbs__actions {
+  display: inline-flex;
+}
+.wbs__act {
+  border: 1px solid var(--c-rule-strong);
+  background: var(--c-surface);
+  font: inherit;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  padding: 0 0.25rem;
+  cursor: pointer;
+  color: var(--c-ink-muted);
+  white-space: nowrap;
+}
+.wbs__act:hover:not(:disabled) {
+  border-color: var(--c-ink);
+  color: var(--c-ink);
+}
+.wbs__act:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.wbs__act--danger:hover:not(:disabled) {
+  border-color: var(--c-critical);
+  color: var(--c-critical);
+}

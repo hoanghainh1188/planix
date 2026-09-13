@@ -141,6 +141,164 @@ export const appRouter = t.router({
         return { ok: true as const };
       }),
 
+    /** §10.4 — thêm một task vào cây. Trước đây chỉ importer ghi được vào bảng `task`. */
+    createTask: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          parentUid: z.string().min(1).nullable(),
+          name: z.string().min(1),
+          kind: z.enum(['summary', 'work', 'milestone']),
+          effortMd: z.number().nonnegative().nullable(),
+          role: z.string().nullable(),
+          priority: z.number().int().default(500),
+          afterUid: z.string().min(1).nullable().default(null),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, input.projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        try {
+          return ctx.db.transaction(() => {
+            const result = read.createTask(ctx.db, { ...input, now: ctx.now });
+            recordUpdate(
+              ctx.db,
+              { userId: ctx.user.userId, at: ctx.now },
+              'task',
+              result.uid,
+              {},
+              { name: input.name, kind: input.kind, parentUid: input.parentUid },
+            );
+            return result;
+          })();
+        } catch (e) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: e instanceof Error ? e.message : 'Cannot create task',
+            cause: e,
+          });
+        }
+      }),
+
+    /**
+     * §12.2: "trả về số task sẽ mất, cần confirm".
+     *
+     * Đây là QUERY, không phải mutation: nó chỉ đếm. Xoá một summary kéo theo cả nhánh,
+     * và `ON DELETE CASCADE` kéo theo cả tiến độ đã nhập — lịch thì tính lại được, tiến
+     * độ do người gõ thì không.
+     */
+    subtreePreview: authed
+      .input(z.object({ taskUid: z.string().min(1) }))
+      .query(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        const info = read.subtreeOf(ctx.db, input.taskUid);
+        return { taskCount: info.uids.length, progressRows: info.progressRows };
+      }),
+
+    deleteSubtree: authed
+      .input(z.object({ taskUid: z.string().min(1) }))
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        return ctx.db.transaction(() => {
+          const info = read.subtreeOf(ctx.db, input.taskUid);
+          // Ghi vết TRƯỚC khi xoá: sau khi xoá thì không còn gì để mô tả.
+          recordUpdate(
+            ctx.db,
+            { userId: ctx.user.userId, at: ctx.now },
+            'task',
+            input.taskUid,
+            { deleted: false },
+            { deleted: true, taskCount: info.uids.length },
+          );
+          const removed = read.deleteSubtree(ctx.db, input.taskUid, projectId);
+          return { removed };
+        })();
+      }),
+
+    setDependency: authed
+      .input(
+        z.object({
+          predUid: z.string().min(1),
+          succUid: z.string().min(1),
+          type: z.enum(['FS', 'SS', 'FF', 'SF']),
+          lagDays: z.number().default(0),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.succUid);
+        const predProject = read.projectOfTask(ctx.db, input.predUid);
+        if (projectId === undefined || predProject === undefined) {
+          throw new TRPCError({ code: 'NOT_FOUND' });
+        }
+        // §6 nói về ràng buộc TRONG một dự án. Nối xuyên dự án sẽ làm CPM chạy trên một
+        // đồ thị mà scheduler không bao giờ xếp cùng lúc.
+        if (projectId !== predProject) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'A dependency cannot cross projects.',
+          });
+        }
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        try {
+          ctx.db.transaction(() => {
+            read.setDependency(ctx.db, input);
+            recordUpdate(
+              ctx.db,
+              { userId: ctx.user.userId, at: ctx.now },
+              'dependency',
+              `${input.predUid}->${input.succUid}`,
+              {},
+              { type: input.type, lagDays: input.lagDays },
+            );
+          })();
+        } catch (e) {
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: e instanceof Error ? e.message : 'Cannot set dependency',
+            cause: e,
+          });
+        }
+        return { ok: true as const };
+      }),
+
+    deleteDependency: authed
+      .input(
+        z.object({
+          predUid: z.string().min(1),
+          succUid: z.string().min(1),
+          type: z.enum(['FS', 'SS', 'FF', 'SF']),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.succUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        return { removed: read.deleteDependency(ctx.db, input) };
+      }),
+
     /** §10.4 — kéo thả đổi cha và `sort_order`, engine tự đánh số lại. */
     moveTask: authed
       .input(
