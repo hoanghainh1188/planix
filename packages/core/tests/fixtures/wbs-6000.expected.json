@@ -6009,9 +6009,21 @@
     "counts": {
       "critical": 0,
       "major": 0,
-      "minor": 0
+      "minor": 1
     },
-    "issues": []
+    "issues": [
+      {
+        "severity": "Minor",
+        "code": "N01",
+        "message": "SF is rarely correct. Did you mean FS?",
+        "taskUid": "T-0119",
+        "wbsCode": "1.4",
+        "detail": {
+          "predUid": "T-0080",
+          "succUid": "T-0119"
+        }
+      }
+    ]
   },
   "tasks": [
     {
