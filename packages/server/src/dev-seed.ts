@@ -159,6 +159,14 @@ export function seedDev(dbPath: string, now: string): void {
 
   scheduleAllProjects(db, { runId: 'seed-schedule', now, windowDays: 1200 });
 
+  // Đẩy mốc chuẩn lên SAU khi đã xếp lịch.
+  //
+  // §7.11 không cho task `not_started` bắt đầu trước `status_date`, nên nếu đặt mốc này
+  // ngay từ đầu thì cả kế hoạch bị dời theo và chẳng có task nào quá hạn — S4 mở ra
+  // trống trơn, không thử được gì. Luồng thật cũng đúng như vậy: kế hoạch chốt từ tháng 1,
+  // vài tuần sau PM "Close period" để đẩy mốc chuẩn lên.
+  db.prepare('UPDATE project SET status_date = ?').run('2026-03-02');
+
   db.close();
 }
 

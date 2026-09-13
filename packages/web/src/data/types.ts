@@ -15,3 +15,5 @@ type Outputs = inferRouterOutputs<AppRouter>;
 export type WbsRow = Outputs['wbs']['tree'][number];
 export type ProjectSummary = Outputs['projects']['list'][number];
 export type IssueRow = Outputs['issues']['list'][number];
+export type GanttRowData = Outputs['gantt']['get'][number];
+export type ProgressBoardData = Outputs['progress']['board'];

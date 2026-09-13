@@ -179,21 +179,33 @@ export function findProjectRole(
 }
 
 /** Dự án người này được gán, cho màn S0. */
-export function listUserProjects(
-  db: Db,
-  userId: string,
-  isAdmin: boolean,
-): Array<{ id: string; code: string; name: string; role: string }> {
+/**
+ * `statusDate` đi kèm danh sách dự án vì nó là dữ liệu CỦA DỰ ÁN (§7.13), và cả S3 lẫn S4
+ * đều cần. Trước đây chỉ S4 lấy được qua `progress.board`, nên Gantt không vẽ nổi vạch
+ * mốc chuẩn khi người dùng chưa mở màn nhập tiến độ.
+ */
+export interface UserProject {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly role: string;
+  readonly statusDate: string;
+}
+
+export function listUserProjects(db: Db, userId: string, isAdmin: boolean): Array<UserProject> {
   if (isAdmin) {
     return db
-      .prepare(`SELECT id, code, name, 'pm' AS role FROM project ORDER BY priority, code`)
-      .all() as Array<{ id: string; code: string; name: string; role: string }>;
+      .prepare(
+        `SELECT id, code, name, 'pm' AS role, status_date AS statusDate
+         FROM project ORDER BY priority, code`,
+      )
+      .all() as Array<UserProject>;
   }
   return db
     .prepare(
-      `SELECT p.id, p.code, p.name, up.role
+      `SELECT p.id, p.code, p.name, up.role, p.status_date AS statusDate
        FROM project p JOIN user_project up ON up.project_id = p.id
        WHERE up.user_id = ? ORDER BY p.priority, p.code`,
     )
-    .all(userId) as Array<{ id: string; code: string; name: string; role: string }>;
+    .all(userId) as Array<UserProject>;
 }

@@ -14,6 +14,7 @@ import { z } from 'zod';
 import type { Db } from '@planix/core/db/migrate.js';
 import * as authRepo from '@planix/core/db/repo/auth-repo.js';
 import * as read from '@planix/core/db/repo/read-repo.js';
+import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
 import { recordUpdate } from '../audit/audit-log.js';
 import { runSchedulerInWorker } from '../scheduler/run-in-worker.js';
@@ -173,8 +174,9 @@ export const appRouter = t.router({
       } catch (e) {
         toTrpc(e);
       }
-      // Cùng nguồn với S1: §10.1 cấm client tính lại bất cứ con số nào.
-      return read.loadWbsTree(ctx.db, input.projectId);
+      // Cùng nguồn với S1 (§10.1 cấm client tính lại bất cứ con số nào), nhưng kèm
+      // `team_id` và `phase` — §14.2/P9 đòi Gantt lọc được theo team và theo phase.
+      return read.loadGanttRows(ctx.db, input.projectId);
     }),
   }),
 
@@ -192,6 +194,18 @@ export const appRouter = t.router({
       return read.loadProgressRows(ctx.db, input.projectId, teamFilter);
     }),
 
+    /** Bảng S4 đầy đủ: dòng + đề xuất của engine + cờ "on track" (§10.5). */
+    board: authed.input(z.object({ projectId: z.string().min(1) })).query(({ ctx, input }) => {
+      const perm = permissionContext(ctx, input.projectId);
+      try {
+        assertCan('view_assigned_project', perm);
+      } catch (e) {
+        toTrpc(e);
+      }
+      const teamFilter = perm.projectRole === 'lead' ? perm.teamId : null;
+      return read.loadProgressBoard(ctx.db, input.projectId, teamFilter);
+    }),
+
     save: authed
       .input(
         z.object({
@@ -203,12 +217,60 @@ export const appRouter = t.router({
                 percent: z.number().min(0).max(100),
                 actualStart: z.string().nullable(),
                 actualEnd: z.string().nullable(),
+                blockedNote: z.string().nullable().default(null),
               }),
             )
             .min(1),
         }),
       )
       .mutation(({ ctx, input }) => {
+        // QUYỀN trước, DỮ LIỆU sau. Đảo thứ tự thì người không có quyền ghi vẫn nhận
+        // được phản hồi validate về task họ không được đụng tới — vừa sai mã lỗi, vừa
+        // là một kênh rò rỉ nhỏ.
+        for (const row of input.rows) {
+          const projectId = read.projectOfTask(ctx.db, row.taskUid);
+          if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+          const taskTeam = read.teamOfTask(ctx.db, row.taskUid);
+          const perm = permissionContext(ctx, projectId);
+          const sameTeam = perm.teamId !== null && perm.teamId === taskTeam;
+          try {
+            assertCan(sameTeam ? 'enter_progress_own_team' : 'enter_progress_other_team', {
+              ...perm,
+              sameTeam,
+            });
+          } catch (e) {
+            toTrpc(e);
+          }
+        }
+
+        // Ràng buộc §10.5 kiểm LẠI ở server. UI đã chặn tại ô, nhưng §10.6 nói rõ
+        // "kiểm tra quyền ở server, không chỉ ẩn nút" — với dữ liệu cũng vậy: tRPC là
+        // API công khai với bất kỳ ai có phiên hợp lệ.
+        const entryCtx = read.loadEntryContext(
+          ctx.db,
+          input.rows.map((r) => r.taskUid),
+        );
+        for (const row of input.rows) {
+          const meta = entryCtx.get(row.taskUid);
+          if (meta === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+          const errors = validateProgressEntry({
+            status: row.status,
+            percent: row.percent,
+            actualStart: row.actualStart,
+            actualEnd: row.actualEnd,
+            blockedNote: row.blockedNote,
+            isMicro: meta.isMicro,
+            statusDate: meta.statusDate,
+          });
+          if (errors.length > 0) {
+            const first = errors[0];
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: `${row.taskUid}: ${first === undefined ? 'invalid' : first.message}`,
+            });
+          }
+        }
+
         // §10.5: "Lưu một lần, một transaction, ghi audit_log từng dòng."
         ctx.db.transaction(() => {
           for (const row of input.rows) {
@@ -240,6 +302,7 @@ export const appRouter = t.router({
               percent: row.percent,
               actualStart: row.actualStart,
               actualEnd: row.actualEnd,
+              blockedNote: row.blockedNote,
               updatedBy: ctx.user.userId,
               source: 'ui',
               now: ctx.now,

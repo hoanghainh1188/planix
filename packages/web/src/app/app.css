@@ -110,6 +110,36 @@
   min-height: 0;
 }
 
+/* S3 và S4 dùng hết bề ngang: panel Issues chỉ thuộc về S1. */
+.app__main--wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Chuyển màn — §10.3. */
+.app__screens {
+  display: flex;
+  gap: 1px;
+  background: var(--c-rule);
+  border: 1px solid var(--c-rule);
+}
+.app__screen {
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: var(--c-surface);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+.app__screen:hover {
+  color: var(--c-ink);
+}
+.app__screen[aria-current='page'] {
+  background: var(--c-ink);
+  color: var(--c-surface);
+}
+
 .app__boot,
 .app__state {
   display: grid;

@@ -1,0 +1,108 @@
+/* S3 — Gantt chỉ xem (§10.3). Màu mang nghĩa: đậm = đường găng, mảnh = summary. */
+
+.gantt {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.gantt__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--c-rule-strong);
+  background: var(--c-surface);
+  flex-wrap: wrap;
+}
+.gantt__title {
+  font-weight: 600;
+}
+.gantt__readonly {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--c-rule);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-ink-muted);
+}
+.gantt__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+}
+.gantt__filter select {
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0.15rem;
+  border: 1px solid var(--c-rule);
+  background: var(--c-surface);
+}
+.gantt__count {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-faint);
+}
+
+/* Bảng rộng cuộn TRONG khung của chính nó — trang không bao giờ cuộn ngang. */
+.gantt__scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+.gantt__svg {
+  display: block;
+}
+
+.gantt__rowBg {
+  fill: transparent;
+}
+.gantt__row:hover .gantt__rowBg {
+  fill: var(--c-surface-sunken);
+}
+
+.gantt__label {
+  font-size: 11px;
+  fill: var(--c-ink);
+  font-variant-numeric: tabular-nums;
+}
+.gantt__label--summary {
+  font-weight: 600;
+}
+
+.gantt__bar {
+  fill: var(--c-ink-muted);
+}
+.gantt__bar--summary {
+  fill: var(--c-ink);
+}
+.gantt__bar--critical {
+  fill: var(--c-danger, oklch(58% 0.19 25));
+}
+
+.gantt__tickLine {
+  stroke: var(--c-rule);
+  stroke-width: 1;
+}
+.gantt__tickLabel {
+  font-size: 10px;
+  fill: var(--c-ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+.gantt__today {
+  stroke: var(--c-ink);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.gantt__empty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--c-ink-faint);
+}
