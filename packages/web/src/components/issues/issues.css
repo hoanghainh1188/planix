@@ -35,6 +35,65 @@
   text-overflow: ellipsis;
 }
 
+.issues__runPicker {
+  font: inherit;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  max-width: 15rem;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.issues__runPicker:hover {
+  border-color: var(--c-rule-strong);
+}
+.issues__runPicker:focus-visible {
+  outline: 2px solid var(--c-focus);
+  outline-offset: -1px;
+}
+
+/* Nhãn cho trình đọc màn hình; ô chọn đã tự nói nó là mốc thời gian nào. */
+.issues__srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Đang xem một lượt CŨ. Không nói ra thì danh sách trông y hệt trạng thái hiện tại. */
+.issues__past {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--c-ink);
+  background: var(--c-critical-soft);
+  border-bottom: 1px solid var(--c-rule);
+}
+
+.issues__backToNow {
+  flex: none;
+  margin-left: auto;
+  padding: 1px var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--c-ink);
+  border: 1px solid var(--c-rule-strong);
+  border-radius: 2px;
+  background: var(--c-surface);
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+.issues__backToNow:hover {
+  border-color: var(--c-ink-muted);
+}
+
 .issues__filters {
   display: flex;
   gap: var(--space-1);

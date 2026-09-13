@@ -187,6 +187,7 @@ export function importTasks(db: Db, payload: unknown, options: ImportOptions): I
       runId: options.runId,
       projectId: project.id,
       detectedAt: options.now,
+      source: 'import',
       issues: report.issues,
     });
 

@@ -76,15 +76,18 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
   const issueCodes = new Map<string, string[]>();
   const issueRows = db
     .prepare(
+      // Lượt mới nhất lấy từ `validation_run`, KHÔNG phải từ dòng issue mới nhất. Một
+      // lượt sạch không sinh dòng nào, nên hỏi bảng issue sẽ trả về run_id của lượt TRƯỚC
+      // — tức là chấm đỏ của những vấn đề đã sửa xong vẫn còn nguyên trên cây.
       `SELECT task_uid, code
        FROM validation_issue
-       WHERE project_id = ? AND task_uid IS NOT NULL AND run_id = (
-         SELECT run_id FROM validation_issue WHERE project_id = ?
-         ORDER BY detected_at DESC, id DESC LIMIT 1
+       WHERE task_uid IS NOT NULL AND run_pk = (
+         SELECT id FROM validation_run WHERE project_id = ?
+         ORDER BY id DESC LIMIT 1
        )
        ORDER BY code`,
     )
-    .all(projectId, projectId) as Array<Record<string, unknown>>;
+    .all(projectId) as Array<Record<string, unknown>>;
   for (const r of issueRows) {
     const uid = r['task_uid'] as string;
     const list = issueCodes.get(uid);
@@ -247,13 +250,38 @@ export function loadIssues(db: Db, projectId: string): IssueRow[] {
     .prepare(
       `SELECT severity, code, task_uid, message, detected_at
        FROM validation_issue
-       WHERE project_id = ? AND run_id = (
-         SELECT run_id FROM validation_issue WHERE project_id = ?
-         ORDER BY detected_at DESC, id DESC LIMIT 1
+       WHERE run_pk = (
+         SELECT id FROM validation_run WHERE project_id = ?
+         ORDER BY id DESC LIMIT 1
        )
        ORDER BY severity, code, task_uid`,
     )
-    .all(projectId, projectId) as Array<Record<string, unknown>>;
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    severity: r['severity'] as IssueRow['severity'],
+    code: r['code'] as string,
+    taskUid: (r['task_uid'] as string | null) ?? null,
+    message: r['message'] as string,
+    detectedAt: r['detected_at'] as string,
+  }));
+}
+
+/**
+ * Issue của MỘT lượt cụ thể — để xem lại một mốc trong lịch sử.
+ *
+ * Tách khỏi `loadIssues` thay vì thêm tham số tuỳ chọn: người gọi hoặc muốn "hiện tại",
+ * hoặc muốn "lượt đó". Gộp làm một hàm thì chỗ gọi nào quên truyền sẽ lặng lẽ nhận thứ
+ * khác với ý định.
+ */
+export function loadIssuesOfRun(db: Db, runPk: number): IssueRow[] {
+  const rows = db
+    .prepare(
+      `SELECT severity, code, task_uid, message, detected_at
+       FROM validation_issue
+       WHERE run_pk = ?
+       ORDER BY severity, code, task_uid`,
+    )
+    .all(runPk) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
     severity: r['severity'] as IssueRow['severity'],
     code: r['code'] as string,

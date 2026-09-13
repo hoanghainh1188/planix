@@ -108,6 +108,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       runId: options.runId,
       projectId: settings.id,
       detectedAt: options.now,
+      source: 'schedule',
       issues: report.issues,
     });
     throw new ScheduleBlockedError(report);
@@ -379,6 +380,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     runId: options.runId,
     projectId: settings.id,
     detectedAt: options.now,
+    source: 'schedule',
     issues: recorded,
   });
 

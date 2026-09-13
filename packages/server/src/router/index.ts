@@ -85,22 +85,15 @@ function toTrpc(error: unknown): never {
 }
 
 /**
- * §12.4 — chạy validate ngay sau một lần ghi dependency và trả về phần liên quan.
+ * Chạy validate cho MỘT dự án trên trạng thái DB hiện tại (§8).
  *
- * Vì sao trả về chứ không chặn: §12.4 nói "sau mỗi tool ghi, tự động chạy validate và
- * kèm `ValidationReport` vào response". Cạnh vẫn được ghi, kể cả khi nó tạo ra Critical.
- * Chặn ở đây là tự đặt thêm một luật không có trong spec, và nó sẽ khoá PM lại giữa
- * chừng một chuỗi sửa nhiều bước mà trạng thái trung gian nào cũng tạm thời sai.
+ * §12.4: "sau mỗi tool ghi, tự động chạy validate và kèm `ValidationReport` vào response."
+ * Ghi vẫn được thực hiện kể cả khi sinh ra Critical — chặn ở đây là tự đặt thêm một luật
+ * không có trong spec, và nó sẽ khoá PM lại giữa chừng một chuỗi sửa nhiều bước mà trạng
+ * thái trung gian nào cũng tạm thời sai.
  *
- * Điều spec KHÔNG nói là phải trả cả rổ: một dự án dở dang có hàng trăm issue chẳng dính
- * gì tới cạnh vừa sửa, và dội hết lên panel thì PM không tìm ra cái mình vừa gây ra. Lọc
- * theo hai đầu của cạnh — cộng C01 vì vòng lặp được gắn vào một đỉnh bất kỳ trên đường đi,
- * không nhất thiết là một trong hai đầu.
- *
- * Đo trên fixture 6.000 task: load + validate hết 5,4 ms, nên chạy mỗi lần ghi không phải
- * thứ cần tối ưu.
+ * Đo trên fixture 6.000 task: load + validate hết 5,4 ms.
  */
-/** Chạy validate cho MỘT dự án trên trạng thái DB hiện tại (§8). */
 function validateProject(db: Db, projectId: string, runId: string): ValidationReport {
   const project = db
     .prepare('SELECT dependency_max_level FROM project WHERE id = ?')
@@ -127,14 +120,44 @@ function validateProject(db: Db, projectId: string, runId: string): ValidationRe
   });
 }
 
-function validateDependencyEdit(
-  db: Db,
+/**
+ * Chạy validate sau MỘT thao tác ghi WBS và lưu kết quả — PM quyết ngày 2026-09-13.
+ *
+ * §8 chỉ liệt kê ba chỗ (import, schedule, lưu progress), nên trước đây sửa task hay đổi
+ * cha xong thì panel S6 vẫn hiện ảnh chụp cũ cho tới lần xếp lịch kế tiếp. PM chọn mở ra
+ * mọi thao tác ghi, nên panel luôn khớp với thứ đang nhìn thấy.
+ *
+ * Chi phí đã đo trên fixture 6.000 task: 5,4 ms một lượt. Lượt nào không làm đổi tập issue
+ * thì `recordValidationRun` chỉ đẩy `last_at` — không đẻ dòng lịch sử, không ghi lại issue.
+ *
+ * Gọi TRONG transaction của thao tác: ghi hỏng giữa chừng thì cả thay đổi lẫn báo cáo về
+ * nó cùng biến mất.
+ */
+function revalidateAfterEdit(
+  ctx: Context & { user: { userId: string; isAdmin: boolean } },
   projectId: string,
-  runId: string,
-  endpoints: readonly string[],
-): ValidationIssue[] {
+): ValidationReport {
+  const runId = `edit-${ctx.now}`;
+  const report = validateProject(ctx.db, projectId, runId);
+  recordValidationRun(ctx.db, {
+    runId,
+    projectId,
+    detectedAt: ctx.now,
+    source: 'edit',
+    issues: report.issues,
+  });
+  return report;
+}
+
+/**
+ * Phần báo cáo dính tới cạnh vừa sửa, để hiện ngay tại panel Links (§12.4).
+ *
+ * Lọc theo hai đầu của cạnh, cộng `C01`: vòng lặp được gắn vào một đỉnh bất kỳ trên đường
+ * đi, không nhất thiết là một trong hai đầu.
+ */
+function issuesForEdge(report: ValidationReport, endpoints: readonly string[]): ValidationIssue[] {
   const touched = new Set(endpoints);
-  return validateProject(db, projectId, runId).issues.filter(
+  return report.issues.filter(
     (i) => i.code === 'C01' || (i.taskUid !== undefined && touched.has(i.taskUid)),
   );
 }
@@ -198,6 +221,7 @@ export const appRouter = t.router({
             before,
             after,
           );
+          revalidateAfterEdit(ctx, projectId);
         })();
         return { ok: true as const };
       }),
@@ -233,6 +257,7 @@ export const appRouter = t.router({
               {},
               { name: input.name, kind: input.kind, parentUid: input.parentUid },
             );
+            revalidateAfterEdit(ctx, input.projectId);
             return result;
           })();
         } catch (e) {
@@ -287,6 +312,7 @@ export const appRouter = t.router({
             { deleted: true, taskCount: info.uids.length },
           );
           const removed = read.deleteSubtree(ctx.db, input.taskUid, projectId);
+          revalidateAfterEdit(ctx, projectId);
           return { removed };
         })();
       }),
@@ -319,8 +345,9 @@ export const appRouter = t.router({
         } catch (e) {
           toTrpc(e);
         }
+        let report;
         try {
-          ctx.db.transaction(() => {
+          report = ctx.db.transaction(() => {
             read.setDependency(ctx.db, input);
             recordUpdate(
               ctx.db,
@@ -330,6 +357,7 @@ export const appRouter = t.router({
               {},
               { type: input.type, lagDays: input.lagDays },
             );
+            return revalidateAfterEdit(ctx, projectId);
           })();
         } catch (e) {
           throw new TRPCError({
@@ -338,13 +366,9 @@ export const appRouter = t.router({
             cause: e,
           });
         }
-        return {
-          ok: true as const,
-          issues: validateDependencyEdit(ctx.db, projectId, `dep-${ctx.now}`, [
-            input.predUid,
-            input.succUid,
-          ]),
-        };
+        // Một lượt validate, hai người dùng: bảng `validation_issue` cho panel S6, và phần
+        // lọc theo cạnh cho panel Links ngay tại chỗ vừa bấm.
+        return { ok: true as const, issues: issuesForEdge(report, [input.predUid, input.succUid]) };
       }),
 
     deleteDependency: authed
@@ -363,14 +387,11 @@ export const appRouter = t.router({
         } catch (e) {
           toTrpc(e);
         }
-        const removed = read.deleteDependency(ctx.db, input);
-        return {
-          removed,
-          issues: validateDependencyEdit(ctx.db, projectId, `dep-${ctx.now}`, [
-            input.predUid,
-            input.succUid,
-          ]),
-        };
+        const { removed, report } = ctx.db.transaction(() => ({
+          removed: read.deleteDependency(ctx.db, input),
+          report: revalidateAfterEdit(ctx, projectId),
+        }))();
+        return { removed, issues: issuesForEdge(report, [input.predUid, input.succUid]) };
       }),
 
     /** Ràng buộc của MỘT task, cả hai chiều — nguồn dữ liệu cho panel nối task. */
@@ -421,6 +442,7 @@ export const appRouter = t.router({
               { parentUid: null },
               { parentUid: input.newParentUid, sortOrder: input.newSortOrder },
             );
+            revalidateAfterEdit(ctx, projectId);
             return result;
           })();
         } catch (e) {
@@ -468,6 +490,7 @@ export const appRouter = t.router({
             {},
             { childSequencing: input.mode },
           );
+          revalidateAfterEdit(ctx, projectId);
         })();
         return { ok: true as const };
       }),
@@ -664,9 +687,19 @@ export const appRouter = t.router({
               toTrpc(e);
             }
 
+            // Lấy ĐỦ năm trường §10.5 cho phép sửa, không chỉ `status` và `percent`.
+            //
+            // Trước đây chỉ đọc hai trường, nên lead sửa `actual_start` / `actual_end` —
+            // đúng thứ quyết định một task có bị tính là trễ hay không — không để lại
+            // dòng nhật ký nào. Đặt alias camelCase để khớp tên khoá với object `after`:
+            // lệch tên thì `recordUpdate` coi MỌI trường là đã đổi.
             const before = ctx.db
-              .prepare('SELECT status, percent FROM progress WHERE task_uid = ?')
-              .get(row.taskUid) as { status: string; percent: number } | undefined;
+              .prepare(
+                `SELECT status, percent, actual_start AS actualStart, actual_end AS actualEnd,
+                        blocked_note AS blockedNote
+                 FROM progress WHERE task_uid = ?`,
+              )
+              .get(row.taskUid) as Record<string, unknown> | undefined;
 
             read.upsertProgress(ctx.db, {
               taskUid: row.taskUid,
@@ -686,7 +719,13 @@ export const appRouter = t.router({
               'progress',
               row.taskUid,
               before ?? {},
-              { status: row.status, percent: row.percent },
+              {
+                status: row.status,
+                percent: row.percent,
+                actualStart: row.actualStart,
+                actualEnd: row.actualEnd,
+                blockedNote: row.blockedNote,
+              },
             );
           }
 
@@ -694,11 +733,13 @@ export const appRouter = t.router({
           // đụng tới. Chạy một lượt cho cả lô rồi gán chung sẽ ghi issue của dự án này
           // sang dự án kia.
           for (const projectId of [...touchedProjects].sort()) {
+            const runId = `progress-${ctx.now}`;
             recordValidationRun(ctx.db, {
-              runId: `progress-${ctx.now}`,
+              runId,
               projectId,
               detectedAt: ctx.now,
-              issues: validateProject(ctx.db, projectId, `progress-${ctx.now}`).issues,
+              source: 'progress',
+              issues: validateProject(ctx.db, projectId, runId).issues,
             });
           }
         })();
@@ -763,6 +804,53 @@ export const appRouter = t.router({
       }
       return issueRepo.loadLastValidationRun(ctx.db, input.projectId);
     }),
+
+    /**
+     * Lịch sử các lượt validate, mới nhất trước — PM quyết ngày 2026-09-13.
+     *
+     * Mỗi dòng là một TRẠNG THÁI issue khác nhau, không phải một lần bấm nút: lượt nào
+     * cho ra tập issue y hệt lượt trước thì chỉ đẩy `lastAt`. Nhờ vậy `firstAt` trả lời
+     * đúng câu "vấn đề này xuất hiện từ bao giờ".
+     */
+    history: authed
+      .input(
+        z.object({
+          projectId: z.string().min(1),
+          limit: z.number().int().min(1).max(100).default(20),
+        }),
+      )
+      .query(({ ctx, input }) => {
+        try {
+          assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        return issueRepo.loadValidationHistory(ctx.db, input.projectId, input.limit);
+      }),
+
+    /**
+     * Issue của một lượt cũ — xem lại một mốc trong lịch sử.
+     *
+     * `runPk` là khoá của DÒNG lịch sử, không phải `run_id` của engine: `run_id` không
+     * duy nhất (hai lượt trong cùng một mili-giây trùng nhau), nên dùng nó để tra sẽ trộn
+     * issue của nhiều lượt.
+     *
+     * Vẫn nhận `projectId` để kiểm quyền — và để một `runPk` của dự án khác không lọt qua.
+     */
+    ofRun: authed
+      .input(z.object({ projectId: z.string().min(1), runPk: z.number().int().positive() }))
+      .query(({ ctx, input }) => {
+        try {
+          assertCan('view_assigned_project', permissionContext(ctx, input.projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+        const owned = issueRepo
+          .loadValidationHistory(ctx.db, input.projectId)
+          .some((r) => r.id === input.runPk);
+        if (!owned) throw new TRPCError({ code: 'NOT_FOUND' });
+        return read.loadIssuesOfRun(ctx.db, input.runPk);
+      }),
   }),
 });
 

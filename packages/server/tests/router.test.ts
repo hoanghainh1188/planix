@@ -3,6 +3,7 @@ import { migrate, openDatabase } from '@planix/core/db/migrate.js';
 import { importTasks } from '@planix/core/io/importer.js';
 import { appRouter, type Context } from '../src/router/index.js';
 import { historyOf } from '../src/audit/audit-log.js';
+import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
 
 const AT = '2026-09-13T09:00:00.000Z';
 let db: ReturnType<typeof openDatabase>;
@@ -241,10 +242,16 @@ describe('S4 — progress entry (§10.5, §10.6)', () => {
 
 describe('S6 — issues', () => {
   it('đọc được và lọc theo dự án', async () => {
-    db.prepare(
-      `INSERT INTO validation_issue (run_id,project_id,severity,code,message,detected_at)
-       VALUES ('RUN-1','P','Major','J05','Task too large',?)`,
-    ).run(AT);
+    // Đi qua repo chứ không INSERT tay: issue nay gắn vào một DÒNG lượt (`run_pk`), nên
+    // một dòng issue mồ côi sẽ không bao giờ được đọc ra — và test chèn tay như vậy sẽ
+    // xanh giả ở bản cũ, đỏ ở bản mới mà chẳng nói lên điều gì về sản phẩm.
+    recordValidationRun(db, {
+      runId: 'RUN-1',
+      projectId: 'P',
+      detectedAt: AT,
+      source: 'schedule',
+      issues: [{ severity: 'Major', code: 'J05', message: 'Task too large' }],
+    });
     const rows = await caller('U-PM').issues.list({ projectId: 'P' });
     expect(rows).toHaveLength(1);
     expect(rows[0]?.code).toBe('J05');
@@ -252,6 +259,156 @@ describe('S6 — issues', () => {
 
   it('người ngoài dự án bị chặn', async () => {
     await expectTrpcCode(caller('U-OUT').issues.list({ projectId: 'P' }), 'FORBIDDEN');
+  });
+
+  // PM quyết ngày 2026-09-13: §8 chỉ liệt kê ba chỗ, nhưng panel phải khớp với thứ đang
+  // nhìn thấy, nên mở ra mọi thao tác ghi WBS.
+  describe('sửa WBS xong thì validate chạy lại ngay', () => {
+    it('bỏ role của một task work → C04 hiện ra mà không cần bấm Recalculate', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      await caller('U-PM').wbs.updateTask({
+        taskUid: uid,
+        name: 'A',
+        effortMd: 2,
+        role: null,
+        priority: 500,
+      });
+
+      const codes = (await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code);
+      expect(codes).toContain('C04');
+    });
+
+    it('trả role lại thì C04 biến mất ngay', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      const edit = { taskUid: uid, name: 'A', effortMd: 2, priority: 500 };
+      await caller('U-PM').wbs.updateTask({ ...edit, role: null });
+      await caller('U-PM').wbs.updateTask({ ...edit, role: 'Dev' });
+
+      const codes = (await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code);
+      expect(codes).not.toContain('C04');
+    });
+
+    it('tạo task mới cũng chạy lại — task work chưa có role là C04 ngay lúc sinh ra', async () => {
+      const root = (db.prepare(`SELECT uid FROM task WHERE name='Root'`).get() as { uid: string })
+        .uid;
+      await caller('U-PM').wbs.createTask({
+        projectId: 'P',
+        parentUid: root,
+        name: 'Task khong co role',
+        kind: 'work',
+        effortMd: 1,
+        role: null,
+        priority: 500,
+        afterUid: null,
+      });
+
+      expect((await caller('U-PM').issues.list({ projectId: 'P' })).map((i) => i.code)).toContain(
+        'C04',
+      );
+    });
+
+    it('lượt làm ĐỔI tập issue được ghi nguồn là `edit`', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      await caller('U-PM').wbs.updateTask({
+        taskUid: uid,
+        name: 'A',
+        effortMd: 2,
+        role: null, // sinh C04 — tập issue đổi, nên đây là một dòng lịch sử mới
+        priority: 500,
+      });
+      expect(await caller('U-PM').issues.lastRun({ projectId: 'P' })).toMatchObject({
+        source: 'edit',
+        critical: 1,
+      });
+    });
+
+    it('sửa mà không đổi gì thì `source` GIỮ nguyên — nó đi với `firstAt`', async () => {
+      // Fixture vừa import xong, nên lượt hiện tại có nguồn `import`. Đổi tên task không
+      // làm đổi tập issue, nên đây vẫn là trạng thái do import sinh ra: ghi đè nguồn
+      // thành `edit` sẽ nói rằng vấn đề này xuất hiện vì một lần sửa, mà không phải.
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      await caller('U-PM').wbs.updateTask({
+        taskUid: uid,
+        name: 'A doi ten',
+        effortMd: 2,
+        role: 'Dev',
+        priority: 500,
+      });
+      expect(await caller('U-PM').issues.lastRun({ projectId: 'P' })).toMatchObject({
+        source: 'import',
+      });
+    });
+
+    it('sửa mà KHÔNG đổi tập issue thì không đẻ dòng lịch sử mới', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      const edit = { taskUid: uid, effortMd: 2, role: 'Dev', priority: 500 };
+      await caller('U-PM').wbs.updateTask({ ...edit, name: 'Ten 1' });
+      const after1 = await caller('U-PM').issues.history({ projectId: 'P' });
+      await caller('U-PM').wbs.updateTask({ ...edit, name: 'Ten 2' });
+      await caller('U-PM').wbs.updateTask({ ...edit, name: 'Ten 3' });
+      const after3 = await caller('U-PM').issues.history({ projectId: 'P' });
+
+      expect(after3.length).toBe(after1.length);
+    });
+  });
+
+  describe('lịch sử validate', () => {
+    it('mới nhất trước, và giữ được lượt cũ', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      const edit = { taskUid: uid, name: 'A', effortMd: 2, priority: 500 };
+      await caller('U-PM').wbs.updateTask({ ...edit, role: null }); // sinh C04
+      await caller('U-PM').wbs.updateTask({ ...edit, role: 'Dev' }); // sạch lại
+
+      const history = await caller('U-PM').issues.history({ projectId: 'P' });
+      expect(history.length).toBeGreaterThanOrEqual(2);
+      expect(history[0]?.critical).toBe(0);
+      expect(history.some((r) => r.critical > 0)).toBe(true);
+    });
+
+    it('xem lại được issue của một lượt cũ', async () => {
+      const uid = (db.prepare(`SELECT uid FROM task WHERE name='A'`).get() as { uid: string }).uid;
+      const edit = { taskUid: uid, name: 'A', effortMd: 2, priority: 500 };
+      await caller('U-PM').wbs.updateTask({ ...edit, role: null });
+      await caller('U-PM').wbs.updateTask({ ...edit, role: 'Dev' });
+
+      const history = await caller('U-PM').issues.history({ projectId: 'P' });
+      const broken = history.find((r) => r.critical > 0);
+      expect(broken).toBeDefined();
+      const issues = await caller('U-PM').issues.ofRun({
+        projectId: 'P',
+        runPk: broken?.id ?? 0,
+      });
+      expect(issues.map((i) => i.code)).toContain('C04');
+    });
+
+    it('không xem được lượt của dự án khác', async () => {
+      db.prepare(
+        `INSERT INTO project (id,code,name,priority,start_date,status_date,calendar_id,default_location,created_at)
+         VALUES ('Q','GEO','GEO',2,'2026-01-05','2026-01-05','CAL','VN',?)`,
+      ).run(AT);
+      db.prepare(
+        `INSERT INTO user_project (user_id,project_id,role) VALUES ('U-PM','Q','pm')`,
+      ).run();
+      recordValidationRun(db, {
+        runId: 'geo',
+        projectId: 'Q',
+        detectedAt: AT,
+        source: 'edit',
+        issues: [{ severity: 'Major', code: 'J05', message: 'geo' }],
+      });
+      const geoRun = (await caller('U-PM').issues.history({ projectId: 'Q' }))[0];
+      expect(geoRun).toBeDefined();
+
+      // Cùng người, có quyền ở CẢ HAI dự án — nhưng `runPk` của Q không được đọc qua P.
+      await expectTrpcCode(
+        caller('U-PM').issues.ofRun({ projectId: 'P', runPk: geoRun?.id ?? 0 }),
+        'NOT_FOUND',
+      );
+    });
+
+    it('người ngoài dự án không đọc được lịch sử', async () => {
+      await expectTrpcCode(caller('U-OUT').issues.history({ projectId: 'P' }), 'FORBIDDEN');
+    });
   });
 
   // §8: "Chạy sau mỗi lần import, mỗi lần schedule, mỗi lần lưu progress."
@@ -394,6 +551,39 @@ describe('S4 — server KHÔNG tin client (§10.5, §10.6)', () => {
       caller('U-PM').progress.save({ rows: [{ ...okRow, taskUid: 'T-9999' }] }),
       'NOT_FOUND',
     );
+  });
+});
+
+describe('S4 — nhật ký sửa tiến độ (§10.5 "ghi audit_log từng dòng")', () => {
+  const base = {
+    taskUid: 'T-0002',
+    status: 'in_progress' as const,
+    percent: 50,
+    actualStart: '2026-01-05',
+    actualEnd: null as string | null,
+    blockedNote: null as string | null,
+  };
+
+  it('sửa ngày thực CÓ để lại vết — đó là thứ quyết định task có bị tính trễ hay không', async () => {
+    // Fixture để `status_date` = 2026-01-05, mà §10.5 cấm `actual_start` vượt mốc chuẩn.
+    // Đẩy mốc ra sau để còn chỗ mà sửa ngày.
+    db.prepare(`UPDATE project SET status_date = '2026-06-30' WHERE id = 'P'`).run();
+    await caller('U-PM').progress.save({ rows: [base] });
+    const before = historyOf(db, 'progress', 'T-0002').length;
+
+    // Chỉ đổi ngày thực, `status` và `percent` giữ nguyên.
+    await caller('U-PM').progress.save({ rows: [{ ...base, actualStart: '2026-01-06' }] });
+
+    const after = historyOf(db, 'progress', 'T-0002');
+    expect(after.length).toBeGreaterThan(before);
+    expect(after.some((r) => r.field === 'actualStart')).toBe(true);
+  });
+
+  it('lưu lại y nguyên thì KHÔNG đẻ ra dòng nhật ký rỗng', async () => {
+    await caller('U-PM').progress.save({ rows: [base] });
+    const before = historyOf(db, 'progress', 'T-0002').length;
+    await caller('U-PM').progress.save({ rows: [base] });
+    expect(historyOf(db, 'progress', 'T-0002').length).toBe(before);
   });
 });
 
