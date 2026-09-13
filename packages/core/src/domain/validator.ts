@@ -16,6 +16,7 @@
 
 import type {
   DependencyRow,
+  ProgressRow,
   TaskRow,
   ValidationInput,
   ValidationIssue,
@@ -37,6 +38,7 @@ export function validate(input: ValidationInput): ValidationReport {
   checkDepthLimit(input, issues);
   checkDuplicateNames(input, issues);
   checkLeafLabels(input, issues);
+  checkScheduleRules(input, issues);
   checkMsoStructural(input, byUid, issues);
   checkProgress(input, byUid, issues);
 
@@ -390,6 +392,93 @@ function checkLeafLabels(input: ValidationInput, issues: ValidationIssue[]): voi
     issues.push(
       minor('N03', `Leaf task ${t.wbsCode} has no ${missing.join(' and ')}.`, t, { missing }),
     );
+  }
+}
+
+// ── J03, J04, J11 — những rule chỉ trả lời được khi đã có lịch (§8.2) ───────
+
+/**
+ * `J11` quá hạn, `J03` vi phạm FNLT, `J04` dự án vượt `target_end`.
+ *
+ * Cả ba cần `schedule`, thứ mà lúc import chưa tồn tại. Khi chưa có lịch thì **im lặng**,
+ * không phải báo "không đạt": chưa có ngày thì chưa kết luận được gì, và một cảnh báo sai
+ * ở đây còn tệ hơn không có cảnh báo — PM sẽ học cách phớt lờ cả panel.
+ */
+function checkScheduleRules(input: ValidationInput, issues: ValidationIssue[]): void {
+  const schedule = input.schedule ?? [];
+  if (schedule.length === 0) return;
+
+  const endByUid = new Map<string, string>();
+  for (const row of schedule) {
+    if (row.endDate !== null) endByUid.set(row.taskUid, row.endDate);
+  }
+  const progressByUid = new Map<string, ProgressRow>(input.progress.map((p) => [p.taskUid, p]));
+  const parents = parentsOf(input.tasks);
+
+  for (const t of input.tasks) {
+    const endDate = endByUid.get(t.uid);
+    if (endDate === undefined) continue;
+
+    // `J11` — §8.2: "end_date < status_date mà status != 'done'".
+    //
+    // Bỏ qua summary: ngày của nó là ngày của con (§7.7), nên báo cả hai là đếm một vấn
+    // đề hai lần và làm PM đi tìm ở tầng không sửa được gì.
+    //
+    // Bỏ qua task đã huỷ: §6.5 gỡ nó khỏi mạng lưới, và nó cũng nằm ngoài mọi phép đo.
+    const status = progressByUid.get(t.uid)?.status ?? 'not_started';
+    if (
+      input.statusDate !== null &&
+      input.statusDate !== undefined &&
+      !parents.has(t.uid) &&
+      status !== 'done' &&
+      status !== 'cancelled' &&
+      endDate < input.statusDate
+    ) {
+      issues.push(
+        major(
+          'J11',
+          `Task ${t.wbsCode} was due ${endDate} but is still ${status.replace('_', ' ')}.`,
+          t,
+          { endDate, statusDate: input.statusDate, status },
+        ),
+      );
+    }
+
+    // `J03` — §6.6: FNLT "chỉ kiểm tra; vi phạm → J03, KHÔNG đẩy lịch ngược". Chính vì
+    // engine cố ý không tự sửa nên cảnh báo này là thứ duy nhất nói cho PM biết.
+    if (t.constraintType === 'FNLT' && t.constraintDate !== null && endDate > t.constraintDate) {
+      issues.push(
+        major(
+          'J03',
+          `Task ${t.wbsCode} finishes ${endDate}, past its FNLT of ${t.constraintDate}.`,
+          t,
+          { endDate, constraintDate: t.constraintDate },
+        ),
+      );
+    }
+  }
+
+  // `J04` — một dòng cho CẢ dự án, không gắn vào task nào: ngày kết thúc là thuộc tính
+  // của dự án, và gắn nó vào task cuối cùng sẽ đổ lỗi cho một task tình cờ đứng chót.
+  const targetEnd = input.targetEnd;
+  if (targetEnd !== null && targetEnd !== undefined && endByUid.size > 0) {
+    let projectEnd: string | null = null;
+    for (const end of endByUid.values()) {
+      if (projectEnd === null || end > projectEnd) projectEnd = end;
+    }
+    if (projectEnd !== null && projectEnd > targetEnd) {
+      issues.push(
+        major(
+          'J04',
+          `The project ends ${projectEnd}, past its target of ${targetEnd}.`,
+          undefined,
+          {
+            projectEnd,
+            targetEnd,
+          },
+        ),
+      );
+    }
   }
 }
 

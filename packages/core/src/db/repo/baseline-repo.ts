@@ -97,6 +97,8 @@ export function closePeriod(db: Db, params: ClosePeriodParams): ClosePeriodResul
       resourceRoles: importRepo.loadResourceRoles(db),
       progress: importRepo.loadProgress(db, params.projectId),
       dependencyMaxLevel: project.dependency_max_level,
+      schedule: importRepo.loadSchedule(db, params.projectId),
+      ...importRepo.loadProjectDates(db, params.projectId),
     });
     if (!report.passed) throw new PeriodNotClosedError(report);
 

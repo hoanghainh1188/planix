@@ -118,6 +118,8 @@ function validateProject(db: Db, projectId: string, runId: string): ValidationRe
     resourceRoles: importRepo.loadResourceRoles(db),
     progress: importRepo.loadProgress(db, projectId),
     dependencyMaxLevel: project.dependency_max_level,
+    schedule: importRepo.loadSchedule(db, projectId),
+    ...importRepo.loadProjectDates(db, projectId),
   });
 }
 

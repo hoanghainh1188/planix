@@ -84,6 +84,13 @@ export interface ProgressRow {
   readonly actualEnd: string | null;
 }
 
+/** Lịch đã tính — §8.2 có vài rule chỉ trả lời được khi đã có ngày. */
+export interface ScheduleRow {
+  readonly taskUid: string;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+}
+
 export interface ValidationInput {
   readonly runId: string;
   readonly projectId: string;
@@ -94,4 +101,15 @@ export interface ValidationInput {
   readonly progress: readonly ProgressRow[];
   /** `project.dependency_max_level`, mặc định 3 (§6.2). */
   readonly dependencyMaxLevel: number;
+  /**
+   * Lịch hiện tại. RỖNG khi chưa xếp lần nào — lúc import chẳng hạn.
+   *
+   * Rỗng thì các rule cần ngày im lặng, không phải báo "không đạt": chưa có ngày thì
+   * chưa kết luận được gì, và một cảnh báo sai ở đây còn tệ hơn không có cảnh báo.
+   */
+  readonly schedule?: readonly ScheduleRow[];
+  /** `project.status_date` — mốc chuẩn của kỳ (§7.13). `null` nếu chưa chốt lần nào. */
+  readonly statusDate?: string | null;
+  /** `project.target_end` — hạn cam kết với khách. `null` nếu chưa đặt. */
+  readonly targetEnd?: string | null;
 }

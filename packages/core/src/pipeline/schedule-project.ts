@@ -89,16 +89,21 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   const lagCalendarId = scheduleRepo.loadLagCalendarId(db, settings.defaultLocation);
 
   // ── Validate trước: §8 chạy sau mỗi lần import, schedule và lưu progress ───
-  const report = validate({
-    runId: options.runId,
-    projectId: settings.id,
-    tasks: importRepo.loadTasks(db, settings.id),
-    dependencies: importRepo.loadDependencies(db, settings.id),
-    resources: importRepo.loadResources(db),
-    resourceRoles: importRepo.loadResourceRoles(db),
-    progress: importRepo.loadProgress(db, settings.id),
-    dependencyMaxLevel: settings.dependencyMaxLevel,
-  });
+  const runValidate = (): ValidationReport =>
+    validate({
+      runId: options.runId,
+      projectId: settings.id,
+      tasks: importRepo.loadTasks(db, settings.id),
+      dependencies: importRepo.loadDependencies(db, settings.id),
+      resources: importRepo.loadResources(db),
+      resourceRoles: importRepo.loadResourceRoles(db),
+      progress: importRepo.loadProgress(db, settings.id),
+      dependencyMaxLevel: settings.dependencyMaxLevel,
+      schedule: importRepo.loadSchedule(db, settings.id),
+      ...importRepo.loadProjectDates(db, settings.id),
+    });
+
+  const report = runValidate();
   if (!report.passed) {
     // Ghi TRƯỚC khi ném. Bị chặn là đúng lúc PM cần biết vì sao nhất, và `scheduleProject`
     // thoát ra ở đây nên không còn chỗ nào khác để ghi. Hàm này tự mở transaction riêng,
@@ -364,11 +369,20 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     if (projectEnd === null || row.endDate > projectEnd) projectEnd = row.endDate;
   }
 
-  // §8 "chạy sau mỗi lần schedule". Gộp hai nguồn: `report` là validate trên dữ liệu đầu
-  // vào, `issues` là thứ chỉ lộ ra KHI xếp lịch (N07 bắc cầu hỏng, J01 overallocate...).
-  // Với PM đọc màn S6 thì cả hai đều là vấn đề của dự án, không phải hai loại dữ liệu.
+  // §8 "chạy sau mỗi lần schedule" — và SAU nghĩa là sau, nên chạy LẠI ở đây.
+  //
+  // `report` phía trên là cửa chặn: nó phải chạy trước để từ chối Critical, nên nó mô tả
+  // lịch CŨ. Từ khi có `J11`/`J03`/`J04` thì khác biệt đó thành sai lệch thật: vừa xếp
+  // lại lịch xong mà panel vẫn báo quá hạn theo ngày của lượt trước.
+  //
+  // Thêm một lượt validate tốn khoảng 5 ms trên 6.000 task — rẻ hơn nhiều so với việc PM
+  // đọc một con số không còn đúng.
+  const afterSchedule = runValidate();
+
+  // Gộp hai nguồn: validate trên dữ liệu, và issue chỉ lộ ra KHI xếp lịch (N07 bắc cầu
+  // hỏng, J01 overallocate...). Với PM đọc màn S6 thì cả hai đều là vấn đề của dự án.
   const recorded: RecordedIssue[] = [
-    ...report.issues,
+    ...afterSchedule.issues,
     ...issues.map((i) => ({
       severity: i.severity,
       code: i.code,
