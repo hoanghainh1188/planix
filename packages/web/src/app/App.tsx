@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
-import { WbsTree } from '../components/wbs-tree/WbsTree.js';
+import { WbsTree, type TaskEdit } from '../components/wbs-tree/WbsTree.js';
 import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
+import { createProjectStore } from '../model/project-store.js';
 import { toFriendlyError, trpc } from '../data/client.js';
 import { useAsync } from '../data/use-async.js';
 import type { GanttRowData, ProgressBoardData, ProjectSummary, WbsRow } from '../data/types.js';
@@ -55,15 +56,29 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [writeError, setWriteError] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
 
   const projects = useAsync<ProjectSummary[]>(() => trpc.projects.list.query(), []);
 
-  // Chọn dự án đầu tiên khi danh sách về, nếu người dùng chưa chọn gì.
+  const projectStore = useMemo(
+    () => createProjectStore(typeof window === 'undefined' ? null : window.localStorage),
+    [],
+  );
+
+  // §14.2/P8 "nhớ dự án đang chọn": ưu tiên dự án lần trước, nhưng chỉ khi nó CÒN nằm
+  // trong danh sách được gán — quyền có thể đã bị thu hồi từ lần vào trước.
   useEffect(() => {
-    if (projects.status === 'ready' && projectId === null && projects.data.length > 0) {
-      setProjectId(projects.data[0]?.id ?? null);
-    }
-  }, [projects, projectId]);
+    if (projects.status !== 'ready' || projectId !== null || projects.data.length === 0) return;
+    const remembered = projectStore.load();
+    const stillThere = projects.data.some((p) => p.id === remembered);
+    setProjectId(stillThere && remembered !== null ? remembered : (projects.data[0]?.id ?? null));
+  }, [projects, projectId, projectStore]);
+
+  function chooseProject(id: string): void {
+    setProjectId(id);
+    projectStore.save(id);
+  }
 
   const loadTree = useCallback((): Promise<WbsRow[]> => {
     if (projectId === null) return Promise.resolve([]);
@@ -85,7 +100,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.progress.board.query({ projectId });
   }, [projectId, screen]);
 
-  const tree = useAsync(loadTree, [projectId]);
+  const tree = useAsync(loadTree, [projectId, savedAt]);
   const issues = useAsync(loadIssues, [projectId]);
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
@@ -98,22 +113,112 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       ? (projects.data.find((p) => p.id === projectId)?.statusDate ?? '')
       : '';
 
-  /** Bản so sánh dựng từ chính cây đang xem, để con số có nghĩa với dữ liệu thật. */
-  const diff = useMemo(() => {
-    const snapshot = (shift: number): ScheduleSnapshotRow[] =>
-      rows.slice(0, 400).map((r, i) => ({
-        taskUid: r.uid,
-        projectId: projectId ?? '',
-        wbsCode: r.wbsCode,
-        name: r.name,
-        startDate: r.planStart,
-        endDate:
-          r.planEnd === null || i % 3 !== 0
-            ? r.planEnd
-            : new Date(Date.parse(r.planEnd) + shift * 86_400_000).toISOString().slice(0, 10),
-      }));
-    return buildRecalcDiff(snapshot(0), snapshot(6), projectId ?? '');
-  }, [rows, projectId]);
+  /**
+   * Bản so sánh THẬT: engine chạy thử trên bản sao DB rồi trả về lịch trước và sau.
+   *
+   * §10.1 bắt hiện bảng này TRƯỚC khi ghi, và "mọi số hiển thị đọc từ schedule, không
+   * tính lại ở client" — nên hai đầu dữ liệu đều từ server, ở đây chỉ so sánh.
+   */
+  const [preview, setPreview] = useState<{
+    before: readonly ScheduleSnapshotRow[];
+    after: readonly ScheduleSnapshotRow[];
+  } | null>(null);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+
+  const diff = useMemo(
+    () =>
+      preview === null ? null : buildRecalcDiff(preview.before, preview.after, projectId ?? ''),
+    [preview, projectId],
+  );
+
+  async function openRecalc(): Promise<void> {
+    if (projectId === null) return;
+    setPreviewing(true);
+    setPreviewError(null);
+    try {
+      const res = await trpc.wbs.previewRecalculate.mutate({ projectId, scope: 'project' });
+      if (!res.result.ok) {
+        setPreviewError(res.result.message);
+        return;
+      }
+      setPreview({ before: res.before, after: res.after });
+      setShowRecalc(true);
+    } catch (error) {
+      setPreviewError(toFriendlyError(error).message);
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  /** PM đã xem bảng so sánh và đồng ý — giờ mới thật sự ghi (§10.1). */
+  async function commitRecalc(): Promise<void> {
+    if (projectId === null) return;
+    setShowRecalc(false);
+    setPreviewing(true);
+    try {
+      const res = await trpc.wbs.recalculate.mutate({ projectId, scope: 'project' });
+      if (!res.ok) setPreviewError(res.message);
+      else setSavedAt(String(Date.now()));
+    } catch (error) {
+      setPreviewError(toFriendlyError(error).message);
+    } finally {
+      setPreviewing(false);
+      setPreview(null);
+    }
+  }
+
+  // ── Đường ghi của S1 (§10.4) ──────────────────────────────────────────────
+
+  /**
+   * Đọc lại từ server thay vì tự sửa state ở client.
+   *
+   * Đổi cha khiến engine đánh số lại CẢ dự án (§4.3), nên đoán `wbs_code` mới ở client
+   * chắc chắn lệch. Đổi khoá là đủ để `useAsync` nạp lại.
+   */
+  function afterWrite(): void {
+    setSavedAt(String(Date.now()));
+  }
+
+  async function editTask(uid: string, edit: TaskEdit): Promise<void> {
+    setWriteError(null);
+    try {
+      await trpc.wbs.updateTask.mutate({ taskUid: uid, ...edit });
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    }
+  }
+
+  async function moveTask(
+    uid: string,
+    newParentUid: string | null,
+    newSortOrder: number,
+  ): Promise<void> {
+    setWriteError(null);
+    setWriting(true);
+    try {
+      await trpc.wbs.moveTask.mutate({ taskUid: uid, newParentUid, newSortOrder });
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  async function setSequencing(uid: string, mode: 'parallel' | 'sequential'): Promise<void> {
+    setWriteError(null);
+    setWriting(true);
+    try {
+      await trpc.wbs.setSequencing.mutate({ taskUid: uid, mode });
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
 
   async function saveProgress(rows: readonly SaveRow[]): Promise<void> {
     setSaving(true);
@@ -155,7 +260,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
                   type="button"
                   className="app__project"
                   aria-current={p.id === projectId ? 'page' : undefined}
-                  onClick={() => setProjectId(p.id)}
+                  onClick={() => chooseProject(p.id)}
                 >
                   <span className="app__projectCode">{p.code}</span>
                   <span className="app__projectName">{p.name}</span>
@@ -186,13 +291,29 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
           <button
             type="button"
             className="app__action app__action--primary"
-            onClick={() => setShowRecalc(true)}
-            disabled={rows.length === 0}
+            onClick={() => void openRecalc()}
+            disabled={rows.length === 0 || previewing}
           >
-            Recalculate
+            {previewing ? 'Calculating…' : 'Recalculate'}
           </button>
         </div>
       </header>
+
+      {(writeError ?? previewError) ? (
+        <p className="app__banner app__banner--error" role="alert">
+          {writeError ?? previewError}
+          <button
+            type="button"
+            className="app__bannerClose"
+            onClick={() => {
+              setWriteError(null);
+              setPreviewError(null);
+            }}
+          >
+            Dismiss
+          </button>
+        </p>
+      ) : null}
 
       <main className={screen === 'wbs' ? 'app__main' : 'app__main app__main--wide'}>
         {screen === 'wbs' ? (
@@ -211,6 +332,10 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
               rows={rows}
               selectedUid={selectedUid}
               onSelect={setSelectedUid}
+              onEdit={editTask}
+              onMove={moveTask}
+              onSequencing={setSequencing}
+              busy={writing}
             />
           )
         ) : screen === 'gantt' ? (
@@ -252,11 +377,14 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
         ) : null}
       </main>
 
-      {showRecalc ? (
+      {showRecalc && diff !== null ? (
         <RecalcDialog
           diff={diff}
-          onConfirm={() => setShowRecalc(false)}
-          onCancel={() => setShowRecalc(false)}
+          onConfirm={() => void commitRecalc()}
+          onCancel={() => {
+            setShowRecalc(false);
+            setPreview(null);
+          }}
         />
       ) : null}
     </div>

@@ -9,6 +9,8 @@ import type { Db } from '../migrate.js';
 import { rollupTree, type RollupTask } from '../../domain/rollup.js';
 import { isMicroTask } from '../../domain/rollup.js';
 import { createCalendarEngine } from '../../domain/calendar.js';
+import { checkMove, type MovableTask, type MoveRejection } from '../../domain/move.js';
+import { renumber } from '../../domain/renumber.js';
 import { unsafeDateOnly } from '../../domain/date-only.js';
 import { suggestProgress, type Suggestion } from '../../domain/progress-suggest.js';
 import { loadCalendarSnapshot } from './calendar-repo.js';
@@ -25,6 +27,8 @@ export interface WbsRow {
   readonly effortMd: number | null;
   readonly role: string | null;
   readonly childSequencing: string | null;
+  /** §10.4 cho sửa inline `priority`, nên nó phải đi kèm dòng chứ không chỉ nằm trong DB. */
+  readonly priority: number;
   readonly pic: string | null;
   readonly status: string;
   readonly percent: number;
@@ -41,7 +45,7 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
   const rows = db
     .prepare(
       `SELECT t.uid, t.wbs_code, t.depth, t.parent_uid, t.name, t.kind, t.effort_md, t.role,
-              t.child_sequencing,
+              t.child_sequencing, t.priority, t.sort_order,
               r.name AS pic,
               COALESCE(p.status,'not_started') AS status,
               COALESCE(p.percent,0) AS percent,
@@ -111,6 +115,7 @@ export function loadWbsTree(db: Db, projectId: string): WbsRow[] {
         : ((r['effort_md'] as number | null) ?? null),
       role: (r['role'] as string | null) ?? null,
       childSequencing: (r['child_sequencing'] as string | null) ?? null,
+      priority: r['priority'] as number,
       pic: (r['pic'] as string | null) ?? null,
       status: rolled?.status ?? (r['status'] as string),
       percent: rolled?.percentDisplay ?? (r['percent'] as number),
@@ -544,4 +549,146 @@ export function loadGanttRows(db: Db, projectId: string): GanttRow[] {
       phase: (r['phase'] as string | null) ?? null,
     };
   });
+}
+
+// ── Đường GHI của S1: đổi cha, đổi thứ tự, đổi sequencing (§10.4) ───────────
+
+export class MoveRejectedError extends Error {
+  constructor(readonly reason: MoveRejection) {
+    super(`Move rejected: ${reason}`);
+    this.name = 'MoveRejectedError';
+  }
+}
+
+export interface MoveResult {
+  readonly projectId: string;
+  /** Số task bị đổi `wbs_code` — dùng để báo cho người dùng biết phạm vi ảnh hưởng. */
+  readonly renumbered: number;
+}
+
+/**
+ * Đổi cha và/hoặc thứ tự của một task, rồi ĐÁNH SỐ LẠI cả dự án (§10.4).
+ *
+ * Renumber cả dự án chứ không chỉ nhánh bị đụng: `wbs_code` của một task phụ thuộc vị trí
+ * của mọi anh em đứng trước nó, nên chuyển một nhánh có thể dịch số của nhánh khác. Đánh
+ * số một phần là cách chắc chắn để hai task cùng mang một mã.
+ *
+ * Người gọi phải bọc trong transaction: đổi cha mà renumber hỏng giữa chừng thì cây còn
+ * tệ hơn lúc chưa đụng vào.
+ */
+export function moveTask(
+  db: Db,
+  p: {
+    taskUid: string;
+    newParentUid: string | null;
+    newSortOrder: number;
+    now: string;
+  },
+): MoveResult {
+  const projectId = projectOfTask(db, p.taskUid);
+  if (projectId === undefined) throw new MoveRejectedError('unknown-task');
+
+  // Nạp cả HAI dự án liên quan thì mới phát hiện được phép chuyển xuyên dự án; nạp mỗi
+  // dự án hiện tại sẽ khiến cha ở dự án khác trông như "không tồn tại".
+  const rows = db.prepare('SELECT uid, project_id, parent_uid FROM task').all() as Array<
+    Record<string, unknown>
+  >;
+  const tasks: MovableTask[] = rows.map((r) => ({
+    uid: r['uid'] as string,
+    projectId: r['project_id'] as string,
+    parentUid: (r['parent_uid'] as string | null) ?? null,
+  }));
+
+  const rejection = checkMove(tasks, p.taskUid, p.newParentUid);
+  if (rejection !== null) throw new MoveRejectedError(rejection);
+
+  db.prepare('UPDATE task SET parent_uid = ?, sort_order = ?, updated_at = ? WHERE uid = ?').run(
+    p.newParentUid,
+    p.newSortOrder,
+    p.now,
+    p.taskUid,
+  );
+
+  const inProject = db
+    .prepare('SELECT uid, parent_uid, sort_order FROM task WHERE project_id = ?')
+    .all(projectId) as Array<Record<string, unknown>>;
+
+  const before = new Map(
+    db
+      .prepare('SELECT uid, wbs_code FROM task WHERE project_id = ?')
+      .all(projectId)
+      .map((r) => [(r as { uid: string }).uid, (r as { wbs_code: string }).wbs_code]),
+  );
+
+  let renumbered = 0;
+  const update = db.prepare('UPDATE task SET wbs_code = ?, depth = ? WHERE uid = ?');
+  for (const r of renumber(
+    inProject.map((t) => ({
+      uid: t['uid'] as string,
+      parentUid: (t['parent_uid'] as string | null) ?? null,
+      sortOrder: t['sort_order'] as number,
+    })),
+  )) {
+    if (before.get(r.uid) !== r.wbsCode) renumbered++;
+    update.run(r.wbsCode, r.depth, r.uid);
+  }
+
+  return { projectId, renumbered };
+}
+
+/** §10.4 — công tắc Parallel / Sequential trên dòng summary (§6.3). */
+export function setSequencing(
+  db: Db,
+  taskUid: string,
+  mode: 'parallel' | 'sequential',
+  now: string,
+): void {
+  db.prepare('UPDATE task SET child_sequencing = ?, updated_at = ? WHERE uid = ?').run(
+    mode,
+    now,
+    taskUid,
+  );
+}
+
+export function loadTaskKind(db: Db, taskUid: string): string | undefined {
+  const r = db.prepare('SELECT kind FROM task WHERE uid = ?').get(taskUid) as
+    { kind: string } | undefined;
+  return r?.kind;
+}
+
+// ── Ảnh chụp lịch, cho bảng so sánh trước/sau (§10.1) ────────────────────────
+
+export interface ScheduleSnapshotRow {
+  readonly taskUid: string;
+  readonly projectId: string;
+  readonly wbsCode: string;
+  readonly name: string;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+}
+
+/**
+ * Lịch của MỌI dự án, không chỉ dự án đang mở.
+ *
+ * §10.1 bắt bảng so sánh phải "gộp mọi dự án bị ảnh hưởng", và R9 nêu đúng rủi ro: chạy
+ * lại lịch dự án này có thể đẩy dự án khác mà PM bên đó không hề biết.
+ */
+export function loadScheduleSnapshot(db: Db): ScheduleSnapshotRow[] {
+  const rows = db
+    .prepare(
+      `SELECT t.uid, t.project_id, t.wbs_code, t.name, s.start_date, s.end_date
+       FROM task t
+       JOIN schedule s ON s.task_uid = t.uid
+       ORDER BY t.project_id, t.wbs_code`,
+    )
+    .all() as Array<Record<string, unknown>>;
+
+  return rows.map((r) => ({
+    taskUid: r['uid'] as string,
+    projectId: r['project_id'] as string,
+    wbsCode: r['wbs_code'] as string,
+    name: r['name'] as string,
+    startDate: (r['start_date'] as string | null) ?? null,
+    endDate: (r['end_date'] as string | null) ?? null,
+  }));
 }

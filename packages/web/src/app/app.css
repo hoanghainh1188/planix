@@ -151,3 +151,28 @@
 .app__state--error {
   color: var(--c-critical);
 }
+
+/* Băng báo lỗi cho đường ghi — nằm dưới thanh trên cùng, không che nội dung. */
+.app__banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+.app__banner--error {
+  background: var(--c-critical-soft);
+  color: var(--c-critical);
+  border-bottom: 1px solid var(--c-critical);
+}
+.app__bannerClose {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--text-xs);
+  padding: 0.1rem var(--space-2);
+  cursor: pointer;
+}
