@@ -97,10 +97,10 @@ function toTrpc(error: unknown): never {
  * Đo trên fixture 6.000 task: load + validate hết 5,4 ms.
  */
 function validateProject(db: Db, projectId: string, runId: string): ValidationReport {
-  const project = db
-    .prepare('SELECT dependency_max_level FROM project WHERE id = ?')
-    .get(projectId) as { dependency_max_level: number } | undefined;
-  if (project === undefined) {
+  const input = importRepo.loadValidationInput(db, projectId, runId);
+  if (input === undefined) {
+    // Không có dự án nào mang id đó. Báo "sạch" chứ không ném: người gọi đã qua
+    // `assertCan`, nên tới đây chỉ còn trường hợp dự án vừa bị xoá.
     return {
       runId,
       projectId,
@@ -109,19 +109,7 @@ function validateProject(db: Db, projectId: string, runId: string): ValidationRe
       issues: [],
     };
   }
-
-  return validate({
-    runId,
-    projectId,
-    tasks: importRepo.loadTasks(db, projectId),
-    dependencies: importRepo.loadDependencies(db, projectId),
-    resources: importRepo.loadResources(db),
-    resourceRoles: importRepo.loadResourceRoles(db),
-    progress: importRepo.loadProgress(db, projectId),
-    dependencyMaxLevel: project.dependency_max_level,
-    schedule: importRepo.loadSchedule(db, projectId),
-    ...importRepo.loadProjectDates(db, projectId),
-  });
+  return validate(input);
 }
 
 /**
