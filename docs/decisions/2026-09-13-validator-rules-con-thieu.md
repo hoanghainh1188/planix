@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-13
 **Bối cảnh:** làm panel nối dependency (§6, §10.4)
-**Trạng thái:** ghi nhận — chưa xử lý
+**Trạng thái:** `N01` và `N08` đã cài (2026-09-13). Phần còn lại vẫn chờ PM xếp ưu tiên.
 
 ---
 
@@ -50,17 +50,36 @@ xảy ra.
 
 Nói cách khác, cảnh báo này che đúng một đường vào trong ba đường. Nó không đóng được nợ.
 
+## Đã làm: `N01` và `N08`
+
+Cài ngày 2026-09-13, kèm commit riêng cập nhật golden 500 và 6.000 theo CLAUDE.md §4
+(mỗi fixture có đúng một cạnh SF → một dòng `N01`; không dòng `tasks` hay `dependencies`
+nào đổi).
+
+Ghi chú khi cài:
+
+- **"Lá" hiểu theo cấu trúc, không theo `kind`.** Một summary rỗng không có cụm nào để
+  mà xếp theo cụm, nên với §6.2 nó cư xử y như một lá.
+- **`N08` chồng lấn `C12`** đúng như `2026-09-13-c12-vs-sibling-edges.md` đã lường: cạnh
+  lá-khác-cha sâu hơn `dependency_max_level` dính cả hai. Hai rule nói hai điều khác nhau
+  về cùng một cạnh, nên để cả hai cùng báo. Nếu PM thấy ồn thì đó là chuyện của spec, sửa
+  §8.3 trước rồi sửa code sau.
+- **Golden không phủ `N08`**: `generate.ts` nối summary với summary, không có cạnh
+  lá-sang-lá khác cha. Hiện chỉ unit test phủ. Nên bổ sung khi sinh lại fixture ở P6.
+
 ## Việc còn nợ
 
-Hai rule dính trực tiếp tới màn vừa làm, nên làm trước:
+Sau `N01` và `N08`, bảng §8 còn thiếu:
 
-- `N01` — cạnh SF. Kèm commit riêng regenerate `wbs-500.expected.json` và
-  `wbs-6000.expected.json`.
-- `N08` — task lá trỏ dependency sang lá **khác cha** (§6.3). Bổ sung cho `C12`:
-  `C12` bắt cạnh sâu khác cha ở mức Critical, còn `N08` là mức nhắc nhở cho trường hợp
-  cả hai đầu đều là lá. Cần đọc lại §6.3 xem hai rule có chồng nhau không **trước khi**
-  cài, chứ không cài rồi mới tính.
+| Mức   | Còn thiếu                                                                                                                                                                                     |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Major | `J03` FNLT, `J04` vượt `target_end`, `J05` task > 10 MD, `J06` resource dùng < 30%, `J07` lệch pha A/B > 20%, `J08` milestone rơi ngày nghỉ, **`J11` quá hạn so với `status_date`**           |
+| Minor | `N02` lag âm quá 50% duration, `N03` lá thiếu phase/module, `N04` nhánh sâu quá 6 cấp, `N05` trùng tên cùng cấp, `N06` chia mỏng dưới 0.5 allocation, `N10` cụm sequential có cạnh tường minh |
 
-Phần còn lại (`J03`–`J08`, `J11`, `N02`–`N06`, `N10`) là một hạng mục riêng, cần PM xếp
-ưu tiên — trong đó `J11` (quá hạn so với `status_date`) đáng chú ý vì nó là thứ PM nhìn
-mỗi tuần khi chốt kỳ.
+`J11` đáng làm trước cả nhóm: đó là thứ PM nhìn mỗi tuần khi chốt kỳ, và nó chỉ cần
+`schedule.end_date` với `project.status_date` — hai thứ đã có sẵn.
+
+Một số rule cần dữ liệu mà validate hiện không nhận: `J04` cần `target_end`, `J06`/`J07`
+cần kết quả phân bổ, `J08` cần lịch nghỉ, `N06` cần `assignment`. Những rule đó phải chạy
+ở pipeline (sau khi xếp lịch) chứ không trong `validate()` thuần — giống cách `J01` đang
+nằm trong `sgs.ts`.

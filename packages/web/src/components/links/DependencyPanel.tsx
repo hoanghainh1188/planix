@@ -239,10 +239,11 @@ export function DependencyPanel({
             </div>
 
             {/*
-              §6.1: "SF hiếm dùng trong phần mềm, hay bị AI sinh nhầm." Spec đòi engine ghi
-              N01 cho mọi cạnh SF; rule đó CHƯA có trong validator (xem
-              docs/decisions/2026-09-13-validator-rules-con-thieu.md), nên chỗ này nói trước
-              ngay tại nơi sai lầm xảy ra. Đây là tấm chắn tạm, không thay cho N01.
+              §6.1: "SF hiếm dùng trong phần mềm, hay bị AI sinh nhầm."
+
+              Engine đã ghi `N01` cho mọi cạnh SF, nên câu này KHÔNG còn là tấm chắn tạm.
+              Nó phục vụ việc khác: nói TRƯỚC khi PM bấm Add, ngay tại ô vừa chọn — còn
+              `N01` chỉ xuất hiện sau khi cạnh đã được ghi. Hỏi trước rẻ hơn sửa sau.
             */}
             {type === 'SF' ? (
               <p className="links__warn">SF is rarely correct. Did you mean FS?</p>
