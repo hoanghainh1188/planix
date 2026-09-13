@@ -52,6 +52,9 @@ export interface TaskRow {
   readonly constraintDate: string | null;
   /** §6.3 — chỉ có nghĩa với summary. NULL = parallel. Cần cho `N10`. */
   readonly childSequencing?: 'parallel' | 'sequential' | null;
+  /** §9.2 — nhãn phân loại do người lập kế hoạch đặt. Cần cho `N03`. */
+  readonly phase?: string | null;
+  readonly module?: string | null;
 }
 
 export interface DependencyRow {

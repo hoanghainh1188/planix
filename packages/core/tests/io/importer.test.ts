@@ -38,6 +38,8 @@ function goodPayload() {
         kind: 'work',
         effort_md: 0.5,
         role: 'Dev',
+        phase: 'P1',
+        module: 'user-mgmt',
       },
       {
         tmp_id: 'a3',
@@ -46,6 +48,8 @@ function goodPayload() {
         kind: 'work',
         effort_md: 1.5,
         role: 'Dev',
+        phase: 'P1',
+        module: 'user-mgmt',
       },
     ],
     dependencies: [{ pred: 'a2', succ: 'a3', type: 'FS', lag_days: 0 }],

@@ -36,6 +36,7 @@ export function validate(input: ValidationInput): ValidationReport {
   checkTaskSize(input, issues);
   checkDepthLimit(input, issues);
   checkDuplicateNames(input, issues);
+  checkLeafLabels(input, issues);
   checkMsoStructural(input, byUid, issues);
   checkProgress(input, byUid, issues);
 
@@ -358,6 +359,36 @@ function checkDuplicateNames(input: ValidationInput, issues: ValidationIssue[]):
       minor('N05', `Task ${t.wbsCode} has the same name as ${first.wbsCode}: "${t.name}".`, t, {
         otherUid: first.uid,
       }),
+    );
+  }
+}
+
+/**
+ * `N03` — task lá thiếu `phase` hoặc `module`.
+ *
+ * Hai nhãn này là thứ báo cáo §11 gộp theo, nên lá không có chúng sẽ rơi ra ngoài mọi
+ * bảng tổng hợp — im lặng, không ai thấy thiếu.
+ *
+ * Chuỗi rỗng tính là thiếu: `phase: ""` không phải một phase, và một importer cẩu thả
+ * sinh ra chuỗi rỗng dễ hơn sinh ra `null`.
+ *
+ * Thiếu cả hai vẫn chỉ MỘT dòng — đó là một task cần sửa, không phải hai vấn đề. Nhưng
+ * thông điệp phải nói thiếu cái gì, nếu không PM mở task ra rồi mới đoán được.
+ */
+function checkLeafLabels(input: ValidationInput, issues: ValidationIssue[]): void {
+  const parents = parentsOf(input.tasks);
+  const blank = (v: string | null | undefined): boolean =>
+    v === null || v === undefined || v === '';
+
+  for (const t of input.tasks) {
+    if (parents.has(t.uid)) continue;
+    const missing: string[] = [];
+    if (blank(t.phase)) missing.push('phase');
+    if (blank(t.module)) missing.push('module');
+    if (missing.length === 0) continue;
+
+    issues.push(
+      minor('N03', `Leaf task ${t.wbsCode} has no ${missing.join(' and ')}.`, t, { missing }),
     );
   }
 }
