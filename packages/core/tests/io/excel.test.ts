@@ -242,18 +242,19 @@ describe('§11.3 — bản summary tiếng Nhật', () => {
     expect(cell(ws.getRow(1), 1)).toBe('基準日: 2026-03-02');
   });
 
-  it('header đúng 10 cột tiếng Nhật', async () => {
+  it('header đúng 11 cột tiếng Nhật, ba cấp ba cột', async () => {
     const r = await exportExcel(db, { projectId: 'P', report: 'summary', runId: 'r1' });
     const ws = await sheetOf(r.buffer, 'サマリー');
     const headers: string[] = [];
     ws.eachRow((row) => {
       if (cell(row, 1) === '大項目') {
-        for (let i = 1; i <= 10; i++) headers.push(cell(row, i));
+        for (let i = 1; i <= 11; i++) headers.push(cell(row, i));
       }
     });
     expect(headers).toEqual([
       '大項目',
       '中項目',
+      '小項目',
       '担当',
       '状況',
       '進捗率（工数ベース）',
@@ -269,9 +270,38 @@ describe('§11.3 — bản summary tiếng Nhật', () => {
     const r = await exportExcel(db, { projectId: 'P', report: 'summary', runId: 'r1' });
     const ws = await sheetOf(r.buffer, 'サマリー');
     const values: string[] = [];
-    ws.eachRow((row) => values.push(cell(row, 4)));
+    ws.eachRow((row) => values.push(cell(row, 5)));
     expect(values).toContain('未着手');
     expect(values).not.toContain('not_started');
+  });
+
+  it('ba cấp nằm ở BA cột riêng, mỗi dòng chỉ điền tới cấp của nó', async () => {
+    const r = await exportExcel(db, { projectId: 'P', report: 'summary', runId: 'r1' });
+    const ws = await sheetOf(r.buffer, 'サマリー');
+
+    const rows: Array<[string, string, string]> = [];
+    let seenHeader = false;
+    ws.eachRow((row) => {
+      if (cell(row, 1) === '大項目') {
+        seenHeader = true;
+        return;
+      }
+      if (seenHeader) rows.push([cell(row, 1), cell(row, 2), cell(row, 3)]);
+    });
+
+    // Cấp 1: chỉ 大項目. Cấp 2: 大+中. Cấp 3: đủ ba.
+    expect(rows).toContainEqual(['要件定義', '', '']);
+    expect(rows).toContainEqual(['要件定義', 'Module 1', '']);
+    expect(rows).toContainEqual(['要件定義', 'Module 1', 'タスク A']);
+  });
+
+  it('depth ngoài 1–3 bị TỪ CHỐI, không lặng lẽ dồn cấp 4 vào cột cấp 3', async () => {
+    await expect(
+      exportExcel(db, { projectId: 'P', report: 'summary', depth: 4, runId: 'r1' }),
+    ).rejects.toThrow(/1 tới 3/);
+    await expect(
+      exportExcel(db, { projectId: 'P', report: 'summary', depth: 0, runId: 'r1' }),
+    ).rejects.toThrow(/1 tới 3/);
   });
 
   it('cắt theo depth — depth 1 chỉ còn dòng gốc', async () => {

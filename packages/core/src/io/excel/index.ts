@@ -17,7 +17,7 @@ import type { ValidationReport } from '../../domain/validation-types.js';
 import { compareWbsCode } from '../../domain/tie-break.js';
 import { createWorkbook, toBuffer } from './workbook.js';
 import { buildFullSheet } from './full.js';
-import { buildSummarySheet } from './summary.js';
+import { buildSummarySheet, MAX_SUMMARY_DEPTH } from './summary.js';
 import { buildMatrix, buildResourceSheet } from './resource.js';
 
 export type ReportKind = 'full' | 'summary' | 'resource';
@@ -79,10 +79,18 @@ export async function exportExcel(db: Db, options: ExportOptions): Promise<Expor
   if (options.report === 'full') {
     buildFullSheet(wb, rows, data.statusDate);
   } else if (options.report === 'summary') {
+    const depth = options.depth ?? MAX_SUMMARY_DEPTH;
+    // §11.3 có đúng ba cột phân cấp, nên sâu hơn 3 là không hiện được. Từ chối thẳng còn
+    // hơn lặng lẽ dồn cấp 4 vào cột cấp 3 rồi để khách đọc nhầm.
+    if (!Number.isInteger(depth) || depth < 1 || depth > MAX_SUMMARY_DEPTH) {
+      throw new Error(
+        `depth phải từ 1 tới ${String(MAX_SUMMARY_DEPTH)} — bản summary chỉ có ba cột 大項目/中項目/小項目.`,
+      );
+    }
     const leaves = rows.filter((r) => r.kind !== 'summary');
     const micro = leaves.filter((r) => r.isMicro).length;
     buildSummarySheet(wb, rows, {
-      maxDepth: options.depth ?? 3,
+      maxDepth: depth,
       statusDate: data.statusDate,
       // "Phần lớn" = quá nửa số task lá.
       microDominant: leaves.length > 0 && micro * 2 > leaves.length,
