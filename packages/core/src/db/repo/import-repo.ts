@@ -128,7 +128,7 @@ export function loadTasks(db: Db, projectId: string): TaskRow[] {
   const rows = db
     .prepare(
       `SELECT uid, project_id, wbs_code, depth, parent_uid, sort_order, name, kind,
-              effort_md, role, constraint_type, constraint_date
+              effort_md, role, constraint_type, constraint_date, child_sequencing
        FROM task WHERE project_id = ? ORDER BY uid`,
     )
     .all(projectId) as Array<Record<string, unknown>>;
@@ -145,6 +145,7 @@ export function loadTasks(db: Db, projectId: string): TaskRow[] {
     role: (r['role'] as string | null) ?? null,
     constraintType: (r['constraint_type'] as TaskRow['constraintType']) ?? null,
     constraintDate: (r['constraint_date'] as string | null) ?? null,
+    childSequencing: (r['child_sequencing'] as 'parallel' | 'sequential' | null) ?? null,
   }));
 }
 

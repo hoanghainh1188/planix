@@ -33,6 +33,9 @@ export function validate(input: ValidationInput): ValidationReport {
   checkDependencyLevel(input, byUid, issues);
   checkCycles(input, byUid, issues);
   checkDependencyStyle(input, byUid, issues);
+  checkTaskSize(input, issues);
+  checkDepthLimit(input, issues);
+  checkDuplicateNames(input, issues);
   checkMsoStructural(input, byUid, issues);
   checkProgress(input, byUid, issues);
 
@@ -70,6 +73,20 @@ function critical(
   detail?: Record<string, unknown>,
 ): ValidationIssue {
   const issue: ValidationIssue = { severity: 'Critical', code, message };
+  return {
+    ...issue,
+    ...(task === undefined ? {} : { taskUid: task.uid, wbsCode: task.wbsCode }),
+    ...(detail === undefined ? {} : { detail }),
+  };
+}
+
+function major(
+  code: string,
+  message: string,
+  task?: TaskRow,
+  detail?: Record<string, unknown>,
+): ValidationIssue {
+  const issue: ValidationIssue = { severity: 'Major', code, message };
   return {
     ...issue,
     ...(task === undefined ? {} : { taskUid: task.uid, wbsCode: task.wbsCode }),
@@ -270,6 +287,81 @@ function checkDependencyLevel(
   }
 }
 
+// ── J05, N04, N05 — hình dáng cây (§8.2, §8.3) ──────────────────────────────
+
+/** uid của mọi task CÓ con. Dùng chung cho các rule phân biệt lá với summary. */
+function parentsOf(tasks: readonly TaskRow[]): ReadonlySet<string> {
+  const parents = new Set<string>();
+  for (const t of tasks) {
+    if (t.parentUid !== null) parents.add(t.parentUid);
+  }
+  return parents;
+}
+
+/**
+ * `J05` — task lá lớn hơn 10 MD, tức chưa phân rã.
+ *
+ * Chỉ xét LÁ. Một summary 40 MD không phải vấn đề — nó đã được phân rã, và 40 MD là tổng
+ * của các con. Bắt cả summary sẽ báo động trên đúng thứ mà rule muốn thấy.
+ *
+ * "> 10" hiểu theo nghĩa đen: đúng 10 MD thì thôi.
+ */
+function checkTaskSize(input: ValidationInput, issues: ValidationIssue[]): void {
+  const parents = parentsOf(input.tasks);
+  for (const t of input.tasks) {
+    if (parents.has(t.uid)) continue;
+    if (t.effortMd === null || t.effortMd <= 10) continue;
+    issues.push(
+      major('J05', `Task ${t.wbsCode} is ${String(t.effortMd)} MD; break it down.`, t, {
+        effortMd: t.effortMd,
+      }),
+    );
+  }
+}
+
+/** `N04` — nhánh sâu quá 6 cấp. `depth` do renumber sinh, nên luôn đúng với cây hiện tại. */
+function checkDepthLimit(input: ValidationInput, issues: ValidationIssue[]): void {
+  for (const t of input.tasks) {
+    if (t.depth <= MAX_WBS_DEPTH) continue;
+    issues.push(
+      minor('N04', `Task ${t.wbsCode} is at depth ${String(t.depth)}; the limit is 6.`, t, {
+        depth: t.depth,
+      }),
+    );
+  }
+}
+
+/**
+ * `N05` — hai anh em trùng tên.
+ *
+ * Chỉ xét TRONG cùng một cha: "Thiết kế" nằm dưới mỗi module là chuyện bình thường và
+ * đúng đắn; hai dòng "Thiết kế" dưới CÙNG một module mới là dấu hiệu dán nhầm.
+ *
+ * Báo một lần cho mỗi bản trùng, không báo cả cặp: hai dòng cùng tên là MỘT vấn đề, và
+ * báo cả hai thì PM sửa một bên rồi vẫn thấy cảnh báo còn lại, tưởng mình chưa xong.
+ * Duyệt theo uid đã sắp nên "bản đầu tiên" không phụ thuộc thứ tự dòng từ DB (N2).
+ */
+function checkDuplicateNames(input: ValidationInput, issues: ValidationIssue[]): void {
+  const seen = new Map<string, TaskRow>();
+  const ordered = [...input.tasks].sort((a, b) => (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0));
+
+  for (const t of ordered) {
+    // Gốc có `parentUid` null; gộp chúng vào cùng một nhóm bằng một khoá không thể trùng
+    // với uid thật.
+    const key = `${t.parentUid ?? '\u0000root'}\u0000${t.name}`;
+    const first = seen.get(key);
+    if (first === undefined) {
+      seen.set(key, t);
+      continue;
+    }
+    issues.push(
+      minor('N05', `Task ${t.wbsCode} has the same name as ${first.wbsCode}: "${t.name}".`, t, {
+        otherUid: first.uid,
+      }),
+    );
+  }
+}
+
 // ── N01, N08 — cách khai báo ràng buộc (§6.1, §6.3) ─────────────────────────
 
 /**
@@ -297,10 +389,7 @@ function checkDependencyStyle(
 ): void {
   // "Lá" hiểu theo CẤU TRÚC — không có con — chứ không theo `kind`. Một summary rỗng
   // không có cụm nào để mà xếp theo cụm, nên với §6.2 nó cư xử y như một lá.
-  const hasChildren = new Set<string>();
-  for (const t of input.tasks) {
-    if (t.parentUid !== null) hasChildren.add(t.parentUid);
-  }
+  const hasChildren = parentsOf(input.tasks);
   const isLeaf = (uid: string): boolean => !hasChildren.has(uid);
 
   for (const d of input.dependencies) {
@@ -329,10 +418,58 @@ function checkDependencyStyle(
         ),
       );
     }
+
+    // `N02` — lag âm (lead) ăn quá nửa duration của predecessor, tức hai task chồng lấn
+    // nhiều tới mức gần như chạy song song. §6.1 cho phép lag âm; đây chỉ là lời nhắc.
+    //
+    // Duration lấy từ effort theo §7.2 — KHÔNG từ `schedule`, vì rule này phải chạy được
+    // ngay lúc import, trước khi có lịch. Predecessor là summary thì bỏ qua: effort của nó
+    // là tổng của con, còn khoảng thời gian nó trải ra thì chỉ biết sau khi xếp lịch.
+    if (d.lagDays < 0 && !hasChildren.has(pred.uid) && pred.effortMd !== null) {
+      const duration = nominalDuration(pred.effortMd);
+      if (duration > 0 && Math.abs(d.lagDays) > duration / 2) {
+        issues.push(
+          minor(
+            'N02',
+            `Lead of ${String(Math.abs(d.lagDays))} days is over half the ${String(duration)}-day duration of ${pred.wbsCode}.`,
+            succ,
+            { predUid: pred.uid, succUid: succ.uid, lagDays: d.lagDays, duration },
+          ),
+        );
+      }
+    }
+
+    // `N10` — cụm `sequential` đã tự sinh cạnh FS ảo giữa các con liên tiếp (§6.3 Cách 1),
+    // nên một cạnh tường minh giữa hai con của nó thường là thừa. "Thường", không phải
+    // "luôn": cạnh tường minh CỘNG THÊM vào cạnh ảo, và một cạnh SS hay một lag khác 0 vẫn
+    // có thể là chủ ý. Vì vậy đây là Minor — nhắc kiểm lại, không phải lỗi.
+    if (
+      pred.parentUid !== null &&
+      pred.parentUid === succ.parentUid &&
+      byUid.get(pred.parentUid)?.childSequencing === 'sequential'
+    ) {
+      const cluster = byUid.get(pred.parentUid);
+      issues.push(
+        minor(
+          'N10',
+          `Cluster ${cluster?.wbsCode ?? pred.parentUid} is sequential, so the link from ${pred.wbsCode} may be redundant.`,
+          succ,
+          { predUid: pred.uid, succUid: succ.uid, clusterUid: pred.parentUid },
+        ),
+      );
+    }
   }
 }
 
+/** §7.2 — duration danh nghĩa, làm tròn LÊN bội số 0,5. Cùng công thức với scheduler. */
+function nominalDuration(effortMd: number): number {
+  return Math.ceil(effortMd * 2) / 2;
+}
+
 // ── C01 — vòng lặp phụ thuộc, DFS ba màu (§6.4) ─────────────────────────────
+
+/** §8.3 `N04`. */
+const MAX_WBS_DEPTH = 6;
 
 const WHITE = 0;
 const GRAY = 1;
