@@ -118,3 +118,79 @@ export function closePeriod(db: Db, params: ClosePeriodParams): ClosePeriodResul
     return { baselineId: params.baselineId, report, taskCount: tasks.length };
   })();
 }
+
+// ── EVM (SPI) ───────────────────────────────────────────────────────────────
+
+export interface BaselineSummary {
+  readonly id: string;
+  readonly label: string;
+  readonly statusDate: string;
+  readonly takenAt: string;
+}
+
+/** Baseline của dự án, mới nhất trước. Bỏ bản đã ẩn (§7.13 không cho xoá, chỉ ẩn). */
+export function listBaselines(db: Db, projectId: string): BaselineSummary[] {
+  const rows = db
+    .prepare(
+      `SELECT id, label, status_date, taken_at FROM baseline
+       WHERE project_id = ? AND is_hidden = 0
+       ORDER BY taken_at DESC, id DESC`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: r['id'] as string,
+    label: r['label'] as string,
+    statusDate: r['status_date'] as string,
+    takenAt: r['taken_at'] as string,
+  }));
+}
+
+export interface BaselineSnapshotRow {
+  readonly uid: string;
+  readonly effortMd: number;
+  readonly startDate: string | null;
+  readonly endDate: string | null;
+}
+
+/** Đọc một trường chuỗi có thể null, không tin hình dạng JSON. */
+function optionalDate(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+/**
+ * Đọc lại ảnh chụp của một baseline.
+ *
+ * `snapshot_json` do chính `buildBaselineSnapshot` sinh ra nên hình dạng đã biết — nhưng
+ * vẫn kiểm từng trường thay vì ép kiểu. Một bản ghi hỏng sẽ làm SAI mọi chỉ số EVM tính
+ * từ nó, và kiểu sai đó không ai phát hiện được bằng mắt: con số vẫn hiện ra, chỉ là sai.
+ */
+export function readBaselineSnapshot(db: Db, baselineId: string): BaselineSnapshotRow[] {
+  const row = db.prepare('SELECT snapshot_json FROM baseline WHERE id = ?').get(baselineId) as
+    { snapshot_json: string } | undefined;
+  if (row === undefined) throw new Error(`Unknown baseline: ${baselineId}`);
+
+  const parsed: unknown = JSON.parse(row.snapshot_json);
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error(`Baseline ${baselineId} snapshot is not an object`);
+  }
+  const tasks: unknown = (parsed as Record<string, unknown>)['tasks'];
+  if (!Array.isArray(tasks)) throw new Error(`Baseline ${baselineId} has no tasks`);
+
+  return (tasks as readonly unknown[]).map((entry, i) => {
+    if (typeof entry !== 'object' || entry === null) {
+      throw new Error(`Baseline ${baselineId} task ${String(i)} is not an object`);
+    }
+    const t = entry as Record<string, unknown>;
+    const uid = t['uid'];
+    const effortMd = t['effortMd'];
+    if (typeof uid !== 'string') {
+      throw new Error(`Baseline ${baselineId} task ${String(i)} has no uid`);
+    }
+    return {
+      uid,
+      effortMd: typeof effortMd === 'number' ? effortMd : 0,
+      startDate: optionalDate(t['startDate']),
+      endDate: optionalDate(t['endDate']),
+    };
+  });
+}

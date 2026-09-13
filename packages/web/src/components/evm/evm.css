@@ -1,0 +1,70 @@
+/* Dải EVM — màu mang NGHĨA: đỏ là chậm so với kế hoạch, không phải để trang trí. */
+
+.evm {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-6);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--c-rule);
+  background: var(--c-surface);
+  font-size: var(--text-xs);
+  flex-wrap: wrap;
+}
+.evm--empty {
+  color: var(--c-ink-faint);
+}
+
+.evm__spi {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+.evm__value {
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.evm[data-tone='behind'] .evm__value,
+.evm[data-tone='behind'] .evm__word {
+  color: var(--c-critical);
+}
+.evm[data-tone='ahead'] .evm__value,
+.evm[data-tone='ahead'] .evm__word {
+  color: var(--c-done);
+}
+
+.evm__label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--c-ink-faint);
+}
+.evm__word {
+  color: var(--c-ink-muted);
+}
+
+.evm__pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+.evm__num {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink);
+}
+.evm__unit {
+  color: var(--c-ink-faint);
+}
+
+/* Việc thêm sau khi chốt baseline — cảnh báo, không phải lỗi. */
+.evm__creep {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--c-warn);
+  color: var(--c-warn);
+  font-variant-numeric: tabular-nums;
+}
+
+.evm__meta {
+  margin-left: auto;
+  color: var(--c-ink-faint);
+  font-variant-numeric: tabular-nums;
+}

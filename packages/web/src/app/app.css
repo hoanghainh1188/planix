@@ -216,3 +216,11 @@
   opacity: 0.88;
   background: var(--c-critical);
 }
+
+/* Cột trái của S1: dải EVM nằm trên, cây chiếm phần còn lại. */
+.app__wbs {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+}

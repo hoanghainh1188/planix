@@ -15,6 +15,8 @@ import { maxTaskSequence } from './import-repo.js';
 import { unsafeDateOnly } from '../../domain/date-only.js';
 import { suggestProgress, type Suggestion } from '../../domain/progress-suggest.js';
 import { loadCalendarSnapshot } from './calendar-repo.js';
+import { listBaselines, readBaselineSnapshot } from './baseline-repo.js';
+import { computeEvm, type EvmResult, type EvmTask } from '../../domain/evm.js';
 import type { ProgressStatus, TaskKind } from '../../domain/validation-types.js';
 
 /** S1 — một dòng của cây WBS (§10.4 danh sách cột). */
@@ -1063,4 +1065,98 @@ export function deleteDependency(
   return db
     .prepare('DELETE FROM dependency WHERE pred_uid = ? AND succ_uid = ? AND type = ?')
     .run(p.predUid, p.succUid, p.type).changes;
+}
+
+// ── EVM: ghép baseline với tiến độ hiện tại ─────────────────────────────────
+
+export interface EvmReport extends EvmResult {
+  readonly baselineId: string;
+  readonly baselineLabel: string;
+  readonly statusDate: string;
+}
+
+/**
+ * Tính SPI cho một dự án so với một baseline.
+ *
+ * Không truyền `baselineId` thì lấy baseline **mới nhất**. §7.13 nói `Plan v1.0` là mốc
+ * cam kết, nên muốn đo scope creep so với cam kết gốc thì phải chỉ đích danh nó.
+ *
+ * Trả `null` khi dự án chưa chốt baseline nào — EVM không có nghĩa nếu chưa có kế hoạch
+ * gốc để so.
+ */
+export function loadEvm(db: Db, projectId: string, baselineId?: string): EvmReport | null {
+  const baselines = listBaselines(db, projectId);
+  const chosen =
+    baselineId === undefined ? baselines[0] : baselines.find((b) => b.id === baselineId);
+  if (chosen === undefined) return null;
+
+  const project = db
+    .prepare('SELECT status_date, calendar_id FROM project WHERE id = ?')
+    .get(projectId) as { status_date: string; calendar_id: string } | undefined;
+  if (project === undefined) throw new Error(`Unknown project: ${projectId}`);
+
+  const snapshot = new Map(readBaselineSnapshot(db, chosen.id).map((r) => [r.uid, r]));
+
+  // Trạng thái HIỆN TẠI của task lá. Summary bị loại: gộp chúng vào sẽ đếm hai lần.
+  const current = db
+    .prepare(
+      `SELECT t.uid, t.effort_md,
+              COALESCE(p.status,'not_started') AS status,
+              COALESCE(p.percent,0) AS percent
+       FROM task t
+       LEFT JOIN progress p ON p.task_uid = t.uid
+       WHERE t.project_id = ? AND t.kind != 'summary'`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
+
+  const calendar = createCalendarEngine(loadCalendarSnapshot(db));
+  const statusDate = project.status_date;
+
+  const tasks: EvmTask[] = [];
+  let outside = 0;
+
+  for (const row of current) {
+    const uid = row['uid'] as string;
+    const base = snapshot.get(uid);
+
+    if (base === undefined) {
+      // Thêm vào sau khi chốt baseline — không tính vào BCWS/BCWP, báo riêng.
+      outside += (row['effort_md'] as number | null) ?? 0;
+      continue;
+    }
+
+    const start = base.startDate;
+    const elapsed =
+      start !== null && start <= statusDate
+        ? calendar.workingDaysBetween(
+            project.calendar_id,
+            unsafeDateOnly(start),
+            unsafeDateOnly(statusDate),
+          )
+        : 0;
+    const duration =
+      start !== null && base.endDate !== null
+        ? calendar.workingDaysBetween(
+            project.calendar_id,
+            unsafeDateOnly(start),
+            unsafeDateOnly(base.endDate),
+          ) + 1
+        : 0;
+
+    tasks.push({
+      uid,
+      baselineMd: base.effortMd,
+      baselineDurationDays: duration,
+      elapsedWorkingDays: elapsed,
+      currentPercent: row['percent'] as number,
+      currentStatus: row['status'] as ProgressStatus,
+    });
+  }
+
+  return {
+    ...computeEvm(tasks, outside),
+    baselineId: chosen.id,
+    baselineLabel: chosen.label,
+    statusDate,
+  };
 }
