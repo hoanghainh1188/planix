@@ -509,7 +509,7 @@
     "counts": {
       "critical": 0,
       "major": 0,
-      "minor": 1
+      "minor": 9
     },
     "issues": [
       {
@@ -521,6 +521,102 @@
         "detail": {
           "predUid": "T-0026",
           "succUid": "T-0038"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1.1 is sequential, so the link from 1.1.1 may be redundant.",
+        "taskUid": "T-0004",
+        "wbsCode": "1.1.2",
+        "detail": {
+          "predUid": "T-0003",
+          "succUid": "T-0004",
+          "clusterUid": "T-0002"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.1 may be redundant.",
+        "taskUid": "T-0014",
+        "wbsCode": "1.2",
+        "detail": {
+          "predUid": "T-0002",
+          "succUid": "T-0014",
+          "clusterUid": "T-0001"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.2 may be redundant.",
+        "taskUid": "T-0026",
+        "wbsCode": "1.3",
+        "detail": {
+          "predUid": "T-0014",
+          "succUid": "T-0026",
+          "clusterUid": "T-0001"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1.3 is sequential, so the link from 1.3.1 may be redundant.",
+        "taskUid": "T-0028",
+        "wbsCode": "1.3.2",
+        "detail": {
+          "predUid": "T-0027",
+          "succUid": "T-0028",
+          "clusterUid": "T-0026"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.3 may be redundant.",
+        "taskUid": "T-0038",
+        "wbsCode": "1.4",
+        "detail": {
+          "predUid": "T-0026",
+          "succUid": "T-0038",
+          "clusterUid": "T-0001"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.4 may be redundant.",
+        "taskUid": "T-0050",
+        "wbsCode": "1.5",
+        "detail": {
+          "predUid": "T-0038",
+          "succUid": "T-0050",
+          "clusterUid": "T-0001"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1.5 is sequential, so the link from 1.5.1 may be redundant.",
+        "taskUid": "T-0052",
+        "wbsCode": "1.5.2",
+        "detail": {
+          "predUid": "T-0051",
+          "succUid": "T-0052",
+          "clusterUid": "T-0050"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.5 may be redundant.",
+        "taskUid": "T-0062",
+        "wbsCode": "1.6",
+        "detail": {
+          "predUid": "T-0050",
+          "succUid": "T-0062",
+          "clusterUid": "T-0001"
         }
       }
     ]

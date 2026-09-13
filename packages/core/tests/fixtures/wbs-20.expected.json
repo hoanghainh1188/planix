@@ -29,9 +29,34 @@
     "counts": {
       "critical": 0,
       "major": 0,
-      "minor": 0
+      "minor": 2
     },
-    "issues": []
+    "issues": [
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1.1 is sequential, so the link from 1.1.1 may be redundant.",
+        "taskUid": "T-0004",
+        "wbsCode": "1.1.2",
+        "detail": {
+          "predUid": "T-0003",
+          "succUid": "T-0004",
+          "clusterUid": "T-0002"
+        }
+      },
+      {
+        "severity": "Minor",
+        "code": "N10",
+        "message": "Cluster 1 is sequential, so the link from 1.1 may be redundant.",
+        "taskUid": "T-0005",
+        "wbsCode": "1.2",
+        "detail": {
+          "predUid": "T-0002",
+          "succUid": "T-0005",
+          "clusterUid": "T-0001"
+        }
+      }
+    ]
   },
   "tasks": [
     {

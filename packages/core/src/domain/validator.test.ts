@@ -612,3 +612,267 @@ describe('N08 — task lá trỏ sang lá KHÁC cha (§6.3)', () => {
     expect(codes(r)).toContain('N08');
   });
 });
+
+describe('J05 — task lá quá lớn, chưa phân rã (§8.2)', () => {
+  it('lá trên 10 MD thì cảnh báo, mức Major', () => {
+    const r = validate(input({ tasks: [task('T-1', { effortMd: 12 })] }));
+    const issue = r.issues.find((i) => i.code === 'J05');
+    expect(issue?.severity).toBe('Major');
+    expect(issue?.taskUid).toBe('T-1');
+    // Major cho chạy, chỉ phải báo (§8.2).
+    expect(r.passed).toBe(true);
+  });
+
+  it('đúng 10 MD thì không — "> 10" là lớn hơn, không phải từ 10', () => {
+    expect(codes(validate(input({ tasks: [task('T-1', { effortMd: 10 })] })))).not.toContain('J05');
+  });
+
+  it('summary lớn thì KHÔNG — nó đã phân rã rồi, đó chính là ý của rule', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('S', { kind: 'summary', effortMd: null, role: null, wbsCode: '1', depth: 1 }),
+          task('A', { wbsCode: '1.1', depth: 2, parentUid: 'S', effortMd: 40 }),
+        ],
+      }),
+    );
+    // A vẫn dính J05 vì nó là lá; S thì không.
+    expect(r.issues.filter((i) => i.code === 'J05').map((i) => i.taskUid)).toEqual(['A']);
+  });
+});
+
+describe('N04 — nhánh sâu quá 6 cấp (§8.3)', () => {
+  /** Chuỗi cha-con thẳng từ depth 1 tới `deepest`. */
+  function chain(deepest: number) {
+    const tasks: TaskRow[] = [];
+    for (let d = 1; d <= deepest; d++) {
+      tasks.push(
+        task(`T-${String(d)}`, {
+          wbsCode: Array.from({ length: d }, () => '1').join('.'),
+          depth: d,
+          parentUid: d === 1 ? null : `T-${String(d - 1)}`,
+          kind: d === deepest ? 'work' : 'summary',
+          effortMd: d === deepest ? 1 : null,
+          role: d === deepest ? 'Dev' : null,
+        }),
+      );
+    }
+    return input({ tasks });
+  }
+
+  it('đúng 6 cấp thì không sao', () => {
+    expect(codes(validate(chain(6)))).not.toContain('N04');
+  });
+
+  it('cấp 7 thì cảnh báo', () => {
+    const r = validate(chain(7));
+    const issue = r.issues.find((i) => i.code === 'N04');
+    expect(issue?.severity).toBe('Minor');
+    expect(issue?.taskUid).toBe('T-7');
+  });
+});
+
+describe('N05 — trùng tên trong cùng cấp cha (§8.3)', () => {
+  function siblings(names: readonly string[]) {
+    return input({
+      tasks: [
+        task('S', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+        ...names.map((n, i) =>
+          task(`T-${String(i)}`, {
+            name: n,
+            wbsCode: `1.${String(i + 1)}`,
+            depth: 2,
+            parentUid: 'S',
+            sortOrder: i + 1,
+          }),
+        ),
+      ],
+    });
+  }
+
+  it('hai anh em cùng tên thì cảnh báo', () => {
+    const r = validate(siblings(['Thiet ke', 'Thiet ke']));
+    expect(codes(r)).toContain('N05');
+  });
+
+  it('báo MỘT lần cho mỗi bản trùng, không báo cả cặp', () => {
+    // Hai dòng cùng tên là MỘT vấn đề. Báo cả hai thì PM sửa một bên rồi vẫn thấy cảnh
+    // báo còn lại và tưởng chưa xong.
+    expect(validate(siblings(['A', 'A'])).issues.filter((i) => i.code === 'N05')).toHaveLength(1);
+    expect(validate(siblings(['A', 'A', 'A'])).issues.filter((i) => i.code === 'N05')).toHaveLength(
+      2,
+    );
+  });
+
+  it('KHÁC cha thì không sao — "Thiết kế" dưới mỗi module là chuyện bình thường', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('R', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+          task('S1', {
+            kind: 'summary',
+            wbsCode: '1.1',
+            depth: 2,
+            parentUid: 'R',
+            effortMd: null,
+            role: null,
+          }),
+          task('S2', {
+            kind: 'summary',
+            wbsCode: '1.2',
+            depth: 2,
+            parentUid: 'R',
+            effortMd: null,
+            role: null,
+          }),
+          task('A', { name: 'Thiet ke', wbsCode: '1.1.1', depth: 3, parentUid: 'S1' }),
+          task('B', { name: 'Thiet ke', wbsCode: '1.2.1', depth: 3, parentUid: 'S2' }),
+        ],
+      }),
+    );
+    expect(codes(r)).not.toContain('N05');
+  });
+
+  it('hai gốc cùng tên vẫn tính là trùng — cùng "cấp cha" là null', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('R1', {
+            name: 'Goc',
+            kind: 'summary',
+            wbsCode: '1',
+            depth: 1,
+            effortMd: null,
+            role: null,
+          }),
+          task('R2', {
+            name: 'Goc',
+            kind: 'summary',
+            wbsCode: '2',
+            depth: 1,
+            effortMd: null,
+            role: null,
+          }),
+        ],
+      }),
+    );
+    expect(codes(r)).toContain('N05');
+  });
+});
+
+describe('N02 — lag âm quá nửa duration của predecessor (§8.3)', () => {
+  function withLag(predEffort: number, lagDays: number) {
+    return input({
+      tasks: [
+        task('S', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+        task('A', { wbsCode: '1.1', depth: 2, parentUid: 'S', effortMd: predEffort }),
+        task('B', { wbsCode: '1.2', depth: 2, parentUid: 'S' }),
+      ],
+      dependencies: [dep('A', 'B', { lagDays })],
+    });
+  }
+
+  it('lag âm vượt nửa duration thì cảnh báo', () => {
+    // A = 4 MD → duration 4 ngày; nửa là 2. Lag -3 vượt quá.
+    const issue = validate(withLag(4, -3)).issues.find((i) => i.code === 'N02');
+    expect(issue?.severity).toBe('Minor');
+    expect(issue?.taskUid).toBe('B');
+  });
+
+  it('đúng nửa thì chưa — "quá 50%" là vượt, không phải chạm', () => {
+    expect(codes(validate(withLag(4, -2)))).not.toContain('N02');
+  });
+
+  it('lag DƯƠNG thì không bao giờ — rule nói về lag âm', () => {
+    expect(codes(validate(withLag(4, 99)))).not.toContain('N02');
+  });
+
+  it('predecessor là summary thì bỏ qua — chưa xếp lịch thì chưa biết nó dài bao lâu', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('R', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+          task('S1', {
+            kind: 'summary',
+            wbsCode: '1.1',
+            depth: 2,
+            parentUid: 'R',
+            effortMd: null,
+            role: null,
+          }),
+          task('X', { wbsCode: '1.1.1', depth: 3, parentUid: 'S1' }),
+          task('B', { wbsCode: '1.2', depth: 2, parentUid: 'R' }),
+        ],
+        dependencies: [dep('S1', 'B', { lagDays: -99 })],
+      }),
+    );
+    expect(codes(r)).not.toContain('N02');
+  });
+});
+
+describe('N10 — cụm sequential lại có thêm cạnh tường minh (§6.3)', () => {
+  function cluster(mode: 'sequential' | 'parallel', deps: DependencyRow[]) {
+    return input({
+      tasks: [
+        task('S', {
+          kind: 'summary',
+          wbsCode: '1',
+          depth: 1,
+          effortMd: null,
+          role: null,
+          childSequencing: mode,
+        }),
+        task('A', { wbsCode: '1.1', depth: 2, parentUid: 'S', sortOrder: 1 }),
+        task('B', { wbsCode: '1.2', depth: 2, parentUid: 'S', sortOrder: 2 }),
+      ],
+      dependencies: deps,
+    });
+  }
+
+  it('cụm sequential có cạnh giữa hai con thì cảnh báo là có thể thừa', () => {
+    const issue = validate(cluster('sequential', [dep('A', 'B')])).issues.find(
+      (i) => i.code === 'N10',
+    );
+    expect(issue?.severity).toBe('Minor');
+    expect(issue?.taskUid).toBe('B');
+  });
+
+  it('cụm parallel thì KHÔNG — ở đó cạnh tường minh là cách duy nhất để xếp thứ tự', () => {
+    expect(codes(validate(cluster('parallel', [dep('A', 'B')])))).not.toContain('N10');
+  });
+
+  it('cụm sequential không có cạnh tường minh thì sạch', () => {
+    expect(codes(validate(cluster('sequential', [])))).not.toContain('N10');
+  });
+
+  it('cạnh vắt sang cụm khác thì không phải N10 — rule nói về cạnh TRONG một cụm', () => {
+    const r = validate(
+      input({
+        tasks: [
+          task('R', { kind: 'summary', wbsCode: '1', depth: 1, effortMd: null, role: null }),
+          task('S1', {
+            kind: 'summary',
+            wbsCode: '1.1',
+            depth: 2,
+            parentUid: 'R',
+            effortMd: null,
+            role: null,
+            childSequencing: 'sequential',
+          }),
+          task('S2', {
+            kind: 'summary',
+            wbsCode: '1.2',
+            depth: 2,
+            parentUid: 'R',
+            effortMd: null,
+            role: null,
+          }),
+          task('A', { wbsCode: '1.1.1', depth: 3, parentUid: 'S1' }),
+          task('B', { wbsCode: '1.2.1', depth: 3, parentUid: 'S2' }),
+        ],
+        dependencies: [dep('A', 'B')],
+      }),
+    );
+    expect(codes(r)).not.toContain('N10');
+  });
+});
