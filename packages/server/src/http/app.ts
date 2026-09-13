@@ -23,6 +23,7 @@ import { exportExcel, ExportBlockedError, type ReportKind } from '@planix/core/i
 import { assertCan, ForbiddenError } from '../auth/permissions.js';
 import { findProjectRole } from '@planix/core/db/repo/auth-repo.js';
 import { redactPath, stdoutSink, type LogSink } from './request-log.js';
+import { authenticateMcp, handleMcpRequest } from './mcp.js';
 
 export interface AppConfig {
   readonly db: Db;
@@ -220,6 +221,29 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
       }
       return c.json({ error: error instanceof Error ? error.message : 'export_failed' }, 400);
     }
+  });
+
+  // ── MCP (§12) ─────────────────────────────────────────────────────────────
+  //
+  // `app.all`: giao thức dùng POST cho lời gọi, GET để mở luồng và DELETE để đóng phiên.
+  // Transport tự trả 405 cho method nó không nhận, nên không tự đoán thay nó ở đây.
+  app.all('/mcp', async (c) => {
+    const { principal } = authenticateMcp(config.db, c.req.header('authorization'), now());
+    if (principal === null) {
+      // `WWW-Authenticate` để client biết phải gửi gì, thay vì đoán. Thông điệp không
+      // nói token sai hay đã thu hồi — phân biệt hai cái đó là kể cho người gọi biết
+      // token nào từng tồn tại.
+      c.header('WWW-Authenticate', 'Bearer realm="planix"');
+      return c.json({ error: 'unauthorized' }, 401);
+    }
+    c.set('userId', principal.userId);
+
+    return handleMcpRequest({
+      db: config.db,
+      principal,
+      now: now(),
+      request: c.req.raw,
+    });
   });
 
   // ── tRPC ──────────────────────────────────────────────────────────────────
