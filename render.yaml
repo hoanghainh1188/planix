@@ -1,0 +1,33 @@
+# Render Blueprint — SPEC.md §13.1 cách B: nền tảng tự cấp TLS, không cần Caddy.
+#
+# Cách dùng: Dashboard → New → Blueprint → trỏ vào repo này. Render đọc file này và
+# dựng dịch vụ.
+#
+# LƯU Ý VỀ CHI PHÍ: `disk` chỉ có ở gói TRẢ PHÍ. Trên gói free, Render bỏ qua khai báo
+# disk và dữ liệu sẽ mất mỗi lần deploy — đúng thứ làm tool này vô nghĩa.
+
+services:
+  - type: web
+    name: planix
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore
+    plan: starter # gói thấp nhất CÓ disk; free không có
+    healthCheckPath: /api/health
+
+    # SQLite chỉ chịu một tiến trình ghi, nên không bao giờ cho chạy nhiều instance.
+    numInstances: 1
+
+    disk:
+      name: planix-data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: PORT
+        value: '3000'
+      - key: PLANIX_DB
+        value: /data/project.db
+      # Render đứng trước bằng TLS thật (§13.3).
+      - key: PLANIX_HTTPS
+        value: 'true'

@@ -1,0 +1,53 @@
+# Fly.io — SPEC.md §13.1 cách B: nền tảng tự cấp TLS, không cần Caddy.
+#
+# Chưa chạy `fly deploy` được: tài khoản hết hạn dùng thử và cần thêm thẻ.
+# Sau khi thêm thẻ:
+#
+#   fly apps create planix
+#   fly volumes create planix_data --region sin --size 1
+#   fly deploy
+#
+# Vùng `sin` (Singapore) gần Việt Nam và Nhật nhất trong các vùng Fly.
+
+app = 'planix'
+primary_region = 'sin'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  PORT = '3000'
+  PLANIX_DB = '/data/project.db'
+  # Fly đứng trước bằng TLS thật, nên bật HSTS là đúng (§13.3).
+  PLANIX_HTTPS = 'true'
+
+# Ổ đĩa bền vững. SQLite ghi thẳng xuống file; thiếu phần này là mất sạch dữ liệu
+# sau mỗi lần khởi động lại.
+[mounts]
+  source = 'planix_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+
+  # KHÔNG cho tự dừng máy, và giữ đúng MỘT máy chạy.
+  #
+  # SQLite chỉ chịu một tiến trình ghi (§13, §7.14 write lock). Hai máy cùng gắn một
+  # volume là hỏng dữ liệu; còn để máy ngủ rồi đánh thức thì mỗi lần recalculate 6.000
+  # task lại phải chờ khởi động lạnh.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
+
+# Một máy duy nhất, đúng mô hình một người ghi.
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
