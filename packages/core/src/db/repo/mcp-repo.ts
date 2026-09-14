@@ -13,6 +13,7 @@
  */
 
 import type { Db } from '../migrate.js';
+import { loadWbsTree, projectOfTask } from './read-repo.js';
 
 /** Một task như MCP nhìn thấy: dữ liệu thật, không phải dòng để vẽ. */
 export interface McpTaskRow {
@@ -78,13 +79,25 @@ export function loadMcpTasks(db: Db, projectId: string): McpTaskRow[] {
   return rows.map(toMcpTask);
 }
 
+/**
+ * Một task ĐẦY ĐỦ — §12.1 gọi output của `wbs_get_task` đúng bằng chữ đó.
+ *
+ * Thêm `description` và `externalRef` so với dòng dùng cho danh sách. Cố ý chỉ thêm ở
+ * đây: `description` là văn bản dài, nhân với 500 dòng của `wbs_list_tasks` thì phần lớn
+ * payload là thứ không ai đọc trong một danh sách.
+ */
+export interface McpTaskDetailRow extends McpTaskRow {
+  readonly description: string | null;
+  readonly externalRef: string | null;
+}
+
 /** Một task, tra thẳng bằng uid — `wbs_get_task` không cần tải cả cây. */
-export function loadMcpTask(db: Db, uid: string): McpTaskRow | undefined {
+export function loadMcpTask(db: Db, uid: string): McpTaskDetailRow | undefined {
   const row = db
     .prepare(
       `SELECT t.uid, t.wbs_code, t.depth, t.parent_uid, t.name, t.kind, t.effort_md,
               t.role, t.category, t.phase, t.module, t.child_sequencing, t.priority,
-              t.constraint_type, t.constraint_date,
+              t.constraint_type, t.constraint_date, t.description, t.external_ref,
               COALESCE(p.status,'not_started') AS status,
               COALESCE(p.percent,0)            AS percent,
               p.actual_start, p.actual_end,
@@ -100,7 +113,38 @@ export function loadMcpTask(db: Db, uid: string): McpTaskRow | undefined {
     )
     .get(uid) as Record<string, unknown> | undefined;
 
-  return row === undefined ? undefined : toMcpTask(row);
+  if (row === undefined) return undefined;
+  const base: McpTaskDetailRow = {
+    ...toMcpTask(row),
+    description: (row['description'] as string | null) ?? null,
+    externalRef: (row['external_ref'] as string | null) ?? null,
+  };
+  if (base.kind !== 'summary') return base;
+
+  // Summary KHÔNG có dòng `schedule` — engine chỉ xếp lá, còn ngày và MD của summary là
+  // ROLLUP tính từ con (§7.7, `domain/rollup.ts`). Câu truy vấn một dòng ở trên vì thế
+  // trả `null` cho mọi trường lịch, trong khi cây S1 hiện ngày thật.
+  //
+  // Đã thấy tận mắt: panel S2 hiện "—" cho 1.1.1 trong khi dòng cây ngay bên trái hiện
+  // 2026-01-05 → 2026-02-12. Cùng một task, hai câu trả lời.
+  //
+  // Lấy đúng giá trị `loadWbsTree` đã tính chứ không viết một phép rollup thứ hai: hai
+  // định nghĩa cho cùng một con số sẽ trôi khỏi nhau, và khi đó không ai biết cái nào
+  // đúng. Giá phải trả là một lượt tải cây — chỉ trả khi task là summary, và đo được 34 ms
+  // trên 6.000 task.
+  const projectId = projectOfTask(db, uid);
+  if (projectId === undefined) return base;
+  const rolled = loadWbsTree(db, projectId).find((r) => r.uid === uid);
+  if (rolled === undefined) return base;
+
+  return {
+    ...base,
+    effortMd: rolled.effortMd,
+    status: rolled.status,
+    percent: rolled.percent,
+    startDate: rolled.planStart,
+    endDate: rolled.planEnd,
+  };
 }
 
 function toMcpTask(r: Record<string, unknown>): McpTaskRow {

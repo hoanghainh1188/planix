@@ -1207,3 +1207,166 @@ describe('S7 — close period', () => {
     expect(list).toEqual([]);
   });
 });
+
+/**
+ * S2 — Task detail (quyết định 2026-09-14).
+ *
+ * PM chốt: S2 sửa được nhóm nhãn phân loại, mọi thứ khác chỉ đọc.
+ */
+describe('S2 — task detail', () => {
+  it('detail gom đúng những gì lớp MCP trả về', async () => {
+    const out = await caller('U-PM').wbs.detail({ taskUid: 'T-0002' });
+
+    expect(out.task.name).toBe('A');
+    expect(out.task.phase).toBe('P1');
+    expect(out.task.assigneeName).toBe('Dev');
+    expect(out.dependencies).toHaveProperty('predecessors');
+    expect(out.dependencies).toHaveProperty('successors');
+    // Chuỗi chặn: chưa xếp lịch thì chỉ có chính nó, và KHÔNG được ném.
+    expect(out.explanation.chain.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Summary KHÔNG có dòng `schedule` — ngày và MD của nó là rollup từ con (§7.7).
+   *
+   * Lỗi đã thấy tận mắt trên trình duyệt: panel hiện "—" cho một summary trong khi dòng
+   * cây ngay bên trái hiện ngày thật. Cùng một task, hai câu trả lời — và không test nào
+   * lúc đó thấy, vì tất cả đều hỏi task lá.
+   */
+  it('summary lấy ngày và MD từ rollup, không phải null', async () => {
+    const root = await caller('U-PM').wbs.detail({ taskUid: 'T-0001' });
+    expect(root.task.kind).toBe('summary');
+
+    const tree = await caller('U-PM').wbs.tree({ projectId: 'P' });
+    const rootRow = tree.find((r) => r.uid === 'T-0001');
+
+    // Phải khớp ĐÚNG giá trị cây hiện, không phải "một giá trị nào đó khác null".
+    expect(root.task.startDate).toBe(rootRow?.planStart ?? null);
+    expect(root.task.endDate).toBe(rootRow?.planEnd ?? null);
+    expect(root.task.effortMd).toBe(rootRow?.effortMd ?? null);
+    expect(root.task.percent).toBe(rootRow?.percent);
+  });
+
+  it('task không tồn tại thì NOT_FOUND', async () => {
+    await expectTrpcCode(caller('U-PM').wbs.detail({ taskUid: 'T-KHONG-CO' }), 'NOT_FOUND');
+  });
+
+  it('người ngoài dự án không đọc được', async () => {
+    await expectTrpcCode(caller('U-OUT').wbs.detail({ taskUid: 'T-0002' }), 'FORBIDDEN');
+  });
+
+  it('sửa được nhóm nhãn, có ghi nhật ký', async () => {
+    const res = await caller('U-PM').wbs.updateLabels({
+      taskUid: 'T-0002',
+      description: 'Mô tả dài',
+      category: 'dev',
+      phase: 'P2',
+      module: 'mod-2',
+      externalRef: 'JIRA-1',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.validation.projectId).toBe('P');
+
+    const after = await caller('U-PM').wbs.detail({ taskUid: 'T-0002' });
+    expect(after.task.phase).toBe('P2');
+    expect(after.task.module).toBe('mod-2');
+    expect(after.task.category).toBe('dev');
+
+    expect(historyOf(db, 'task', 'T-0002').length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Chuỗi rỗng phải quy về `NULL`.
+   *
+   * `phase = ''` và `phase = NULL` khác nhau với SQL nhưng cùng nghĩa "chưa đặt" với
+   * người dùng, và `N03` chỉ kiểm `NULL`. Không quy về thì xoá trắng một ô sẽ làm rule
+   * im lặng trong khi dữ liệu vẫn thiếu — một lỗi không ai nhìn thấy.
+   */
+  it('xoá trắng một ô thì lưu NULL, không lưu chuỗi rỗng', async () => {
+    await caller('U-PM').wbs.updateLabels({
+      taskUid: 'T-0002',
+      description: '   ',
+      category: '',
+      phase: '',
+      module: '',
+      externalRef: '',
+    });
+
+    const row = db.prepare('SELECT * FROM task WHERE uid = ?').get('T-0002') as Record<
+      string,
+      unknown
+    >;
+    for (const col of ['description', 'category', 'phase', 'module', 'external_ref']) {
+      expect(row[col], `${col} phải là NULL`).toBeNull();
+    }
+  });
+
+  /**
+   * Vòng tròn khép kín của cả màn hình này: `N03` báo thiếu `phase`/`module`, PM sửa ở
+   * S2, issue biến mất. Trước S2 thì bước giữa KHÔNG tồn tại — đó là lý do màn này có
+   * mặt (xem `docs/decisions/2026-09-14-s2-pham-vi.md`).
+   */
+  it('vá được N03: báo lỗi → sửa ở S2 → hết lỗi', async () => {
+    const n03 = (report: { issues: ReadonlyArray<{ code: string; taskUid?: string }> }): number =>
+      report.issues.filter((i) => i.code === 'N03' && i.taskUid === 'T-0002').length;
+
+    const cleared = await caller('U-PM').wbs.updateLabels({
+      taskUid: 'T-0002',
+      description: null,
+      category: null,
+      phase: null,
+      module: null,
+      externalRef: null,
+    });
+    expect(n03(cleared.validation), 'gỡ phase/module thì N03 phải kêu').toBe(1);
+
+    const fixed = await caller('U-PM').wbs.updateLabels({
+      taskUid: 'T-0002',
+      description: null,
+      category: null,
+      phase: 'P1',
+      module: 'mod-1',
+      externalRef: null,
+    });
+    expect(n03(fixed.validation), 'đặt lại thì N03 phải im').toBe(0);
+  });
+
+  it('lead không sửa được nhãn (§10.6 — edit_wbs là của PM)', async () => {
+    await expectTrpcCode(
+      caller('U-LEAD').wbs.updateLabels({
+        taskUid: 'T-0002',
+        description: null,
+        category: null,
+        phase: 'X',
+        module: 'Y',
+        externalRef: null,
+      }),
+      'FORBIDDEN',
+    );
+  });
+
+  /** Hai nhóm sửa ở hai màn khác nhau, không được ghi đè lẫn nhau. */
+  it('sửa nhãn KHÔNG đụng tới name/effort/role/priority của S1', async () => {
+    await caller('U-PM').wbs.updateTask({
+      taskUid: 'T-0002',
+      name: 'Tên từ S1',
+      effortMd: 7,
+      role: 'Dev',
+      priority: 100,
+    });
+    await caller('U-PM').wbs.updateLabels({
+      taskUid: 'T-0002',
+      description: null,
+      category: null,
+      phase: 'P9',
+      module: 'mod-9',
+      externalRef: null,
+    });
+
+    const out = await caller('U-PM').wbs.detail({ taskUid: 'T-0002' });
+    expect(out.task.name).toBe('Tên từ S1');
+    expect(out.task.effortMd).toBe(7);
+    expect(out.task.priority).toBe(100);
+    expect(out.task.phase).toBe('P9');
+  });
+});

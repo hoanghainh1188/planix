@@ -351,6 +351,60 @@ export function loadPinnedResource(db: Db, taskUid: string): string | null | und
   return r === undefined ? undefined : r.pinned_resource;
 }
 
+/**
+ * Nhóm nhãn phân loại — những trường S2 cho sửa (quyết định 2026-09-14).
+ *
+ * Đây là nhóm DUY NHẤT trước nay không có đường ghi nào trong web: `phase` chỉ được đọc
+ * để lọc Gantt. Hệ quả là rule `N03` báo "leaf thiếu phase và module" mà PM không sửa
+ * được, trừ khi nạp lại cả file import.
+ *
+ * KHÔNG gộp vào `TaskEditableFields`: hai nhóm sửa ở hai màn khác nhau (S1 inline, S2
+ * panel), và gộp lại thì mỗi lần lưu một bên sẽ ghi đè bên kia bằng giá trị cũ nó đang
+ * giữ trong state.
+ */
+export interface TaskLabelFields {
+  readonly description: string | null;
+  readonly category: string | null;
+  readonly phase: string | null;
+  readonly module: string | null;
+  readonly externalRef: string | null;
+}
+
+export function loadTaskLabels(db: Db, taskUid: string): TaskLabelFields | undefined {
+  const r = db
+    .prepare('SELECT description, category, phase, module, external_ref FROM task WHERE uid = ?')
+    .get(taskUid) as Record<string, unknown> | undefined;
+  if (r === undefined) return undefined;
+  return {
+    description: (r['description'] as string | null) ?? null,
+    category: (r['category'] as string | null) ?? null,
+    phase: (r['phase'] as string | null) ?? null,
+    module: (r['module'] as string | null) ?? null,
+    externalRef: (r['external_ref'] as string | null) ?? null,
+  };
+}
+
+export function updateTaskLabels(
+  db: Db,
+  taskUid: string,
+  fields: TaskLabelFields,
+  now: string,
+): void {
+  db.prepare(
+    `UPDATE task SET description = ?, category = ?, phase = ?, module = ?, external_ref = ?,
+                     updated_at = ?
+      WHERE uid = ?`,
+  ).run(
+    fields.description,
+    fields.category,
+    fields.phase,
+    fields.module,
+    fields.externalRef,
+    now,
+    taskUid,
+  );
+}
+
 export function upsertProgress(
   db: Db,
   p: {

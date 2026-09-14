@@ -7,10 +7,11 @@
  * lần chạy đầu với dữ liệu thật. Suy từ `AppRouter` biến mọi lệch pha thành lỗi biên dịch.
  */
 
-import type { inferRouterOutputs } from '@trpc/server';
+import type { inferRouterInputs, inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '@planix/server/router/index.js';
 
 type Outputs = inferRouterOutputs<AppRouter>;
+type Inputs = inferRouterInputs<AppRouter>;
 
 export type WbsRow = Outputs['wbs']['tree'][number];
 export type ProjectSummary = Outputs['projects']['list'][number];
@@ -18,6 +19,11 @@ export type IssueRow = Outputs['issues']['list'][number];
 export type GanttRowData = Outputs['gantt']['get'][number];
 export type ProgressBoardData = Outputs['progress']['board'];
 export type TaskLinks = Outputs['wbs']['dependencies'];
+export type TaskDetail = Outputs['wbs']['detail'];
+export type TaskLabels = Pick<
+  Inputs['wbs']['updateLabels'],
+  'description' | 'category' | 'phase' | 'module' | 'externalRef'
+>;
 export type TaskLink = TaskLinks['predecessors'][number];
 export type DependencyType = TaskLink['type'];
 /** Phản hồi validate đi kèm mỗi lần sửa ràng buộc (§12.4). */
