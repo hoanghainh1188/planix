@@ -161,3 +161,79 @@ describe('S7 — §7.13 dừng hẳn khi có Critical', () => {
     expect(screen.getByRole('alert').textContent).not.toContain('N03');
   });
 });
+
+/**
+ * §10.6 cho lead bản `full` và CHỈ bản đó, nhưng không cho chốt kỳ.
+ *
+ * Trước PR này lead không có cửa nào tới màn Reports — server và MCP đều cho họ xuất bản
+ * `full`, riêng UI thì giấu cả màn vì màn này còn chứa Close period. Cách mở là tách quyền
+ * BÊN TRONG màn, không phải mở toang cả màn.
+ */
+describe('S7 — lead lấy được báo cáo nhưng không chốt kỳ được', () => {
+  function asLead(over: Partial<Parameters<typeof PeriodScreen>[0]> = {}) {
+    const props = {
+      statusDate: '2026-03-02',
+      baselines: [],
+      closing: false,
+      closeResult: null,
+      downloading: null,
+      downloadError: null,
+      onDownload: vi.fn().mockResolvedValue(undefined),
+      // KHÔNG có `onClose` — đó là cách màn này biết người xem không được chốt kỳ.
+      reports: ['full'] as const,
+      ...over,
+    };
+    return { ...render(<PeriodScreen {...props} />), props };
+  }
+
+  it('không còn phần chốt kỳ', () => {
+    asLead();
+    expect(screen.queryByRole('button', { name: 'Close period' })).toBeNull();
+    expect(screen.queryByLabelText('Status date')).toBeNull();
+    expect(screen.queryByLabelText('Baseline name')).toBeNull();
+  });
+
+  it('tiêu đề không hứa việc họ không làm được', () => {
+    asLead();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Reports');
+  });
+
+  it('chỉ còn bản full, không có summary hay resource', () => {
+    asLead();
+    expect(screen.getByText('Full')).toBeTruthy();
+    expect(screen.queryByText('Summary')).toBeNull();
+    expect(screen.queryByText('Resource matrix')).toBeNull();
+  });
+
+  it('tải được bản full', async () => {
+    const user = userEvent.setup();
+    const { props } = asLead();
+    await user.click(screen.getByRole('button', { name: 'Download' }));
+    expect(props.onDownload).toHaveBeenCalledWith('full', expect.any(Number));
+  });
+
+  /** Baseline là dữ liệu đọc (`view_assigned_project`) — lead vẫn cần thấy mốc đang đo. */
+  it('vẫn thấy danh sách baseline', () => {
+    asLead({
+      baselines: [
+        {
+          id: 'B-1',
+          label: 'Plan v1.0',
+          statusDate: '2026-01-05',
+          takenAt: '2026-01-05T00:00:00.000Z',
+        },
+      ],
+    });
+    expect(screen.getByText('Plan v1.0')).toBeTruthy();
+  });
+
+  /** Mặt còn lại: PM vẫn đủ cả ba bản và phần chốt kỳ. */
+  it('PM vẫn có đủ ba bản và nút chốt kỳ', () => {
+    setup();
+    expect(screen.getByRole('button', { name: 'Close period' })).toBeTruthy();
+    expect(screen.getByText('Full')).toBeTruthy();
+    expect(screen.getByText('Summary')).toBeTruthy();
+    expect(screen.getByText('Resource matrix')).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Reports & close period');
+  });
+});

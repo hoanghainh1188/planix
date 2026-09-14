@@ -11,7 +11,7 @@ import { TaskDetailPanel } from '../components/detail/TaskDetailPanel.js';
 import { AdminScreen } from '../components/admin/AdminScreen.js';
 import { PoolScreen } from '../components/pool/PoolScreen.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
-import { PeriodScreen } from '../components/period/PeriodScreen.js';
+import { PeriodScreen, type ReportKind } from '../components/period/PeriodScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
@@ -47,27 +47,39 @@ import './app.css';
 type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period' | 'admin' | 'pool';
 
 /**
- * `pmOnly` không phải là cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ
- * ẩn nút trên UI", và router vẫn từ chối lead. Nó chỉ để lead không nhìn thấy một màn mà
- * họ bấm vào đâu cũng bị chặn.
+ * Quyền §10.6 mà một màn đòi hỏi để CÓ MẶT trên thanh điều hướng.
+ *
+ * Không phải cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ ẩn nút trên
+ * UI", và router vẫn từ chối. Nó chỉ để người dùng không nhìn thấy một màn mà họ bấm vào
+ * đâu cũng bị chặn.
+ */
+type ScreenGate = 'import_from_ai' | 'export_report' | 'manage_resources' | 'view_resource_pool';
+
+/**
+ * Mỗi màn khoá bằng ĐÚNG quyền của nó.
+ *
+ * Trước đây cả ba màn `pmOnly` dùng chung một cờ, và cờ đó tra bằng `canImport`. Hôm nay
+ * `import_from_ai`, `close_period` và `view_resource_pool` tình cờ cùng là `{pm: true,
+ * lead: false}` nên không ai thấy gì sai — nhưng chúng là ba dòng khác nhau trong bảng
+ * §10.6, và `export_report` thì đã khác ngay từ đầu: lead ĐƯỢC bản `full`.
  */
 const SCREENS: ReadonlyArray<{
   id: Screen;
   label: string;
-  pmOnly?: boolean;
-  adminOnly?: boolean;
+  gate?: ScreenGate;
 }> = [
   { id: 'wbs', label: 'WBS' },
   { id: 'gantt', label: 'Gantt' },
   { id: 'progress', label: 'Progress' },
-  { id: 'import', label: 'Import', pmOnly: true },
-  { id: 'period', label: 'Reports', pmOnly: true },
+  { id: 'import', label: 'Import', gate: 'import_from_ai' },
+  // Lead vào được để lấy báo cáo; phần chốt kỳ bên trong màn tự ẩn (§10.6 `close_period`).
+  { id: 'period', label: 'Reports', gate: 'export_report' },
   // §10.3: S5 "nằm ngoài phạm vi dự án — thuộc về tổ chức", và §10.6 đặt
   // `manage_resources` chỉ cho admin. Nên nó không đi theo dự án đang chọn.
-  { id: 'admin', label: 'Resources', adminOnly: true },
-  // §10.3 "Admin, PM đọc" — §10.6 cho `view_resource_pool` là {pm: true, lead: false},
-  // nên PM thấy tab này còn lead thì không.
-  { id: 'pool', label: 'Pool', pmOnly: true },
+  { id: 'admin', label: 'Resources', gate: 'manage_resources' },
+  // §10.3 "Admin, PM đọc". Server tra bằng "có làm PM ở ĐÂU ĐÓ không" chứ không theo dự
+  // án đang chọn, nên UI phải hỏi cùng một câu, không thì hai bên lệch nhau.
+  { id: 'pool', label: 'Pool', gate: 'view_resource_pool' },
 ];
 
 /**
@@ -327,6 +339,25 @@ function Workspace({
   const canImport = projectRole === 'pm';
   const canEditWbs = projectRole === 'pm';
   const canRecalculate = projectRole === 'pm';
+  const canClosePeriod = projectRole === 'pm';
+  /** §10.6 `export_report` là `{pm: true, lead: true}` — lead chỉ bản `full`. */
+  const canExport = projectRole === 'pm' || projectRole === 'lead';
+  const exportKinds: readonly ReportKind[] =
+    projectRole === 'pm' ? ['full', 'summary', 'resource'] : ['full'];
+  /**
+   * `view_resource_pool` hỏi "có làm PM ở ĐÂU ĐÓ không", không phải vai ở dự án đang chọn.
+   *
+   * S9 là màn toàn cục nên server tra đúng như vậy (`pmSomewhere`). Tra theo dự án đang
+   * chọn thì một người làm PM dự án A, lead dự án B sẽ mất tab Pool chỉ vì đang đứng ở B.
+   */
+  const pmSomewhere = projects.status === 'ready' && projects.data.some((p) => p.role === 'pm');
+
+  const screenGates: Readonly<Record<ScreenGate, boolean>> = {
+    import_from_ai: canImport,
+    export_report: canExport,
+    manage_resources: isAdmin,
+    view_resource_pool: pmSomewhere,
+  };
 
   /**
    * Bản so sánh THẬT: engine chạy thử trên bản sao DB rồi trả về lịch trước và sau.
@@ -847,9 +878,7 @@ function Workspace({
         </nav>
 
         <nav className="app__screens" aria-label="Screens">
-          {SCREENS.filter(
-            (s) => (s.pmOnly !== true || canImport) && (s.adminOnly !== true || isAdmin),
-          ).map((s) => (
+          {SCREENS.filter((s) => s.gate === undefined || screenGates[s.gate]).map((s) => (
             <button
               key={s.id}
               type="button"
@@ -931,10 +960,11 @@ function Workspace({
             baselines={baselines.status === 'ready' ? baselines.data : []}
             closing={closing}
             closeResult={closeResult}
-            onClose={closePeriod}
+            {...(canClosePeriod ? { onClose: closePeriod } : {})}
             downloading={downloading}
             downloadError={downloadError}
             onDownload={downloadReport}
+            reports={exportKinds}
           />
         ) : screen === 'import' ? (
           <ImportScreen
