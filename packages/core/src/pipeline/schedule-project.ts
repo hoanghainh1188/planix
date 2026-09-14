@@ -30,6 +30,7 @@ import {
 import { reforecast, type ReforecastTask } from '../domain/reforecast.js';
 import { runSgs, type SgsResource, type SgsTask, type SgsScheduleRow } from '../domain/sgs.js';
 import { resourceCriticalPath } from '../domain/resource-critical.js';
+import { resolveBlockingRefs } from '../domain/blocking-ref.js';
 import { validate } from '../domain/validator.js';
 import { recordValidationRun, type RecordedIssue } from '../db/repo/issue-repo.js';
 import type { ValidationReport } from '../domain/validation-types.js';
@@ -412,11 +413,15 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   // Đo được trên dev.db: chỉ MỘT nút gộp trên đường đi đã cắt chuỗi UTG từ 9 tháng
   // xuống còn 6 tuần cuối.
   const fullSchedule = new Map<string, SgsScheduleRow>(sgs.schedule);
-  const schedule = new Map<string, SgsScheduleRow>();
+  const withoutJoins = new Map<string, SgsScheduleRow>();
   for (const [uid, row] of sgs.schedule) {
     if (joinUids.has(uid)) continue;
-    schedule.set(uid, row);
+    withoutJoins.set(uid, row);
   }
+  // Gỡ nút gộp khỏi DÒNG thì cũng phải gỡ khỏi `blocking_ref`: một ref trỏ vào nút gộp là
+  // một khoá không có dòng `task` nào đứng sau (§7.6 đòi "uid predecessor"). Đo trên
+  // dev.db trước khi sửa: 228/744 dòng.
+  const schedule = resolveBlockingRefs(withoutJoins, fullSchedule, sgsEdges, joinUids);
   for (const [uid, row] of forecast.rows) {
     if (row.mode !== 'fixed') continue;
     if (row.fixedStart === null || row.fixedEnd === null) continue;

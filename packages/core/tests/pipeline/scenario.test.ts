@@ -178,6 +178,38 @@ describe('pipeline chạy được trên bối cảnh đầy đủ', () => {
  * Đo trên `data/dev.db` trước khi sửa: đúng một nút gộp trên đường đi đã cắt chuỗi UTG
  * từ 9 tháng (2026-03-02 → 2026-11-27) xuống còn 6 tuần cuối (2026-10-16 → 2026-11-27).
  */
+describe('§7.6 — blocking_ref ghi xuống DB phải là task thật', () => {
+  /**
+   * SGS chạy trên đồ thị có nút gộp `~join-nnnnn`, và ghi `blockingRef` bằng uid nút gộp
+   * khi chính nó là thứ đẩy task. Nút gộp không có dòng `task`, nên ref đó trỏ vào hư
+   * không: `explainTask` dừng chuỗi và S2 in "Waiting for ~join-00013". Trên `data/dev.db`
+   * trước khi sửa là 228/744 dòng.
+   */
+  it('không dòng nào trỏ vào nút gộp, và mọi ref dependency đều có task thật đứng sau', () => {
+    scheduleAllProjects(db, { runId: 'REF', now: SCENARIO_AT, windowDays: 2000 });
+
+    const synthetic = db
+      .prepare(`SELECT COUNT(*) AS n FROM schedule WHERE blocking_ref LIKE '~join-%'`)
+      .get() as { n: number };
+    expect(synthetic.n).toBe(0);
+
+    const dangling = db
+      .prepare(
+        `SELECT COUNT(*) AS n FROM schedule s
+          WHERE s.delay_reason = 'dependency' AND s.blocking_ref IS NOT NULL
+            AND NOT EXISTS (SELECT 1 FROM task t WHERE t.uid = s.blocking_ref)`,
+      )
+      .get() as { n: number };
+    expect(dangling.n).toBe(0);
+
+    // Bài trên chỉ có nghĩa nếu fixture thật sự có ràng buộc chạy qua nút gộp.
+    const viaDependency = db
+      .prepare(`SELECT COUNT(*) AS n FROM schedule WHERE delay_reason = 'dependency'`)
+      .get() as { n: number };
+    expect(viaDependency.n).toBeGreaterThan(0);
+  });
+});
+
 describe('§7 pha C — đường găng sau san tài nguyên', () => {
   interface Row {
     readonly uid: string;
