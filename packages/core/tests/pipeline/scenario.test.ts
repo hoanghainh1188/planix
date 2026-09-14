@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
-import { scheduleAllProjects } from '../../src/pipeline/schedule-project.js';
+import { scheduleAllProjects, scheduleProject } from '../../src/pipeline/schedule-project.js';
 import { buildScenario, SCENARIO_AT, type ScenarioHandles } from '../fixtures/scenario.js';
 import { buildPayload } from '../fixtures/generate.js';
 import { createCalendarEngine } from '../../src/domain/calendar.js';
@@ -247,13 +247,16 @@ describe('§7 pha C — đường găng sau san tài nguyên', () => {
   });
 
   /**
-   * M2: cùng INPUT ra cùng OUTPUT. Nên phải dựng hai DB sạch giống hệt nhau, không phải
-   * xếp lại hai lần trên cùng một DB.
+   * M2: cùng INPUT ra cùng OUTPUT. Dựng hai DB sạch giống hệt nhau rồi so kết quả.
    *
-   * Bản đầu tôi viết kiểu xếp-lại và nó đỏ — nhưng không phải vì engine bất định. Sau
-   * lần xếp thứ nhất, assignment của P-SIDE đã nằm trong DB và lần sau P-MAIN nạp chúng
-   * làm chỗ đã bị chiếm (§7.12). Input khác thì output khác là ĐÚNG; 85/426 dòng lệch
-   * ngày chính là cơ chế chia sẻ pool đang hoạt động.
+   * Bản đầu của bài này viết kiểu xếp-lại-hai-lần-trên-một-DB và nó đỏ. Lúc đó tôi kết
+   * luận là "input khác thì output khác, đúng thôi" rồi đổi bài đi cho xanh. Kết luận đó
+   * SAI, và nó là lý do một lỗi thật sống sót nhiều tháng: trong một lượt "Recalculate
+   * all", lịch cũ của P-SIDE là output của lượt trước chứ không phải chỗ đã bị chiếm
+   * thật, nên P-MAIN không được phép né nó. Xem bài ngay dưới.
+   *
+   * Bài này vẫn giữ nguyên — hai DB sạch là cách đo M2 đúng nhất — nhưng nó KHÔNG còn
+   * gánh một mình: một bài xanh vì đã tránh chỗ đau thì không phải bằng chứng.
    */
   it('tất định — hai DB sạch giống hệt cho cùng kết quả (N2, M2)', () => {
     const build = (): Db => {
@@ -288,5 +291,82 @@ describe('§7 pha C — đường găng sau san tài nguyên', () => {
       one.close();
       two.close();
     }
+  });
+
+  /**
+   * "Recalculate all" chạy lại trên dữ liệu y nguyên phải cho ĐÚNG kết quả cũ.
+   *
+   * Đây là bài bắt được lỗi mà `cross-project.test.ts` không bắt nổi: ở đó hai dự án nhỏ
+   * dùng chung MỘT người, dự án ưu tiên 1 lấy được khoảng sớm nhất ngay lượt đầu nên lượt
+   * sau nó lấy lại đúng chỗ đó — xanh vì may. Fixture ở đây có 500 + 100 task, nhiều
+   * người và nhiều role, nên một khác biệt nhỏ ở lượt trước đủ để đổi cả RESOURCE_KEY của
+   * lượt sau. Trước khi sửa, ba lượt liên tiếp ra ba kết quả khác nhau và không bao giờ
+   * dừng lại.
+   *
+   * Ba lượt chứ không phải hai: hai lượt chỉ chứng minh "có đổi", ba lượt chứng minh nó
+   * KHÔNG hội tụ về đâu cả.
+   */
+  it('chạy Recalculate all ba lượt trên cùng DB cho kết quả y hệt (M2)', () => {
+    const snap = (): string =>
+      JSON.stringify(
+        db.prepare('SELECT task_uid, start_date, end_date FROM schedule ORDER BY task_uid').all(),
+      );
+
+    const run = (): string => {
+      scheduleAllProjects(db, { runId: 'RPT', now: SCENARIO_AT, windowDays: 2000 });
+      return snap();
+    };
+
+    const first = run();
+    expect(run(), 'lượt 2 phải bằng lượt 1').toBe(first);
+    expect(run(), 'lượt 3 phải bằng lượt 1').toBe(first);
+  });
+
+  /**
+   * Lịch giống nhau chưa đủ — bảng issue PM đọc cũng phải giống nhau.
+   *
+   * `J06` là rule DUY NHẤT đếm trên pool toàn cục, nên nó là chỗ duy nhất mà câu trả lời
+   * cho dự án này phụ thuộc vào dự án kia. Đếm ngay lúc xếp xong dự án thứ nhất thì dự án
+   * thứ hai vẫn mang assignment của lượt trước — lượt đầu trên DB trắng thấy P-SIDE chưa
+   * có gì, lượt sau thấy P-SIDE của lượt đầu, và con số lệch đủ để đổi cả cách gộp:
+   * "cả 30 người đều dưới 50%" thành 29 dòng lẻ.
+   *
+   * Không có bài này thì lỗi chỉ hiện ra trên dữ liệu thật, dưới dạng một con số không ai
+   * đối chiếu được với cái gì.
+   */
+  it('Recalculate all hai lượt ghi ra cùng một tập issue (§8.3)', () => {
+    const issuesOf = (runId: string): string[] =>
+      (
+        db
+          .prepare(
+            `SELECT project_id, code, message FROM validation_issue
+              WHERE run_id = ? ORDER BY project_id, code, message`,
+          )
+          .all(runId) as Array<Record<string, unknown>>
+      ).map((r) => `${String(r['project_id'])} ${String(r['code'])} ${String(r['message'])}`);
+
+    scheduleAllProjects(db, { runId: 'RA', now: SCENARIO_AT, windowDays: 2000 });
+    scheduleAllProjects(db, { runId: 'RB', now: SCENARIO_AT, windowDays: 2000 });
+
+    expect(issuesOf('RB')).toEqual(issuesOf('RA'));
+  });
+
+  /**
+   * Mặt còn lại: đường một dự án KHÔNG được hoãn `J06`.
+   *
+   * "Recalculate this project" ghi xong là pool đã ở trạng thái cuối, nên đếm ngay tại chỗ
+   * mới đúng. Hoãn ở đây thì `J06` rơi mất hẳn — và mất một rule thì không có gì đỏ.
+   */
+  it('xếp một dự án lẻ vẫn ghi J06 ngay trong lượt đó', () => {
+    scheduleProject(db, { projectId: 'P-MAIN', runId: 'SOLO', now: SCENARIO_AT, windowDays: 2000 });
+
+    const n = (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM validation_issue WHERE run_id = 'SOLO' AND code = 'J06'`,
+        )
+        .get() as { n: number }
+    ).n;
+    expect(n).toBeGreaterThan(0);
   });
 });

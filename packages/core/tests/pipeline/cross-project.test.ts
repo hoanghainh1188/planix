@@ -208,6 +208,75 @@ describe('tái lập được ở quy mô đa dự án (M2)', () => {
       first,
     );
   });
+
+  /**
+   * Bài trên xanh kể cả khi engine sai, và đó là bài học của lần này: hai dự án nhỏ xếp
+   * từ DB trắng thì dự án ưu tiên 1 lấy được đúng khoảng sớm nhất ngay lượt đầu, nên lượt
+   * sau nó lấy lại đúng chỗ đó — trùng nhau vì may, không vì engine đúng. Bài không hội
+   * tụ thật nằm ở `scenario.test.ts`, nơi có đủ người và đủ role để hai lượt lệch nhau.
+   *
+   * Ở đây kiểm mặt §7.12 của cùng một lỗi, bằng một khẳng định tuyệt đối thay vì so hai
+   * lượt: "Recalculate all" xếp lại lịch của MỌI dự án, nên lịch cũ của chúng là output
+   * của lượt trước chứ không phải chỗ đã bị chiếm thật. Coi nó là chỗ đã chiếm thì dự án
+   * ưu tiên 1 phải né dự án ưu tiên 2 — ngược đúng thứ tự spec đặt ra.
+   */
+  it('dự án ưu tiên 1 không bị lịch CŨ của dự án ưu tiên 2 đẩy', () => {
+    addProject('P-HI', 'HI', 1);
+    addProject('P-LO', 'LO', 2);
+    fill('HI', 4);
+    fill('LO', 4);
+
+    // Dự án ưu tiên THẤP chiếm khoảng sớm nhất trước. Chuỗi thao tác này là thường ngày:
+    // PM bấm Recalculate cho một dự án, rồi mới bấm Recalculate all.
+    scheduleProject(db, { projectId: 'P-LO', runId: 'R0', now: AT, windowDays: 400 });
+    scheduleAllProjects(db, { runId: 'R1', now: AT, windowDays: 400 });
+
+    const hiStart = (
+      db
+        .prepare(
+          `SELECT MIN(s.start_date) AS m FROM schedule s JOIN task t ON t.uid = s.task_uid
+           WHERE t.project_id = 'P-HI'`,
+        )
+        .get() as { m: string }
+    ).m;
+
+    // 2026-01-05 là `status_date` của fixture, thứ Hai — ngày sớm nhất engine được phép
+    // dùng. Ưu tiên 1 xếp trên pool trống thì phải bắt đầu đúng ở đó.
+    expect(hiStart).toBe('2026-01-05');
+  });
+
+  /** Mặt còn lại: dự án KHÔNG nằm trong lượt chạy vẫn giữ chỗ thật của nó. */
+  it('dự án onhold vẫn chiếm chỗ khi chạy Recalculate all', () => {
+    addProject('P-HLD', 'HLD', 1, 'onhold');
+    addProject('P-ACT', 'ACT', 2);
+    fill('HLD', 4);
+    fill('ACT', 4);
+
+    // P-HLD không schedulable nên phải xếp riêng mới có assignment nằm trong pool.
+    scheduleProject(db, { projectId: 'P-HLD', runId: 'R0', now: AT, windowDays: 400 });
+    const lastHeld = (
+      db
+        .prepare(
+          `SELECT MAX(a.to_date) AS m FROM assignment a JOIN task t ON t.uid = a.task_uid
+           WHERE t.project_id = 'P-HLD'`,
+        )
+        .get() as { m: string | null }
+    ).m;
+    expect(lastHeld).not.toBeNull();
+
+    const r = scheduleAllProjects(db, { runId: 'R', now: AT, windowDays: 400 });
+    expect(r.order).toEqual(['P-ACT']);
+
+    const actStart = (
+      db
+        .prepare(
+          `SELECT MIN(s.start_date) AS m FROM schedule s JOIN task t ON t.uid = s.task_uid
+           WHERE t.project_id = 'P-ACT'`,
+        )
+        .get() as { m: string }
+    ).m;
+    expect(actStart > String(lastHeld), 'P-ACT phải xếp sau chỗ P-HLD đang giữ').toBe(true);
+  });
 });
 
 describe('việc đang chạy không bị dời (§7.12)', () => {
