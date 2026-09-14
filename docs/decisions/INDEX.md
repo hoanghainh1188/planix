@@ -36,3 +36,4 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 | 2026-09-13 | [§11.3: ba cấp trên hai cột — 大項目/中項目 chứa gì](2026-09-13-summary-report-levels.md)              | §11.3                                 | Đã chốt — ba cấp ba cột                   |
 | 2026-09-13 | [Resource-critical path — định nghĩa và cài đặt](2026-09-13-resource-critical-path-chua-co.md)         | §7 pha C (C1), §12.1                  | Chốt (b) + (iii); còn hạn chế nút gộp §5b |
 | 2026-09-14 | [S2 — Task detail: sửa được những gì](2026-09-14-s2-pham-vi.md)                                        | §10.3 (S2 không có spec riêng)        | Đã chốt — nhóm nhãn phân loại             |
+| 2026-09-14 | [S5 — Resources & calendars: phạm vi](2026-09-14-s5-pham-vi.md)                                        | §10.3 (S5 không có spec riêng)        | Đã chốt — cả hai khu một màn              |

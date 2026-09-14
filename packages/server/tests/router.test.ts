@@ -1370,3 +1370,166 @@ describe('S2 — task detail', () => {
     expect(out.task.phase).toBe('P9');
   });
 });
+
+/**
+ * S5 — Resources & calendars (§10.3, toàn cục, admin).
+ *
+ * Điều phải đúng hơn cả: §10.6 đặt `manage_resources` là `{pm: false, lead: false}`, tức
+ * PM — người quyền cao nhất TRONG một dự án — cũng không được đụng vào pool nhân sự toàn
+ * tổ chức. Dễ nhầm vì mọi màn khác PM đều làm được gần hết.
+ */
+describe('S5 — resources & calendars', () => {
+  const admin = () => caller('U-ADMIN', true);
+
+  const person = {
+    id: 'R-NEW',
+    name: 'Người mới',
+    locationId: 'VN',
+    dailyCapacity: 1,
+    maxParallel: null,
+    availableFrom: null,
+    availableTo: null,
+    costPerMd: null,
+    roles: ['Dev'],
+    create: true,
+  };
+
+  beforeEach(() => {
+    db.prepare(
+      `INSERT INTO app_user (id,email,name,password_hash,is_admin,created_at)
+       VALUES ('U-ADMIN','admin@x.com','Admin','h',1,?)`,
+    ).run(AT);
+  });
+
+  it('admin xem được toàn cảnh', async () => {
+    const out = await admin().admin.overview();
+    expect(out.resources.length).toBeGreaterThan(0);
+    expect(out.calendars.length).toBeGreaterThan(0);
+    expect(out.locations.map((l) => l.id)).toContain('VN');
+  });
+
+  it('PM KHÔNG xem được — đây là màn toàn tổ chức, không phải của dự án', async () => {
+    await expectTrpcCode(caller('U-PM').admin.overview(), 'FORBIDDEN');
+  });
+
+  it('PM không thêm được người', async () => {
+    await expectTrpcCode(caller('U-PM').admin.saveResource(person), 'FORBIDDEN');
+  });
+
+  it('tạo rồi sửa được người', async () => {
+    await admin().admin.saveResource(person);
+    const created = (await admin().admin.overview()).resources.find((r) => r.id === 'R-NEW');
+    expect(created?.roles).toEqual(['Dev']);
+
+    await admin().admin.saveResource({ ...person, create: false, roles: ['QA', 'Dev'] });
+    const updated = (await admin().admin.overview()).resources.find((r) => r.id === 'R-NEW');
+    expect(updated?.roles).toEqual(['Dev', 'QA']);
+  });
+
+  /** Tách cờ `create` để một lần bấm nhầm không ghi đè người đang có. */
+  it('tạo trùng id thì CONFLICT, không ghi đè', async () => {
+    await admin().admin.saveResource(person);
+    await expectTrpcCode(admin().admin.saveResource({ ...person, name: 'Người khác' }), 'CONFLICT');
+    const rows = (await admin().admin.overview()).resources.filter((r) => r.id === 'R-NEW');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.name).toBe('Người mới');
+  });
+
+  it('sửa người không tồn tại thì NOT_FOUND', async () => {
+    await expectTrpcCode(
+      admin().admin.saveResource({ ...person, id: 'R-KHONG-CO', create: false }),
+      'NOT_FOUND',
+    );
+  });
+
+  it('khoảng khả dụng đảo ngược thì BAD_REQUEST', async () => {
+    await expectTrpcCode(
+      admin().admin.saveResource({
+        ...person,
+        availableFrom: '2026-06-01',
+        availableTo: '2026-01-01',
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
+  it('thêm rồi gỡ ngày nghỉ của lịch', async () => {
+    const { id } = await admin().admin.addException({
+      calendarId: 'CAL',
+      dateFrom: '2026-04-30',
+      dateTo: '2026-04-30',
+      capacity: 0,
+      kind: 'holiday',
+      note: 'Ngày Chiến thắng',
+    });
+    expect((await admin().admin.exceptions({ calendarId: 'CAL' })).length).toBe(1);
+
+    await admin().admin.removeException({ id });
+    expect((await admin().admin.exceptions({ calendarId: 'CAL' })).length).toBe(0);
+    await expectTrpcCode(admin().admin.removeException({ id }), 'NOT_FOUND');
+  });
+
+  it('khoảng ngày đảo ngược thì BAD_REQUEST', async () => {
+    await expectTrpcCode(
+      admin().admin.addException({
+        calendarId: 'CAL',
+        dateFrom: '2026-05-05',
+        dateTo: '2026-05-01',
+        capacity: 0,
+        kind: 'holiday',
+        note: null,
+      }),
+      'BAD_REQUEST',
+    );
+  });
+
+  /**
+   * Nghỉ phép cá nhân đi qua §5.2: người chưa từng nghỉ thì chưa có lịch riêng, và màn
+   * hình KHÔNG phải biết chuyện đó.
+   */
+  it('nghỉ phép tự dựng lịch riêng cho người chưa có', async () => {
+    const before = (await admin().admin.overview()).resources.find((r) => r.id === 'R-1');
+    expect(before?.calendarId).toBeNull();
+
+    const out = await admin().admin.addResourceLeave({
+      resourceId: 'R-1',
+      dateFrom: '2026-03-02',
+      dateTo: '2026-03-04',
+      capacity: 0,
+      kind: 'leave',
+      note: 'nghỉ phép',
+    });
+    expect(out.createdCalendar).toBe(true);
+
+    const after = (await admin().admin.overview()).resources.find((r) => r.id === 'R-1');
+    expect(after?.calendarId).toBe(out.calendarId);
+  });
+
+  it('nghỉ phép cho người không tồn tại thì NOT_FOUND', async () => {
+    await expectTrpcCode(
+      admin().admin.addResourceLeave({
+        resourceId: 'R-KHONG-CO',
+        dateFrom: '2026-03-02',
+        dateTo: '2026-03-02',
+        capacity: 0,
+        kind: 'leave',
+        note: null,
+      }),
+      'NOT_FOUND',
+    );
+  });
+
+  it('PM không ghi được nghỉ phép', async () => {
+    await expectTrpcCode(
+      caller('U-PM').admin.addResourceLeave({
+        resourceId: 'R-1',
+        dateFrom: '2026-03-02',
+        dateTo: '2026-03-02',
+        capacity: 0,
+        kind: 'leave',
+        note: null,
+      }),
+      'FORBIDDEN',
+    );
+  });
+});
