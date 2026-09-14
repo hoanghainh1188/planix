@@ -49,6 +49,17 @@ export type Action =
 /** Vai trong MỘT dự án. `null` = người này không được gán vào dự án đang xét. */
 export type ProjectRole = 'pm' | 'lead' | 'viewer' | null;
 
+/**
+ * Thu hẹp một chuỗi vai lấy từ DB hoặc từ API về `ProjectRole`.
+ *
+ * Cột `user_project.role` có `CHECK`, nhưng driver trả về `string` — và bất cứ thứ gì đi
+ * từ ngoài vào domain đều phải qua một cửa kiểm (CLAUDE.md §3). Giá trị lạ trả `null`,
+ * nghĩa là KHÔNG có quyền gì: hỏng theo hướng đóng, không theo hướng mở.
+ */
+export function toProjectRole(value: string | null | undefined): ProjectRole {
+  return value === 'pm' || value === 'lead' || value === 'viewer' ? value : null;
+}
+
 export interface PermissionContext {
   readonly isAdmin: boolean;
   readonly projectRole: ProjectRole;

@@ -3,6 +3,7 @@ import {
   assertCan,
   can,
   ForbiddenError,
+  toProjectRole,
   type Action,
   type PermissionContext,
 } from './permissions.js';
@@ -128,5 +129,25 @@ describe('assertCan', () => {
     } catch (e) {
       expect((e as ForbiddenError).action).toBe('recalculate_all');
     }
+  });
+});
+
+/**
+ * Cửa kiểm cho vai lấy từ DB. Quan trọng ở chiều HỎNG: một giá trị lạ — cột đổi, dữ liệu
+ * cũ, lỗi gõ trong migration — phải rơi về `null`, tức không có quyền gì. Trả bừa nguyên
+ * chuỗi thì `can()` sẽ so nó với `'pm'`/`'lead'`, không khớp, và lặng lẽ đi tiếp.
+ */
+describe('toProjectRole', () => {
+  it('giữ nguyên ba vai hợp lệ', () => {
+    expect(toProjectRole('pm')).toBe('pm');
+    expect(toProjectRole('lead')).toBe('lead');
+    expect(toProjectRole('viewer')).toBe('viewer');
+  });
+
+  it('mọi thứ khác về null — hỏng theo hướng đóng', () => {
+    for (const bad of ['admin', 'PM', '', 'owner', null, undefined]) {
+      expect(toProjectRole(bad)).toBeNull();
+    }
+    expect(can('edit_wbs', { isAdmin: false, projectRole: toProjectRole('owner') })).toBe(false);
   });
 });
