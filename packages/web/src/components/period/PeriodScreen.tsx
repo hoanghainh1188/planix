@@ -5,7 +5,7 @@ import './period.css';
 
 /** §11.1 — ba bản, ba người xem khác nhau. */
 const REPORTS: ReadonlyArray<{
-  id: 'full' | 'summary' | 'resource';
+  id: ReportKind;
   label: string;
   who: string;
 }> = [
@@ -14,15 +14,28 @@ const REPORTS: ReadonlyArray<{
   { id: 'resource', label: 'Resource matrix', who: 'Management — people × weeks, in MD' },
 ];
 
+export type ReportKind = 'full' | 'summary' | 'resource';
+
 export interface PeriodScreenProps {
   readonly statusDate: string;
   readonly baselines: readonly BaselineRow[];
   readonly closing: boolean;
   readonly closeResult: CloseResult | null;
-  readonly onClose: (statusDate: string, label: string) => Promise<void>;
+  /**
+   * Thiếu callback này thì phần chốt kỳ biến mất — §10.6 `close_period` là `{pm: true,
+   * lead: false}`, mà lead vẫn được vào màn này để lấy báo cáo.
+   */
+  readonly onClose?: (statusDate: string, label: string) => Promise<void>;
   readonly downloading: string | null;
   readonly downloadError: readonly BlockingIssue[] | string | null;
-  readonly onDownload: (report: 'full' | 'summary' | 'resource', depth: number) => Promise<void>;
+  readonly onDownload: (report: ReportKind, depth: number) => Promise<void>;
+  /**
+   * Những bản người này được tải. §10.6 cho lead **bản `full`** và chỉ bản đó: `summary`
+   * đi thẳng tới khách Nhật, `resource` là ma trận nhân sự toàn dự án.
+   *
+   * Mặc định cả ba để nơi gọi cũ không đổi nghĩa.
+   */
+  readonly reports?: readonly ReportKind[];
 }
 
 /**
@@ -41,6 +54,7 @@ export function PeriodScreen({
   downloading,
   downloadError,
   onDownload,
+  reports = ['full', 'summary', 'resource'],
 }: PeriodScreenProps): JSX.Element {
   /**
    * Hai ô này GỢI Ý theo dữ liệu, và chỉ thôi gợi ý khi PM đã tự gõ.
@@ -60,69 +74,73 @@ export function PeriodScreen({
   // §7.13: baseline đầu tiên là mốc cam kết. Đánh số tiếp theo số bản đã có, nhưng vẫn
   // cho sửa — cách đặt tên là việc của PM, không phải của tool.
   const label = labelDraft ?? suggestedBaselineLabel(baselines.length);
+  const canClose = onClose !== undefined;
 
   return (
     <section className="period" aria-label="Reports and close period">
       <div className="period__intro">
-        <h1 className="period__title">Reports &amp; close period</h1>
+        <h1 className="period__title">{canClose ? 'Reports & close period' : 'Reports'}</h1>
         <p className="period__lead">
-          Closing a period sets the status date and takes a baseline — the snapshot every later
-          report is measured against.
+          {canClose
+            ? 'Closing a period sets the status date and takes a baseline — the snapshot every later report is measured against.'
+            : 'Reports are measured against the latest baseline. Only the PM can close a period and take a new one.'}
         </p>
       </div>
 
-      <section className="period__block" aria-labelledby="close-heading">
-        <h2 className="period__heading" id="close-heading">
-          Close the period
-        </h2>
+      {canClose ? (
+        <section className="period__block" aria-labelledby="close-heading">
+          <h2 className="period__heading" id="close-heading">
+            Close the period
+          </h2>
 
-        <div className="period__form">
-          <label className="period__field">
-            <span className="period__label">Status date</span>
-            <input
-              type="date"
-              className="period__input"
-              value={date}
-              disabled={closing}
-              onChange={(e) => setDateDraft(e.target.value)}
-            />
-          </label>
-          <label className="period__field period__field--wide">
-            <span className="period__label">Baseline name</span>
-            <input
-              type="text"
-              className="period__input"
-              value={label}
-              disabled={closing}
-              onChange={(e) => setLabelDraft(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="period__button period__button--go"
-            disabled={closing || date === '' || label.trim() === ''}
-            onClick={() => void onClose(date, label.trim())}
-          >
-            {closing ? 'Closing…' : 'Close period'}
-          </button>
-        </div>
+          <div className="period__form">
+            <label className="period__field">
+              <span className="period__label">Status date</span>
+              <input
+                type="date"
+                className="period__input"
+                value={date}
+                disabled={closing}
+                onChange={(e) => setDateDraft(e.target.value)}
+              />
+            </label>
+            <label className="period__field period__field--wide">
+              <span className="period__label">Baseline name</span>
+              <input
+                type="text"
+                className="period__input"
+                value={label}
+                disabled={closing}
+                onChange={(e) => setLabelDraft(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="period__button period__button--go"
+              disabled={closing || date === '' || label.trim() === ''}
+              onClick={() => void onClose?.(date, label.trim())}
+            >
+              {closing ? 'Closing…' : 'Close period'}
+            </button>
+          </div>
 
-        {closeResult === null ? null : closeResult.ok ? (
-          <p className="period__panel period__panel--good" role="status">
-            Closed. Baseline taken over {closeResult.taskCount} tasks.
-          </p>
-        ) : (
-          <div className="period__panel period__panel--bad" role="alert">
-            <p className="period__panelHead">{closeResult.message}</p>
-            {/*
+          {closeResult === null ? null : closeResult.ok ? (
+            <p className="period__panel period__panel--good" role="status">
+              Closed. Baseline taken over {closeResult.taskCount} tasks.
+            </p>
+          ) : (
+            <div className="period__panel period__panel--bad" role="alert">
+              <p className="period__panelHead">{closeResult.message}</p>
+              {/*
               §7.13 dừng hẳn khi có Critical, khác với mọi đường ghi khác (§12.4 cho ghi
               rồi báo). Baseline là mốc cam kết — dựng nó trên dữ liệu hỏng là làm hỏng
               chính thước đo. Nên ở đây phải liệt kê ra cho PM đi sửa.
             */}
-            <IssueList issues={closeResult.issues.filter((i) => i.severity === 'Critical')} />
-          </div>
-        )}
-      </section>
+              <IssueList issues={closeResult.issues.filter((i) => i.severity === 'Critical')} />
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="period__block" aria-labelledby="baselines-heading">
         <h2 className="period__heading" id="baselines-heading">
@@ -154,7 +172,7 @@ export function PeriodScreen({
         </h2>
 
         <ul className="period__reports">
-          {REPORTS.map((r) => (
+          {REPORTS.filter((r) => reports.includes(r.id)).map((r) => (
             <li key={r.id} className="period__report">
               <span className="period__reportText">
                 <b>{r.label}</b>
