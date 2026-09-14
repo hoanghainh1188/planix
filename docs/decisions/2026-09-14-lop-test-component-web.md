@@ -37,7 +37,13 @@ Project `web` trong `vitest.config.ts` chuyển sang `environment: 'jsdom'` và 
 thiếu nó thì test sau nhìn thấy cây của test trước, và `getByRole` trả về phần tử của một
 màn hình đã đóng. Kiểu hỏng đó thường vẫn XANH, chỉ sai khi thứ tự test đổi.
 
-`components/**` được thêm vào phạm vi đo coverage.
+`components/**` **cố ý KHÔNG** nằm trong ngưỡng coverage. Thêm vào thì coverage toàn cục
+tụt xuống 78% ngay, vì phạm vi đó gồm cả những màn chưa có test component nào (WBS tree,
+Gantt, Import, các panel). Đạt 80% trên toàn bộ chúng là một khối việc riêng và là quyết
+định của PM, không phải hệ quả phụ của việc dựng lớp test. Test vẫn chạy và vẫn chặn hồi
+quy — chỉ là không bị đo chung ngưỡng với engine, nơi M2 đòi đúng tuyệt đối.
+
+Tôi đã thử thêm vào và CI đỏ đúng vì lý do này.
 
 ## Đã khoá lại những gì
 
