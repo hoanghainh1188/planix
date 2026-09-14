@@ -271,6 +271,14 @@ export interface BlockingLink {
   /** `'dependency' | 'resource' | 'cross_project' | 'calendar' | 'constraint'`, hoặc null. */
   readonly reason: string | null;
   readonly ref: string | null;
+  /**
+   * `ref` viết cho người đọc: tên người, mã dự án, hay mã WBS của task đứng trước.
+   *
+   * `ref` là khoá — `R-03`, `P-UTG`, `T-0412` — đúng cho máy nhưng vô nghĩa với PM. §7.6
+   * gọi `delay_reason` là thứ "trả lời được câu hỏi của khách", và "chờ R-03" không trả lời
+   * được gì. `null` khi `ref` trống hoặc trỏ tới thứ đã bị xoá.
+   */
+  readonly refLabel: string | null;
 }
 
 export interface TaskExplanation {
@@ -284,6 +292,33 @@ export interface TaskExplanation {
    * cái thứ hai thành "không còn gì chặn nữa" thì kết luận sai.
    */
   readonly truncated: boolean;
+}
+
+/**
+ * Dịch `blocking_ref` sang thứ người đọc được, theo đúng bảng §7.6: `resource` trỏ tới một
+ * người, `cross_project` tới một dự án, `dependency` tới một task. `calendar` và
+ * `constraint` không có ref.
+ *
+ * Chuẩn bị câu lệnh một lần cho cả chuỗi — chuỗi dài tới `MAX_CHAIN` mắt, và mỗi mắt tra
+ * một lần là đủ, không có N+1 theo số task của dự án.
+ */
+function refLabeller(db: Db): (reason: string | null, ref: string | null) => string | null {
+  const person = db.prepare('SELECT name FROM resource WHERE id = ?');
+  const project = db.prepare('SELECT code FROM project WHERE id = ?');
+  const task = db.prepare('SELECT wbs_code FROM task WHERE uid = ?');
+
+  return (reason, ref) => {
+    if (ref === null) return null;
+    const pick = (row: unknown, key: string): string | null => {
+      if (typeof row !== 'object' || row === null) return null;
+      const value = (row as Record<string, unknown>)[key];
+      return typeof value === 'string' ? value : null;
+    };
+    if (reason === 'resource') return pick(person.get(ref), 'name');
+    if (reason === 'cross_project') return pick(project.get(ref), 'code');
+    if (reason === 'dependency') return pick(task.get(ref), 'wbs_code');
+    return null;
+  };
 }
 
 /** Trần độ dài chuỗi. Sâu hơn thế thì bản thân độ sâu mới là vấn đề, không phải mắt cuối. */
@@ -307,6 +342,7 @@ export function explainTask(db: Db, uid: string): TaskExplanation {
       WHERE t.uid = ?`,
   );
 
+  const labelOf = refLabeller(db);
   const chain: BlockingLink[] = [];
   const seen = new Set<string>();
   let cursor: string | null = uid;
@@ -333,6 +369,7 @@ export function explainTask(db: Db, uid: string): TaskExplanation {
       endDate: (row['end_date'] as string | null) ?? null,
       reason,
       ref,
+      refLabel: labelOf(reason, ref),
     });
 
     cursor = reason === 'dependency' ? ref : null;
