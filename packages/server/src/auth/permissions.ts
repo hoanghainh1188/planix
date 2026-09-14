@@ -42,6 +42,9 @@ export interface PermissionContext {
 const TABLE: Record<Action, { pm: boolean; lead: boolean }> = {
   view_assigned_project: { pm: true, lead: true },
   view_other_project: { pm: false, lead: false },
+  // Ô này có một bản chép tay ở `packages/web/src/app/App.tsx` (`canEditWbs`) để ẩn nút
+  // sửa cây. Đổi ở đây thì sửa cả ở đó — server vẫn chặn đúng, nhưng UI sẽ mời người dùng
+  // làm việc họ không làm được, hoặc giấu việc họ được làm.
   edit_wbs: { pm: true, lead: false },
   enter_progress_own_team: { pm: true, lead: true },
   enter_progress_other_team: { pm: true, lead: false },

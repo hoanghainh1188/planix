@@ -151,6 +151,11 @@
 .app__state--error {
   color: var(--c-critical);
 }
+/* Dự án rỗng: chữ và lối vào nằm chồng nhau giữa khung, cần khoảng thở giữa các dòng. */
+.app__state--empty {
+  gap: var(--space-3);
+  text-align: center;
+}
 
 /* Băng báo lỗi cho đường ghi — nằm dưới thanh trên cùng, không che nội dung. */
 .app__banner {
