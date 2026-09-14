@@ -253,9 +253,9 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
     expect(run([busy('R-1', 1)])).toEqual([]);
   });
 
-  it('đúng 30% thì chưa — "dưới 30%" là nhỏ hơn', () => {
-    // 20 ngày làm; 6 ngày làm ở mức 1.0 = 30%.
-    expect(run([busy('R-1', 1, '2026-01-05', '2026-01-12')])).toEqual([]);
+  it('đúng 50% thì chưa — "dưới 50%" là nhỏ hơn', () => {
+    // Cửa sổ có 20 ngày làm; 10 ngày làm ở mức 1.0 = đúng 50%.
+    expect(run([busy('R-1', 1, '2026-01-05', '2026-01-16')])).toEqual([]);
   });
 
   /**
@@ -344,8 +344,46 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
     expect(issues).toEqual([]);
   });
 
-  it('thứ tự issue theo id, không theo thứ tự mảng vào (N2)', () => {
+  /**
+   * Cả ba đều rảnh ⇒ gộp thành MỘT issue mức dự án, nên thứ tự nằm trong `detail`.
+   *
+   * N2 vẫn là thứ đang kiểm: danh sách phải sắp theo id, không theo thứ tự mảng vào.
+   */
+  it('thứ tự trong danh sách theo id, không theo thứ tự mảng vào (N2)', () => {
     const issues = run([], { resourceIds: ['R-9', 'R-1', 'R-5'] });
-    expect(issues.map((i) => i.detail?.['resourceId'])).toEqual(['R-1', 'R-5', 'R-9']);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.detail?.['resourceIds']).toEqual(['R-1', 'R-5', 'R-9']);
+  });
+
+  /**
+   * Gộp CHỈ khi cả đội cùng dưới ngưỡng — PM chốt 2026-09-14.
+   *
+   * Một người rảnh giữa một đội bận là phát hiện về CHÍNH người đó, và nêu đích danh mới
+   * dùng được. Cả đội cùng rảnh mới là phát hiện mức dự án.
+   */
+  it('chỉ MỘT người rảnh thì nêu đích danh, không gộp', () => {
+    const issues = run([busy('R-1', 1), busy('R-2', 1), busy('R-3', 0.1)], {
+      resourceIds: ['R-1', 'R-2', 'R-3'],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.detail?.['resourceId']).toBe('R-3');
+    expect(issues[0]?.message).toContain('Resource R-3');
+  });
+
+  it('cả đội cùng rảnh thì gộp, kèm khoảng cao–thấp', () => {
+    const issues = run([busy('R-1', 0.1), busy('R-2', 0.2)], {
+      resourceIds: ['R-1', 'R-2'],
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.detail?.['scope']).toBe('project');
+    expect(issues[0]?.detail?.['resourceCount']).toBe(2);
+    expect(issues[0]?.message).toContain('All 2 people');
+  });
+
+  /** Một người tất cả thì gộp vô nghĩa — vẫn nêu đích danh. */
+  it('chỉ có một người trong dự án thì không gộp', () => {
+    const issues = run([busy('R-1', 0.1)], { resourceIds: ['R-1'] });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.detail?.['resourceId']).toBe('R-1');
   });
 });

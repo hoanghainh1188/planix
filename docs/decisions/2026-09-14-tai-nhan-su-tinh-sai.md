@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-14
 **Phát hiện khi:** làm S9 (P12)
-**Trạng thái:** Đã sửa cả phần báo cáo lẫn rule `J06`. **Ngưỡng 30% vẫn cần PM xem lại.**
+**Trạng thái:** Đã sửa xong — cả phép tính, cả ngưỡng, cả cách phát issue.
 
 ## Triệu chứng
 
@@ -90,7 +90,35 @@ Lệch **6–32 điểm phần trăm**. Trên dữ liệu demo thì **kết lu�
 Đo lại tập issue trước/sau trên `data/dev.db`: **không đổi** — J06 = 0 ở cả hai dự án,
 cả hai cách. Không file `expected.json` nào phải sửa.
 
-**Vẫn cần PM xem lại: ngưỡng 30%.** Nó được đặt khi con số còn bị phóng đại 6–32 điểm
-phần trăm, nghĩa là nó được hiệu chỉnh theo một thước đo sai. Với thước đo đúng, một
-ngưỡng cao hơn có thể mới đúng ý "ai đang rảnh". Đây là phán đoán nghiệp vụ, không phải
-việc sửa lỗi — tôi không tự đổi.
+### Ngưỡng: PM chốt nâng 0.3 → 0.5 ngày 2026-09-14
+
+0.3 được hiệu chỉnh theo thước đo sai. Với thước đo đúng, `data/dev.db` cho thấy hai đội
+nằm trong 41–67% — **không ai chạm 30%**, nên rule im lặng trong khi UTG có tới một nửa
+năng lực chưa dùng.
+
+Đo trước khi chọn, và phép đo lộ ra một cái bẫy: **phân bố rất chụm**. Engine san tải đều
+nên UTG ai cũng 41–50%, GEO ai cũng 60–67%. Mọi ngưỡng vì thế hoặc báo **không ai**, hoặc
+báo **cả đội** — không có giá trị nào phân biệt được người với người.
+
+| ngưỡng   | UTG       | GEO   |
+| -------- | --------- | ----- |
+| 30% (cũ) | 0         | 0     |
+| 40%      | 0         | 0     |
+| **50%**  | **10/10** | 0     |
+| 70%      | 10/10     | 10/10 |
+
+### Gộp theo dự án khi cả đội cùng dưới ngưỡng
+
+Hệ quả của cái bẫy trên: "cả đội dưới ngưỡng" là một phát hiện **mức dự án** ("dự án này
+dư một nửa năng lực"), không phải mười phát hiện giống hệt nhau về mười cá nhân. PM chốt
+gộp — cùng cách đã chọn cho `J14`.
+
+Chỉ gộp khi **tất cả** người được xét đều dưới ngưỡng. Một người rảnh giữa một đội bận vẫn
+được **nêu đích danh**, vì khi đó tên riêng mới là thứ dùng được.
+
+Kết quả trên `dev.db`:
+
+> UTG → **1 issue**: _All 10 people on this project are under 50% utilised between
+> 2026-03-02 and 2026-11-17 (34%–47%)._
+>
+> GEO → im lặng (60–67%).

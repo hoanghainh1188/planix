@@ -61,8 +61,16 @@ const THIN_DAYS_LIMIT = 10;
 /** §8.2 `J07` — pha B dài hơn pha A quá ngần này thì là thiếu người nghiêm trọng. */
 const PHASE_SKEW_LIMIT = 0.2;
 
-/** §8.2 `J06` — dưới mức này là người đang rảnh. */
-const LOW_UTILISATION = 0.3;
+/**
+ * §8.2 `J06` — dưới mức này là người đang rảnh. PM nâng từ 0.3 lên 0.5 ngày 2026-09-14.
+ *
+ * 0.3 được đặt khi phép đo còn phóng đại tỷ lệ sử dụng 6–32 điểm phần trăm (xem
+ * `docs/decisions/2026-09-14-tai-nhan-su-tinh-sai.md`), tức nó được hiệu chỉnh theo một
+ * thước đo sai. Với thước đo đúng, `data/dev.db` cho thấy cả hai đội nằm trong khoảng
+ * 41–67% — không ai chạm 30%, nên rule im lặng trong khi dự án UTG có tới một nửa năng
+ * lực chưa dùng tới.
+ */
+const LOW_UTILISATION = 0.5;
 
 function major(code: string, message: string, taskUid?: string): DepIssue {
   return {
@@ -232,8 +240,10 @@ export function checkResourceUtilisation(params: {
     else list.push(a);
   }
 
-  const issues: DepIssue[] = [];
-  // Sắp theo id: thứ tự issue không được phụ thuộc thứ tự mảng vào (N2).
+  // Tính trước cho MỌI người, rồi mới quyết định phát ra dạng nào.
+  //
+  // Sắp theo id: thứ tự không được phụ thuộc thứ tự mảng vào (N2).
+  const measured: Array<{ resourceId: string; utilisation: number }> = [];
   for (const resourceId of [...resourceIds].sort()) {
     let available = 0;
     let allocated = 0;
@@ -265,18 +275,52 @@ export function checkResourceUtilisation(params: {
     // Không có ngày làm nào trong cửa sổ (nghỉ phép dài, hoặc mới vào sau) — không có mẫu
     // số thì không kết luận được gì.
     if (available <= 0) continue;
-
-    const utilisation = allocated / available;
-    if (utilisation >= LOW_UTILISATION) continue;
-
-    issues.push({
-      code: 'J06',
-      severity: 'Major',
-      message:
-        `Resource ${resourceId} is ${String(Math.round(utilisation * 100))}% utilised ` +
-        `between ${windowStart} and ${windowEnd}.`,
-      detail: { resourceId, utilisation: Math.round(utilisation * 100) / 100 },
-    });
+    measured.push({ resourceId, utilisation: allocated / available });
   }
-  return issues;
+
+  const idle = measured.filter((m) => m.utilisation < LOW_UTILISATION);
+  if (idle.length === 0) return [];
+
+  const pct = (u: number): number => Math.round(u * 100);
+
+  /**
+   * CẢ đội cùng dưới ngưỡng ⇒ một issue mức dự án, không phải mỗi người một issue.
+   *
+   * PM chốt 2026-09-14, cùng cách đã chọn cho `J14`. Lý do đo được: engine san tải đều nên
+   * trên `data/dev.db` mười người của UTG nằm gọn trong khoảng 41–50%. Mọi ngưỡng vì thế
+   * hoặc im lặng, hoặc báo toàn đội — và "toàn đội" là một phát hiện MỨC DỰ ÁN ("dự án này
+   * dư một nửa năng lực"), không phải mười phát hiện giống hệt nhau về mười cá nhân.
+   *
+   * Chỉ một người trong danh sách thì gộp vô nghĩa, nên vẫn phát dạng cá nhân.
+   */
+  if (idle.length === measured.length && measured.length > 1) {
+    const lowest = pct(Math.min(...idle.map((m) => m.utilisation)));
+    const highest = pct(Math.max(...idle.map((m) => m.utilisation)));
+    return [
+      {
+        code: 'J06',
+        severity: 'Major',
+        message:
+          `All ${String(idle.length)} people on this project are under ` +
+          `${String(pct(LOW_UTILISATION))}% utilised between ${windowStart} and ${windowEnd} ` +
+          `(${String(lowest)}%–${String(highest)}%).`,
+        detail: {
+          scope: 'project',
+          resourceCount: idle.length,
+          resourceIds: idle.map((m) => m.resourceId),
+          lowestUtilisation: Math.round(Math.min(...idle.map((m) => m.utilisation)) * 100) / 100,
+          highestUtilisation: Math.round(Math.max(...idle.map((m) => m.utilisation)) * 100) / 100,
+        },
+      },
+    ];
+  }
+
+  return idle.map((m) => ({
+    code: 'J06',
+    severity: 'Major' as const,
+    message:
+      `Resource ${m.resourceId} is ${String(pct(m.utilisation))}% utilised ` +
+      `between ${windowStart} and ${windowEnd}.`,
+    detail: { resourceId: m.resourceId, utilisation: Math.round(m.utilisation * 100) / 100 },
+  }));
 }
