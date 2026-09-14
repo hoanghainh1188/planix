@@ -20,6 +20,12 @@ export type GanttRowData = Outputs['gantt']['get'][number];
 export type ProgressBoardData = Outputs['progress']['board'];
 export type TaskLinks = Outputs['wbs']['dependencies'];
 export type TaskDetail = Outputs['wbs']['detail'];
+export type AdminOverview = Outputs['admin']['overview'];
+export type AdminResource = AdminOverview['resources'][number];
+export type AdminCalendar = AdminOverview['calendars'][number];
+export type AdminLocation = AdminOverview['locations'][number];
+export type CalendarException = Outputs['admin']['exceptions'][number];
+export type SaveResourceInput = Inputs['admin']['saveResource'];
 export type TaskLabels = Pick<
   Inputs['wbs']['updateLabels'],
   'description' | 'category' | 'phase' | 'module' | 'externalRef'

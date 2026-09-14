@@ -19,6 +19,7 @@ import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { validate } from '@planix/core/domain/validator.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
 import * as mcpRepo from '@planix/core/db/repo/mcp-repo.js';
+import * as adminRepo from '@planix/core/db/repo/admin-repo.js';
 import type { ValidationIssue, ValidationReport } from '@planix/core/domain/validation-types.js';
 import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
 import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
@@ -78,6 +79,24 @@ function permissionContext(
     teamId: assignment?.teamId ?? null,
     ...extra,
   };
+}
+
+/** Ngày dạng `YYYY-MM-DD`. Dùng chung để ba chỗ không tự chế ba biểu thức khác nhau. */
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * S5 là màn TOÀN CỤC (§10.3), nên quyền không gắn với dự án nào.
+ *
+ * `assertCan` cần một `projectRole`, mà ở đây không có dự án để tra vai. §10.6 đặt
+ * `manage_resources` là `{pm: false, lead: false}` — chỉ admin — nên `projectRole: null`
+ * là đúng ngữ nghĩa: người này không đứng trong dự án nào khi làm việc này.
+ */
+function requireAdmin(ctx: Context & { user: { userId: string; isAdmin: boolean } }): void {
+  try {
+    assertCan('manage_resources', { isAdmin: ctx.user.isAdmin, projectRole: null });
+  } catch (e) {
+    toTrpc(e);
+  }
 }
 
 function toTrpc(error: unknown): never {
@@ -1055,6 +1074,152 @@ export const appRouter = t.router({
       }
       return baselineRepo.listBaselines(ctx.db, input.projectId);
     }),
+  }),
+
+  /**
+   * S5 — Resources & calendars (§10.3, toàn cục).
+   *
+   * §10.6: `manage_resources` là `{pm: false, lead: false}` — CHỈ admin. §10.3 cũng nói
+   * "S5 và S9 nằm ngoài phạm vi dự án — thuộc về tổ chức", nên quyền ở đây không gắn với
+   * dự án nào: không có `permissionContext(ctx, projectId)` để gọi.
+   */
+  admin: t.router({
+    overview: authed.query(({ ctx }) => {
+      requireAdmin(ctx);
+      return {
+        resources: adminRepo.listResources(ctx.db),
+        calendars: adminRepo.listCalendars(ctx.db),
+        locations: adminRepo.listLocations(ctx.db),
+      };
+    }),
+
+    exceptions: authed
+      .input(
+        z.object({
+          calendarId: z.string().min(1).optional(),
+          from: z.string().regex(DATE).optional(),
+          to: z.string().regex(DATE).optional(),
+        }),
+      )
+      .query(({ ctx, input }) => {
+        requireAdmin(ctx);
+        return adminRepo.listExceptions(ctx.db, input);
+      }),
+
+    saveResource: authed
+      .input(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          locationId: z.string().min(1),
+          dailyCapacity: z.number().positive().max(2),
+          maxParallel: z.number().int().positive().nullable(),
+          availableFrom: z.string().regex(DATE).nullable(),
+          availableTo: z.string().regex(DATE).nullable(),
+          costPerMd: z.number().nonnegative().nullable(),
+          roles: z.array(z.string().min(1)).min(1),
+          /** `true` = tạo mới. Tách khỏi sửa để không lỡ tay ghi đè một người đang có. */
+          create: z.boolean(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        requireAdmin(ctx);
+        const { create, ...resource } = input;
+
+        if (input.availableFrom !== null && input.availableTo !== null) {
+          if (input.availableFrom > input.availableTo) {
+            throw new TRPCError({
+              code: 'BAD_REQUEST',
+              message: 'Available from is after available to.',
+            });
+          }
+        }
+
+        try {
+          if (create) {
+            adminRepo.createResource(ctx.db, resource);
+          } else if (!adminRepo.updateResource(ctx.db, resource)) {
+            throw new TRPCError({ code: 'NOT_FOUND' });
+          }
+        } catch (error) {
+          if (error instanceof adminRepo.ResourceExistsError) {
+            throw new TRPCError({ code: 'CONFLICT', message: error.message });
+          }
+          throw error;
+        }
+
+        recordUpdate(
+          ctx.db,
+          { userId: ctx.user.userId, at: ctx.now },
+          'resource',
+          input.id,
+          {},
+          { ...resource, roles: [...resource.roles].sort().join(',') },
+        );
+        return { ok: true as const };
+      }),
+
+    addException: authed
+      .input(
+        z.object({
+          calendarId: z.string().min(1),
+          dateFrom: z.string().regex(DATE),
+          dateTo: z.string().regex(DATE),
+          capacity: z.number().min(0).max(1),
+          kind: z.enum(['holiday', 'leave', 'overtime', 'other']),
+          note: z.string().nullable(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        requireAdmin(ctx);
+        if (input.dateFrom > input.dateTo) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'dateFrom is after dateTo.' });
+        }
+        return { id: adminRepo.addException(ctx.db, input) };
+      }),
+
+    /**
+     * Nghỉ phép của MỘT người — không nhận `calendarId`.
+     *
+     * §5.2 để nghỉ phép cá nhân trong một lịch `scope='resource'` riêng, mà người chưa
+     * từng nghỉ thì chưa có lịch đó. Bắt màn hình tự dựng lịch rồi trỏ `calendar_id` là
+     * bắt admin học mô hình hai tầng chỉ để gõ "An nghỉ ba ngày". Repo lo phần đó.
+     */
+    addResourceLeave: authed
+      .input(
+        z.object({
+          resourceId: z.string().min(1),
+          dateFrom: z.string().regex(DATE),
+          dateTo: z.string().regex(DATE),
+          capacity: z.number().min(0).max(1).default(0),
+          kind: z.enum(['leave', 'overtime', 'other']).default('leave'),
+          note: z.string().nullable(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        requireAdmin(ctx);
+        if (input.dateFrom > input.dateTo) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: 'dateFrom is after dateTo.' });
+        }
+        try {
+          return adminRepo.addResourceLeave(ctx.db, input);
+        } catch (error) {
+          throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: error instanceof Error ? error.message : 'unknown resource',
+          });
+        }
+      }),
+
+    removeException: authed
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ ctx, input }) => {
+        requireAdmin(ctx);
+        if (!adminRepo.removeException(ctx.db, input.id)) {
+          throw new TRPCError({ code: 'NOT_FOUND' });
+        }
+        return { ok: true as const };
+      }),
   }),
 
   issues: t.router({

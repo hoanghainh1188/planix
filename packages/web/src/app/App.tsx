@@ -6,6 +6,7 @@ import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
 import { TaskDetailPanel } from '../components/detail/TaskDetailPanel.js';
+import { AdminScreen } from '../components/admin/AdminScreen.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
 import { PeriodScreen } from '../components/period/PeriodScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
@@ -25,6 +26,7 @@ import type {
   LinkIssue,
   ProgressBoardData,
   ProjectSummary,
+  SaveResourceInput,
   TaskDetail,
   TaskLabels,
   TaskLink,
@@ -39,19 +41,27 @@ import './app.css';
  * động. Chỉ báo cáo Excel mới có tham số `lang` (§11.1).
  */
 /** §10.3 — ba màn của MVP (P8/P9) cộng S8 Import (P12). */
-type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period';
+type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period' | 'admin';
 
 /**
  * `pmOnly` không phải là cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ
  * ẩn nút trên UI", và router vẫn từ chối lead. Nó chỉ để lead không nhìn thấy một màn mà
  * họ bấm vào đâu cũng bị chặn.
  */
-const SCREENS: ReadonlyArray<{ id: Screen; label: string; pmOnly?: boolean }> = [
+const SCREENS: ReadonlyArray<{
+  id: Screen;
+  label: string;
+  pmOnly?: boolean;
+  adminOnly?: boolean;
+}> = [
   { id: 'wbs', label: 'WBS' },
   { id: 'gantt', label: 'Gantt' },
   { id: 'progress', label: 'Progress' },
   { id: 'import', label: 'Import', pmOnly: true },
   { id: 'period', label: 'Reports', pmOnly: true },
+  // §10.3: S5 "nằm ngoài phạm vi dự án — thuộc về tổ chức", và §10.6 đặt
+  // `manage_resources` chỉ cho admin. Nên nó không đi theo dự án đang chọn.
+  { id: 'admin', label: 'Resources', adminOnly: true },
 ];
 
 /**
@@ -64,12 +74,19 @@ type SidePanel = 'issues' | 'links' | 'detail';
 
 export function App(): JSX.Element {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  // `/api/me` vẫn luôn trả `isAdmin`, chỉ là trước đây bị bỏ đi. S5 cần nó để biết có
+  // hiện tab hay không — vẫn chỉ là ẩn nút, còn chặn thật nằm ở server (§10.6).
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     let alive = true;
     fetch('/api/me')
-      .then((res) => {
-        if (alive) setSignedIn(res.ok);
+      .then(async (res) => {
+        if (!alive) return;
+        setSignedIn(res.ok);
+        if (!res.ok) return;
+        const body = (await res.json()) as { user?: { isAdmin?: boolean } };
+        if (alive) setIsAdmin(body.user?.isAdmin === true);
       })
       .catch(() => {
         if (alive) setSignedIn(false);
@@ -81,10 +98,16 @@ export function App(): JSX.Element {
 
   if (signedIn === null) return <main className="app__boot">Loading…</main>;
   if (!signedIn) return <SignIn onSignedIn={() => setSignedIn(true)} />;
-  return <Workspace onSignedOut={() => setSignedIn(false)} />;
+  return <Workspace isAdmin={isAdmin} onSignedOut={() => setSignedIn(false)} />;
 }
 
-function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.Element {
+function Workspace({
+  isAdmin,
+  onSignedOut,
+}: {
+  readonly isAdmin: boolean;
+  readonly onSignedOut: () => void;
+}): JSX.Element {
   const [projectId, setProjectId] = useState<string | null>(null);
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [showRecalc, setShowRecalc] = useState(false);
@@ -214,6 +237,14 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.wbs.dependencies.query({ taskUid: selectedUid });
   }, [selectedUid]);
 
+  /** S5 — chỉ tải khi màn đang mở, và chỉ cho admin. */
+  const loadAdmin = useCallback(() => {
+    if (!isAdmin || screen !== 'admin') return Promise.resolve(null);
+    return Promise.all([trpc.admin.overview.query(), trpc.admin.exceptions.query({})]).then(
+      ([overview, exceptions]) => ({ ...overview, exceptions }),
+    );
+  }, [isAdmin, screen]);
+
   /** S2 — chỉ tải khi tab đang mở: panel này nặng hơn hai tab kia và ít được mở hơn. */
   const loadDetail = useCallback((): Promise<TaskDetail | null> => {
     if (selectedUid === null || sidePanel !== 'detail') return Promise.resolve(null);
@@ -237,6 +268,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
   const links = useAsync(loadLinks, [selectedUid, savedAt]);
   const detail = useAsync(loadDetail, [selectedUid, sidePanel, savedAt]);
+  const adminData = useAsync(loadAdmin, [isAdmin, screen, savedAt]);
 
   const rows: WbsRow[] = tree.status === 'ready' ? tree.data : [];
   const selectedRow = rows.find((r) => r.uid === selectedUid) ?? null;
@@ -484,6 +516,27 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     }
   }
 
+  /**
+   * S5 — mọi thao tác quản trị đi chung một đường.
+   *
+   * Dùng lại `afterWrite` để danh sách tự nạp lại. KHÔNG chạy scheduler: §10.1 nói lịch
+   * chỉ đổi khi PM bấm Recalculate. Thêm một ngày lễ là đổi dữ liệu ĐẦU VÀO của engine —
+   * lịch hiện tại vẫn là lịch cũ cho tới lượt tính kế tiếp, và đó là đúng ý §10.1.
+   */
+  async function adminWrite(run: () => Promise<unknown>): Promise<void> {
+    setWriteError(null);
+    setWriting(true);
+    try {
+      await run();
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+      throw error;
+    } finally {
+      setWriting(false);
+    }
+  }
+
   async function removeLink(direction: LinkDirection, link: TaskLink): Promise<void> {
     if (selectedUid === null) return;
     setWriteError(null);
@@ -688,7 +741,9 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
         </nav>
 
         <nav className="app__screens" aria-label="Screens">
-          {SCREENS.filter((s) => s.pmOnly !== true || canImport).map((s) => (
+          {SCREENS.filter(
+            (s) => (s.pmOnly !== true || canImport) && (s.adminOnly !== true || isAdmin),
+          ).map((s) => (
             <button
               key={s.id}
               type="button"
@@ -733,7 +788,25 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       ) : null}
 
       <main className={screen === 'wbs' ? 'app__main' : 'app__main app__main--wide'}>
-        {screen === 'period' ? (
+        {screen === 'admin' ? (
+          <AdminScreen
+            resources={adminData.status === 'ready' ? (adminData.data?.resources ?? []) : []}
+            calendars={adminData.status === 'ready' ? (adminData.data?.calendars ?? []) : []}
+            locations={adminData.status === 'ready' ? (adminData.data?.locations ?? []) : []}
+            exceptions={adminData.status === 'ready' ? (adminData.data?.exceptions ?? []) : []}
+            loading={adminData.status === 'loading'}
+            busy={writing}
+            error={writeError}
+            onSaveResource={(input: SaveResourceInput) =>
+              adminWrite(() => trpc.admin.saveResource.mutate(input))
+            }
+            onAddException={(input) => adminWrite(() => trpc.admin.addException.mutate(input))}
+            onAddLeave={(input) => adminWrite(() => trpc.admin.addResourceLeave.mutate(input))}
+            onRemoveException={(id: number) =>
+              adminWrite(() => trpc.admin.removeException.mutate({ id }))
+            }
+          />
+        ) : screen === 'period' ? (
           /*
            * `key` theo dự án để React DỰNG LẠI màn khi PM đổi dự án.
            *
