@@ -24,6 +24,17 @@ import * as importRepo from '@planix/core/db/repo/import-repo.js';
 import * as mcpRepo from '@planix/core/db/repo/mcp-repo.js';
 import { projectOfTask, loadTaskDependencies } from '@planix/core/db/repo/read-repo.js';
 import { validate } from '@planix/core/domain/validator.js';
+import { resourceLoad, LoadWindowTooWideError } from '@planix/core/domain/resource-load.js';
+import { diffBaseline } from '@planix/core/domain/baseline.js';
+import {
+  baselineBelongsTo,
+  listBaselines,
+  loadBaselineTasks,
+  readBaselineSnapshot,
+} from '@planix/core/db/repo/baseline-repo.js';
+import { createCalendarEngine } from '@planix/core/domain/calendar.js';
+import { loadCalendarSnapshot } from '@planix/core/db/repo/calendar-repo.js';
+import { unsafeDateOnly } from '@planix/core/domain/date-only.js';
 import { assertCan, ForbiddenError } from '../auth/permissions.js';
 import { errorResult, jsonResult, type McpContext, type McpToolResult } from './result.js';
 import { registerWriteTools } from './write-tools.js';
@@ -377,6 +388,151 @@ export function createMcpServer(ctx: McpContext): McpServer {
         if (input === undefined) return errorResult(`No project ${project}.`);
         return jsonResult(validate(input));
       }),
+  );
+
+  server.registerTool(
+    'wbs_get_resource_load',
+    {
+      title: 'Get the people × period load matrix',
+      description:
+        "How much each person is booked against the capacity they actually have. The denominator is that person's own calendar with holidays and personal leave already removed — so a week with a Japanese public holiday shows as a short week, not a slack one. Everything is in person-days (MD): half a day at 0.5 allocation is 0.25 MD. People with nothing booked are listed too, with zero — that is usually the point of asking. Set cross_project to count bookings from every project sharing the pool (§7.12); without it someone fully booked elsewhere looks free.",
+      inputSchema: {
+        project: z.string().min(1),
+        by: z.enum(['day', 'week', 'month']).default('week'),
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        cross_project: z.boolean().default(false),
+      },
+      annotations: readOnly,
+    },
+    (args) =>
+      inProject(args.project, (projectId) => {
+        const resources = mcpRepo.loadRelevantResources(ctx.db, projectId);
+        const engine = createCalendarEngine(loadCalendarSnapshot(ctx.db));
+        const nameById = new Map(resources.map((r) => [r.id, r.name]));
+
+        try {
+          return jsonResult(
+            resourceLoad({
+              spans: mcpRepo
+                .loadSpansInWindow(ctx.db, {
+                  projectId,
+                  from: args.from,
+                  to: args.to,
+                  crossProject: args.cross_project,
+                })
+                .map((s) => ({
+                  resourceId: s.resourceId,
+                  resourceName: s.resourceName,
+                  fromDate: unsafeDateOnly(s.fromDate),
+                  toDate: unsafeDateOnly(s.toDate),
+                  allocation: s.allocation,
+                  projectId: s.projectId,
+                })),
+              from: unsafeDateOnly(args.from),
+              to: unsafeDateOnly(args.to),
+              bucket: args.by,
+              capacityOn: (resourceId, date) => engine.capacityOn(resourceId, date),
+              projectId,
+              resourceIds: resources.map((r) => r.id),
+              nameOf: (id) => nameById.get(id) ?? id,
+            }),
+          );
+        } catch (error) {
+          // Cửa sổ quá rộng là lỗi của người gọi, không phải sự cố máy chủ — nói rõ để AI
+          // thu hẹp lại thay vì thử lại y nguyên.
+          if (error instanceof LoadWindowTooWideError) return errorResult(error.message);
+          throw error;
+        }
+      }),
+  );
+
+  server.registerTool(
+    'wbs_diff_baseline',
+    {
+      title: 'Compare the plan against a baseline',
+      description:
+        'What changed since a baseline was taken: tasks added or removed, effort changed, end dates slipped. addedEffortMd is the total MD of work that did not exist at baseline — that number is the scope-creep figure (§7.13). Call without baseline_id to compare against the most recent one.',
+      inputSchema: {
+        project: z.string().min(1),
+        baseline_id: z
+          .string()
+          .min(1)
+          .optional()
+          .describe('From wbs_list_baselines; omit for the latest'),
+      },
+      annotations: readOnly,
+    },
+    (args) =>
+      inProject(args.project, (projectId) => {
+        const baselines = listBaselines(ctx.db, projectId);
+        if (baselines.length === 0) {
+          return errorResult(
+            'NOT_FOUND: this project has no baseline yet; close a period first (§7.13).',
+          );
+        }
+
+        const chosen = args.baseline_id ?? baselines[0]?.id;
+        if (chosen === undefined) return errorResult('NOT_FOUND: no baseline.');
+        // Không cho so với baseline của dự án KHÁC: id là chuỗi tự do từ phía client, và
+        // ảnh chụp mang theo tên cùng khối lượng của cả một dự án.
+        if (!baselineBelongsTo(ctx.db, chosen, projectId)) {
+          return errorResult(`NOT_FOUND: baseline ${chosen} does not belong to this project.`);
+        }
+
+        const snapshot = readBaselineSnapshot(ctx.db, chosen);
+        const current = loadBaselineTasks(ctx.db, projectId);
+        const diff = diffBaseline(
+          snapshot.map((r) => ({
+            uid: r.uid,
+            wbsCode: r.wbsCode,
+            name: r.name,
+            effortMd: r.effortMd,
+            startDate: r.startDate === null ? null : unsafeDateOnly(r.startDate),
+            endDate: r.endDate === null ? null : unsafeDateOnly(r.endDate),
+            status: 'not_started' as const,
+            percent: 0,
+          })),
+          current,
+        );
+
+        // Trả kèm mã và tên. Danh sách uid trần buộc AI gọi thêm một lượt cho mỗi task —
+        // và với task đã bị XOÁ thì không lượt nào tra được nữa, vì nó không còn trong DB.
+        const labelOf = new Map<string, { wbsCode: string; name: string }>();
+        for (const r of snapshot) labelOf.set(r.uid, { wbsCode: r.wbsCode, name: r.name });
+        for (const t of current) labelOf.set(t.uid, { wbsCode: t.wbsCode, name: t.name });
+        const label = (uid: string): Record<string, unknown> => ({
+          uid,
+          ...(labelOf.get(uid) ?? {}),
+        });
+
+        const meta = baselines.find((b) => b.id === chosen);
+        return jsonResult({
+          baseline: {
+            id: chosen,
+            label: meta?.label ?? null,
+            statusDate: meta?.statusDate ?? null,
+          },
+          added: diff.added.map(label),
+          removed: diff.removed.map(label),
+          effortChanged: diff.effortChanged.map((c) => ({ ...label(c.uid), ...c })),
+          slipped: diff.slipped.map((c) => ({ ...label(c.uid), ...c })),
+          addedEffortMd: diff.addedEffortMd,
+        });
+      }),
+  );
+
+  server.registerTool(
+    'wbs_list_baselines',
+    {
+      title: 'List baselines',
+      description:
+        'Baselines taken for this project, newest first. The oldest is the committed plan every scope-creep comparison is measured against (§7.13).',
+      inputSchema: { project: z.string().min(1) },
+      annotations: readOnly,
+    },
+    ({ project }) =>
+      inProject(project, (projectId) => jsonResult(listBaselines(ctx.db, projectId))),
   );
 
   // ── §12.2 — tool ghi ──────────────────────────────────────────────────────
