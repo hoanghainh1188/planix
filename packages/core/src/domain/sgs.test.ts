@@ -330,3 +330,69 @@ describe('runSgs — tính tái lập, điều kiện của M2 (§14.2 P4)', () 
     );
   });
 });
+
+/**
+ * §7.6 — `delay_reason` phải gọi tên ràng buộc THẬT SỰ quyết định ngày bắt đầu.
+ *
+ * Trước bản sửa, nhánh đặt lý do `resource` / `cross_project` còn đòi `reason === null`.
+ * Mà gần như task nào cũng có predecessor, nên `reason` đã bị `dependency` chiếm chỗ
+ * trước — và hai giá trị kia **chưa bao giờ được phát ra**.
+ *
+ * Đo trên `data/dev.db`: trước 742 `dependency` / 0 `resource` / 0 `cross_project` / 0
+ * issue `J14`; sau 412 / 251 / 79 / 79. Ngày tháng KHÔNG đổi — đây thuần là nhãn.
+ *
+ * §7.12 nói rõ *"Dự án ưu tiên thấp bị đẩy → issue `J14` nêu rõ dự án nào chiếm chỗ"*.
+ * Với điều kiện cũ thì rule đó thực tế đã chết.
+ */
+describe('runSgs — delay_reason gọi tên ràng buộc BINDING (§7.6)', () => {
+  /**
+   * A và B cùng một người. B có predecessor A (nên `dependency` được đặt trước), nhưng
+   * cái thật sự giữ B lại là NGƯỜI — A còn đang dùng.
+   *
+   * Nhãn đúng phải là `resource`: dời A sớm hơn cũng không giúp gì nếu người vẫn bận.
+   */
+  it('bị dependency đẩy RỒI bị người đẩy tiếp thì nhãn là resource', () => {
+    // Ba task, MỘT người, `maxParallel: 1`.
+    //
+    //   T-1 (ưu tiên 1) chạy trước, chiếm ngày đầu.
+    //   T-3 (ưu tiên 2) chiếm ba ngày kế — nó KHÔNG liên quan gì tới T-2.
+    //   T-2 (ưu tiên 3) phụ thuộc T-1, nên cận dưới của nó là ngay sau T-1…
+    //     …nhưng người thì bận T-3, nên nó phải đợi thêm ba ngày nữa.
+    //
+    // Dời T-1 sớm hơn không giúp gì cho T-2. Thứ giữ T-2 lại là NGƯỜI.
+    const out = run({
+      clusters: [{ uid: 'C1', leafUids: ['T-1', 'T-2', 'T-3'] }],
+      tasks: [
+        task('T-1', { effortMd: 1, priority: 1 }),
+        task('T-3', { effortMd: 3, priority: 2 }),
+        task('T-2', { effortMd: 1, priority: 3 }),
+      ],
+      edges: [{ predUid: 'T-1', succUid: 'T-2', type: 'FS', lagDays: 0 }],
+      resources: [res('R-1', { maxParallel: 1 })],
+    });
+
+    const a = out.schedule.get('T-1');
+    const b = out.schedule.get('T-2');
+    expect(a && b).toBeTruthy();
+    // Điều kiện của ca này: T-2 phải bắt đầu MUỘN HƠN ngay-sau-T-1. Không có chỗ này thì
+    // test chẳng kiểm được gì — nó sẽ xanh kể cả khi bản sửa bị gỡ.
+    expect(b?.startDate).not.toBe(a?.endDate);
+
+    expect(b?.delayReason).toBe('resource');
+    expect(b?.blockingRef).toBe('R-1');
+  });
+
+  /** Không bị đẩy thêm thì nhãn vẫn là `dependency` — bản sửa không làm mất ca đó. */
+  it('chỉ bị dependency đẩy thì nhãn vẫn là dependency', () => {
+    const out = run({
+      clusters: [{ uid: 'C1', leafUids: ['T-1', 'T-2'] }],
+      tasks: [task('T-1', { effortMd: 1 }), task('T-2', { effortMd: 1 })],
+      edges: [{ predUid: 'T-1', succUid: 'T-2', type: 'FS', lagDays: 0 }],
+      // Hai người: B không phải chờ ai, chỉ chờ A xong.
+      resources: [res('R-1'), res('R-2')],
+    });
+
+    expect(out.schedule.get('T-2')?.delayReason).toBe('dependency');
+    expect(out.schedule.get('T-2')?.blockingRef).toBe('T-1');
+  });
+});

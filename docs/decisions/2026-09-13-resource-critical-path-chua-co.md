@@ -113,21 +113,48 @@ false`. Lọc sẵn chỉ mức chặt sẽ giấu mất đúng phần mà (iii)
 | GEO   | 5 task, 07-21 → 07-30   | 5 task, 07-02 → 07-16 | **10 task, 07-02 → 07-30** | 03-10 → 07-30 |
 | UTG   | 261 task, 03-02 → 11-27 | 1 task                | 262 task, 03-02 → 11-27    | 03-02 → 11-27 |
 
-## 5b. Hạn chế đã biết — nút gộp vẫn cắt chuỗi GEO
+## 5b. ĐÍNH CHÍNH — không phải nút gộp, mà là ranh giới dự án
 
-Chuỗi GEO nay phủ 07-02 → 07-30 thay vì 07-21 → 07-30, nhưng vẫn dừng trước 03-10.
+**Chẩn đoán cũ ở mục này SAI.** Tôi viết rằng chuỗi GEO đứt tại `~join-00012` vì nút gộp
+không có người nên rule "gần găng" không bắc qua được. Truy lại tới tận cùng thì không
+phải vậy.
 
-Truy tới nơi: mắt đứt là **`~join-00012`**, bắt đầu `2026-07-17`, trong khi **cả 11**
-predecessor có cạnh tường minh của nó chỉ ép tới `2026-07-13` (`T-0759`…`T-0769`). Có một
-task GEO kết thúc `2026-07-16` — tức nút gộp gần như chắc chắn đang chờ nó — nhưng **không
-có cạnh nào** nối task đó vào nút gộp trong tập `sgsEdges`.
+### Vì sao chẩn đoán cũ sai
 
-Nút gộp là nút tổng hợp nên **không bao giờ có người**, vì vậy rule "gần găng" ở §5 không
-bắc qua nó được: không có lịch A để hỏi.
+Tôi đọc nhầm chính công cụ chẩn đoán của mình. Nó chỉ in ra những mắt **KHÔNG** ràng buộc,
+và tôi đếm 11 mắt rồi kết luận nút gộp chỉ có 11 predecessor. Thực ra nó có **12** — mắt
+thứ mười hai (`T-0770`, xong 2026-07-16 ⇒ ép 07-17) khớp ĐÚNG ngày bắt đầu của nút gộp,
+nên nó là mắt ràng buộc và vì thế không bị in ra.
 
-Chưa sửa trong PR này — nguyên nhân nằm trong cách SGS đặt ngày cho nút gộp, sâu hơn phạm
-vi (iii), và nó là hạn chế **có sẵn** chứ không do (iii) sinh ra (trước đó nó cắt cả chuỗi
-nghĩa chặt). Ghi lại kèm ca tái hiện để lần sau khỏi phải dò lại từ đầu.
+Nghĩa là chuỗi **vẫn đi xuyên qua nút gộp bình thường**. Không có hạn chế nào ở đó.
+
+### Nguyên nhân thật
+
+Đầu chuỗi GEO là `T-0766`, bắt đầu `2026-07-02`. Mắt ép muộn nhất của nó chỉ tới
+`2026-06-30`. Hai ngày chênh đó là do:
+
+| Người `R-00`     |                   |
+| ---------------- | ----------------- |
+| GEO `T-0688`     | 06-23 → 06-25     |
+| **UTG `T-0378`** | **06-30 → 07-01** |
+| GEO `T-0766`     | 07-02 → 07-03     |
+
+`R-00` bị **UTG** (ưu tiên 1) giữ đúng hai ngày đó. GEO là ưu tiên 2 nên bị đẩy — chính là
+§7.12 đang hoạt động đúng.
+
+`resourceCriticalPath` chỉ nhận `sgs.assignments`, tức assignment của **dự án đang xét**,
+nên nó không thấy `T-0378` và không có cạnh nào để đi tiếp. Chuỗi dừng.
+
+### Có phải lỗi không?
+
+Không hẳn. Chuỗi của GEO dừng ở đúng chỗ GEO hết quyền kiểm soát: phần còn lại nằm trong
+tay UTG. Đưa một task của UTG vào "đường găng của GEO" là một lựa chọn thiết kế, không
+phải một bản sửa lỗi — nên **không tự làm**.
+
+Thứ THẬT SỰ thiếu là lời giải thích, và nó đã được vá ở chỗ khác: xem
+[`2026-09-14-delay-reason-goi-sai-ten.md`](2026-09-14-delay-reason-goi-sai-ten.md). Trước
+đó `T-0766` mang nhãn `delay_reason = 'dependency'` — nói sai hẳn nguyên nhân; nay nó nói
+`cross_project` / `P-UTG`.
 
 ## 6. Đã khoá lại bằng test
 

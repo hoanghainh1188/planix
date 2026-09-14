@@ -439,7 +439,7 @@ export function runSgs(input: SgsInput): SgsResult {
       if (best === undefined) throw new NoEligibleResourceError(t.uid, t.role);
 
       // Nếu bị đẩy muộn hơn cận dưới thì lý do là chờ người (§7.6).
-      if (best.start > earliest && reason === null) {
+      if (best.start > earliest) {
         // Phân biệt "chờ người trong dự án này" với "bị dự án khác chiếm chỗ".
         // §7.6 tách hai lý do vì cách xử lý khác hẳn: một bên là xếp lại trong dự án,
         // bên kia phải đi thương lượng với PM dự án kia.
