@@ -356,7 +356,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
     {
       title: 'Get the critical path',
       description:
-        "Tasks on the critical path. mode 'cpm' is the theoretical path from phase A (total_float == 0). mode 'resource' is NOT available yet — the scheduler does not compute it — and returns an error rather than an empty list.",
+        "Tasks on the critical path. mode 'cpm' is the theoretical path from phase A, assuming unlimited people (total_float == 0). mode 'resource' is the real chain after resource levelling (phase C, step C1) and follows links created by people, not only by dependencies. A task on the resource path but not the cpm path is one held up by staffing rather than by sequencing — the difference between the two is the cost of being short-staffed (§7.2). Both are empty until the project has been scheduled.",
       inputSchema: {
         project: z.string().min(1),
         mode: z.enum(['cpm', 'resource']).default('cpm'),
@@ -364,22 +364,9 @@ export function createMcpServer(ctx: McpContext): McpServer {
       annotations: readOnly,
     },
     ({ project, mode }) =>
-      inProject(project, (projectId) => {
-        // Pha C bước C1 (§7, sơ đồ) đặt tên "Resource-critical path", nhưng engine chưa
-        // tính: `schedule.is_resource_critical` bị ghi cứng 0 trong `schedule-repo.ts`.
-        // Trả mảng rỗng ở đây là TRẢ LỜI SAI, không phải trả lời thiếu — AI đọc "rỗng"
-        // thành "không có task nào găng" và kết luận ngược hẳn sự thật. Xem
-        // `docs/decisions/2026-09-13-resource-critical-path-chua-co.md`.
-        if (mode === 'resource') {
-          return errorResult(
-            'mode "resource" is not available: the scheduler does not compute the ' +
-              'resource-critical path yet (SPEC §7 phase C, step C1). Use mode "cpm" for ' +
-              'the theoretical path. An empty list here would mean "nothing is critical", ' +
-              'which is not the same thing.',
-          );
-        }
-        return jsonResult(mcpRepo.loadCriticalPath(ctx.db, projectId, mode));
-      }),
+      inProject(project, (projectId) =>
+        jsonResult(mcpRepo.loadCriticalPath(ctx.db, projectId, mode)),
+      ),
   );
 
   server.registerTool(
