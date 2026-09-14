@@ -5,6 +5,7 @@ import {
   checkResourceUtilisation,
   checkThinAllocations,
   type AuditAssignment,
+  type UtilisationAssignment,
   type AuditTask,
 } from './schedule-audit.js';
 import { unsafeDateOnly } from './date-only.js';
@@ -192,7 +193,7 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
   }
 
   function run(
-    assignments: readonly AuditAssignment[],
+    assignments: readonly UtilisationAssignment[],
     over: { resourceIds?: readonly string[]; leave?: Record<string, readonly string[]> } = {},
   ) {
     return checkResourceUtilisation({
