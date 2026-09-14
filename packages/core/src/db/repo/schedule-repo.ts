@@ -176,6 +176,11 @@ export interface WritePayload {
    * `docs/decisions/2026-09-13-resource-critical-path-chua-co.md`.
    */
   readonly resourceCritical: ReadonlySet<string>;
+  /**
+   * Task chỉ rời khỏi đường găng chặt vì LỆCH LỊCH, không vì có chỗ trống thật (§5 của
+   * quyết định 2026-09-13). Rời nhau với `resourceCritical`.
+   */
+  readonly resourceNearCritical: ReadonlySet<string>;
 }
 
 /**
@@ -194,8 +199,8 @@ export function writeScheduleResults(db: Db, payload: WritePayload): { writeLock
     `INSERT INTO schedule
        (task_uid, es, ef, ls, lf, total_float, free_float, is_critical,
         start_date, end_date, duration_days, is_resource_critical,
-        delay_reason, blocking_ref, computed_at)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        is_resource_near_critical, delay_reason, blocking_ref, computed_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insAssignment = db.prepare(
     `INSERT INTO assignment (task_uid, resource_id, allocation, from_date, to_date, is_pinned)
@@ -225,6 +230,7 @@ export function writeScheduleResults(db: Db, payload: WritePayload): { writeLock
         s.endDate,
         s.durationDays,
         payload.resourceCritical.has(uid) ? 1 : 0,
+        payload.resourceNearCritical.has(uid) ? 1 : 0,
         s.delayReason,
         s.blockingRef,
         payload.computedAt,

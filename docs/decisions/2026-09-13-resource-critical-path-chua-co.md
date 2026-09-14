@@ -67,47 +67,74 @@ Sau khi sửa, UTG: **261 task** resource-critical, phủ trọn **2026-03-02 �
 trong đó **138 task găng vì người mà KHÔNG găng theo CPM** — đúng thứ mode `cpm` không
 thấy được.
 
-## 5. Câu hỏi MỚI cho PM — chuỗi đứt ở ngày lễ Nhật
+## 5. Chuỗi đứt ở ngày lễ Nhật — PM chốt phương án (iii)
 
-Sau khi sửa lỗi trên, vẫn còn một hiện tượng, và nó **không phải lỗi**: chuỗi dừng lại ở
+Sau khi sửa lỗi nút gộp, vẫn còn một hiện tượng, và nó **không phải lỗi**: chuỗi dừng ở
 chỗ có dư thời gian thật, do **lệch lịch VN ↔ JP**.
-
-Hai ca đã truy tới tận cùng:
 
 | Dự án | Task     | Mốc ép     | Ngày bắt đầu thật | Vì sao                                           |
 | ----- | -------- | ---------- | ----------------- | ------------------------------------------------ |
 | GEO   | `T-0772` | 2026-07-20 | 2026-07-21        | `海の日` — người làm ở JP                        |
 | UTG   | `T-0584` | 2026-09-22 | 2026-09-24        | `敬老の日` / `国民の休日` / `秋分の日` (21–23/9) |
 
-Cả hai dự án có `default_location = 'VN'` nên lịch cộng lag là `CAL-VN`, còn người làm lại
-ở `JP`. Ngày lễ Nhật không phải ngày nghỉ VN, nên predecessor có **1–2 ngày dư thật**: dời
-nó một ngày thì task sau **vẫn** bắt đầu đúng ngày cũ. Loại nó khỏi đường găng là **đúng**.
+Cả hai dự án `default_location = 'VN'` nên lag cộng theo `CAL-VN`, còn người làm ở `JP`.
+Predecessor có **1–2 ngày dư thật**: dời nó một ngày thì task sau **vẫn** bắt đầu ngày cũ.
+Loại nó khỏi đường găng nghĩa chặt là **đúng**.
 
-Nhưng hệ quả thực tế: công cụ này sinh ra cho đội VN làm với khách Nhật, nên lệch lịch
-VN↔JP là chuyện thường ngày, không phải ngoại lệ. Chuỗi sẽ **thường xuyên đứt** ở mỗi cụm
-lễ Nhật, và PM sẽ thấy một "đường găng" chỉ dài vài tuần cuối.
+Nhưng công cụ này sinh ra cho đội VN làm với khách Nhật, nên lệch lịch là chuyện thường
+ngày. PM sẽ thường thấy "đường găng" chỉ dài vài tuần cuối.
 
-Đo được trên `dev.db`, khi chỉ xếp riêng UTG: chuỗi còn **31 task**, phủ 2026-09-24 →
-2026-11-17, đứt tại đúng cụm Silver Week.
+**PM chốt (iii) ngày 2026-09-14:** giữ `is_resource_critical` nguyên nghĩa chặt để nó còn
+dùng được cho tính toán, thêm một nhãn riêng cho phần bị cắt.
 
-**Cần PM quyết:** có chấp nhận một ngưỡng dung sai không?
+### Cách cài
 
-- **(i) Giữ nguyên `=== 0`.** Đúng theo định nghĩa đường găng. Chuỗi ngắn là thông tin
-  thật: "chỗ này có một ngày để thở". Nhược: PM hay phải hỏi "sao đường găng ngắn thế".
-- **(ii) Cho phép dung sai N ngày** (ví dụ 3, đủ ôm một cụm lễ Nhật). Chuỗi liền mạch,
-  gần với thứ PM hình dung. Nhược: không còn là "đường găng" theo nghĩa chặt; phải đổi tên
-  và nói rõ trong output.
-- **(iii) Báo cả hai**: `is_resource_critical` giữ nghĩa chặt, thêm một cột/nhãn
-  "near-critical" cho phần bị lễ cắt.
+Cột mới `schedule.is_resource_near_critical` (migration `007`). Hai cột **rời nhau**.
 
-Tôi nghiêng về **(iii)**: giữ con số chặt để nó còn dùng được cho tính toán, đồng thời
-không để PM mất dấu phần còn lại của chuỗi. Nhưng đây là quyết định về thứ PM sẽ đọc hằng
-tuần, nên không tự quyết.
+Định nghĩa "gần găng" **không dùng ngưỡng bằng số ngày**. Thay vào đó hỏi lịch A của
+chính người làm task đó: khoảng hở `[mốc ép, ngày bắt đầu)` có **ngày làm việc nào của
+người ấy** không?
+
+- **Có** ⇒ có chỗ trống thật. Predecessor dư thời gian thật, không gắn nhãn.
+- **Không** ⇒ task đã bắt đầu vào ngày sớm nhất người ấy có thể làm. "Dư" chỉ là lệch
+  lịch ⇒ gắn nhãn.
+
+Ngưỡng cứng kiểu "3 ngày" sẽ vừa bắt hụt Golden Week (dài hơn) vừa bắt nhầm một chỗ trống
+thật đúng 3 ngày. Đo bằng lịch A thì không cần con số nào, và nghỉ phép cá nhân dài cũng
+xử lý đúng.
+
+`wbs_get_critical_path` mode `resource` trả **cả hai mức**, mỗi dòng mang `strict: true |
+false`. Lọc sẵn chỉ mức chặt sẽ giấu mất đúng phần mà (iii) sinh ra để khỏi mất.
+
+### Kết quả đo trên `dev.db`
+
+| Dự án | chặt                    | gần găng              | cả hai                     | dự án         |
+| ----- | ----------------------- | --------------------- | -------------------------- | ------------- |
+| GEO   | 5 task, 07-21 → 07-30   | 5 task, 07-02 → 07-16 | **10 task, 07-02 → 07-30** | 03-10 → 07-30 |
+| UTG   | 261 task, 03-02 → 11-27 | 1 task                | 262 task, 03-02 → 11-27    | 03-02 → 11-27 |
+
+## 5b. Hạn chế đã biết — nút gộp vẫn cắt chuỗi GEO
+
+Chuỗi GEO nay phủ 07-02 → 07-30 thay vì 07-21 → 07-30, nhưng vẫn dừng trước 03-10.
+
+Truy tới nơi: mắt đứt là **`~join-00012`**, bắt đầu `2026-07-17`, trong khi **cả 11**
+predecessor có cạnh tường minh của nó chỉ ép tới `2026-07-13` (`T-0759`…`T-0769`). Có một
+task GEO kết thúc `2026-07-16` — tức nút gộp gần như chắc chắn đang chờ nó — nhưng **không
+có cạnh nào** nối task đó vào nút gộp trong tập `sgsEdges`.
+
+Nút gộp là nút tổng hợp nên **không bao giờ có người**, vì vậy rule "gần găng" ở §5 không
+bắc qua nó được: không có lịch A để hỏi.
+
+Chưa sửa trong PR này — nguyên nhân nằm trong cách SGS đặt ngày cho nút gộp, sâu hơn phạm
+vi (iii), và nó là hạn chế **có sẵn** chứ không do (iii) sinh ra (trước đó nó cắt cả chuỗi
+nghĩa chặt). Ghi lại kèm ca tái hiện để lần sau khỏi phải dò lại từ đầu.
 
 ## 6. Đã khoá lại bằng test
 
-- `resource-critical.test.ts` — 16 ca, gồm một ca khoá **đúng** hành vi đứt chuỗi khi có
-  dư thời gian, kèm giải thích vì sao không được nới `===` thành `<=`.
+- `resource-critical.test.ts` — 21 ca, gồm một ca khoá **đúng** hành vi đứt chuỗi khi có
+  dư thời gian, kèm giải thích vì sao không được nới `===` thành `<=`. Với (iii), ca phân
+  định là hai lịch **cùng ngày tháng y hệt nhau**, chỉ khác người: người nghỉ lễ ⇒ gắn
+  nhãn, người đi làm ⇒ không. Rule chỉ đếm số ngày hở sẽ không phân biệt được hai ca đó.
 - `scenario.test.ts` — 5 ca mức pipeline, trong đó hai ca **đỏ lại** nếu lỗi nút gộp quay
   về (đã kiểm bằng cách tạm phục hồi lỗi).
 - Test tất định so **hai DB sạch**, không phải xếp lại hai lần trên cùng DB — xếp lại lần

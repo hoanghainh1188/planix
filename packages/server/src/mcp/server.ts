@@ -356,7 +356,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
     {
       title: 'Get the critical path',
       description:
-        "Tasks on the critical path. mode 'cpm' is the theoretical path from phase A, assuming unlimited people (total_float == 0). mode 'resource' is the real chain after resource levelling (phase C, step C1) and follows links created by people, not only by dependencies. A task on the resource path but not the cpm path is one held up by staffing rather than by sequencing — the difference between the two is the cost of being short-staffed (§7.2). Both are empty until the project has been scheduled.",
+        "Tasks on the critical path. mode 'cpm' is the theoretical path from phase A, assuming unlimited people (total_float == 0). mode 'resource' is the real chain after resource levelling (phase C) and follows links created by people, not only by dependencies — a task on it but not on the cpm path is held up by staffing rather than sequencing, which is the cost of being short-staffed (§7.2). In resource mode each row carries strict: true when delaying it by one day delays the whole project, and strict: false when it only left the chain because the assignee's calendar differs from the project's (a Japanese holiday for a VN-scheduled project, say) — those still carry the chain, they just have a day or two of give. Both modes are empty until the project has been scheduled.",
       inputSchema: {
         project: z.string().min(1),
         mode: z.enum(['cpm', 'resource']).default('cpm'),

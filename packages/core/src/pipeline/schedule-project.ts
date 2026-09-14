@@ -383,7 +383,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   //
   // Tính TRƯỚC khi ghi để nó vào cùng một transaction với phần còn lại của lịch: hai
   // thao tác ghi riêng sẽ có một khoảnh khắc lịch mới đi cùng cờ găng cũ.
-  const resourceCritical = resourceCriticalPath({
+  const { critical: resourceCritical, nearCritical: resourceNearCritical } = resourceCriticalPath({
     schedule: fullSchedule,
     edges: sgsEdges,
     assignments: sgs.assignments,
@@ -399,6 +399,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
     schedule,
     assignments: sgs.assignments,
     resourceCritical,
+    resourceNearCritical,
   });
 
   let projectEnd: DateOnly | null = null;

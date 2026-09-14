@@ -23,6 +23,10 @@ const d = (s: string): DateOnly => s as DateOnly;
  * riêng trong `calendar.test.ts`.
  */
 const engine = {
+  capacityOn(_res: string, date: DateOnly): number {
+    const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+    return dow === 0 || dow === 6 ? 0 : 1;
+  },
   addWorkingDays(_cal: string, from: DateOnly, days: number): DateOnly {
     let cursor = new Date(`${from}T00:00:00Z`);
     let left = days;
@@ -48,19 +52,27 @@ interface Case {
   readonly assignments?: readonly RcAssignment[];
 }
 
-function run(c: Case): string[] {
+function call(c: Case, overrideEngine?: typeof engine): ReturnType<typeof resourceCriticalPath> {
   const schedule = new Map<string, RcScheduleRow>(
     Object.entries(c.schedule).map(([uid, [s, e]]) => [uid, { startDate: d(s), endDate: d(e) }]),
   );
-  return [
-    ...resourceCriticalPath({
-      schedule,
-      edges: c.edges ?? [],
-      assignments: c.assignments ?? [],
-      engine,
-      calendarId: 'CAL',
-    }),
-  ].sort();
+  return resourceCriticalPath({
+    schedule,
+    edges: c.edges ?? [],
+    assignments: c.assignments ?? [],
+    engine: overrideEngine ?? engine,
+    calendarId: 'CAL',
+  });
+}
+
+/** Tập găng nghĩa CHẶT. */
+function run(c: Case, overrideEngine?: typeof engine): string[] {
+  return [...call(c, overrideEngine).critical].sort();
+}
+
+/** Tập chỉ rời khỏi chuỗi vì lệch lịch. */
+function near(c: Case, overrideEngine?: typeof engine): string[] {
+  return [...call(c, overrideEngine).nearCritical].sort();
 }
 
 describe('resourceCriticalPath', () => {
@@ -291,5 +303,89 @@ describe('resourceCriticalPath', () => {
       { predUid: 'B' as const, succUid: 'C' as const, type: 'FS' as const, lagDays: 0 },
     ];
     expect(run({ schedule, edges })).toEqual(run({ schedule, edges: [...edges].reverse() }));
+  });
+});
+
+/**
+ * Phương án (iii) PM chốt 2026-09-14: giữ nghĩa chặt, thêm nhãn cho phần chuỗi bị cắt vì
+ * LỆCH LỊCH.
+ *
+ * Phân biệt then chốt — và là lý do rule này không dùng ngưỡng bằng số ngày:
+ *
+ *   - Người đó CÓ thể làm trong khoảng hở ⇒ có chỗ trống thật ⇒ không gắn nhãn.
+ *   - Người đó KHÔNG làm được ngày nào trong khoảng ⇒ task đã bắt đầu sớm nhất có thể
+ *     ⇒ "dư" chỉ là lệch lịch ⇒ gắn nhãn.
+ *
+ * Ngưỡng cứng kiểu "3 ngày" sẽ vừa bắt hụt Golden Week vừa bắt nhầm chỗ trống thật đúng
+ * 3 ngày. Đo bằng lịch A của đúng người đó thì không cần con số nào.
+ */
+describe('near-critical (phương án iii)', () => {
+  /** Lịch có R-JP nghỉ 2026-01-06 và 2026-01-07; R-VN làm bình thường. */
+  const twoCalendars = {
+    ...engine,
+    capacityOn(resourceId: string, date: DateOnly): number {
+      const dow = new Date(`${date}T00:00:00Z`).getUTCDay();
+      if (dow === 0 || dow === 6) return 0;
+      if (resourceId === 'R-JP' && (date === '2026-01-06' || date === '2026-01-07')) return 0;
+      return 1;
+    },
+  };
+
+  /** A xong 05 ⇒ mốc ép 06. B chờ tới 08 vì người của nó nghỉ 06 và 07. */
+  const holidayCase: Case = {
+    schedule: { A: ['2026-01-05', '2026-01-05'], B: ['2026-01-08', '2026-01-09'] },
+    edges: [{ predUid: 'A', succUid: 'B', type: 'FS', lagDays: 0 }],
+    assignments: [
+      { taskUid: 'B', resourceId: 'R-JP', fromDate: d('2026-01-08'), toDate: d('2026-01-09') },
+    ],
+  };
+
+  it('nghỉ lễ làm đứt chuỗi chặt, nhưng predecessor được gắn nhãn gần găng', () => {
+    expect(run(holidayCase, twoCalendars)).toEqual(['B']);
+    expect(near(holidayCase, twoCalendars)).toEqual(['A']);
+  });
+
+  /**
+   * Cùng ngày tháng y hệt, chỉ đổi người sang R-VN — người này làm được 06 và 07.
+   *
+   * Đây là ca phân định: nếu rule chỉ đếm số ngày hở thì hai ca này giống hệt nhau và
+   * cả hai cùng được gắn nhãn. Chúng KHÔNG giống nhau — ở đây B thật sự có hai ngày để
+   * thở, nên A không được gắn gì cả.
+   */
+  it('cùng khoảng hở nhưng người ĐI LÀM ⇒ là chỗ trống thật, không gắn nhãn', () => {
+    const realSlack: Case = {
+      ...holidayCase,
+      assignments: [
+        { taskUid: 'B', resourceId: 'R-VN', fromDate: d('2026-01-08'), toDate: d('2026-01-09') },
+      ],
+    };
+    expect(run(realSlack, twoCalendars)).toEqual(['B']);
+    expect(near(realSlack, twoCalendars)).toEqual([]);
+  });
+
+  it('hai tập rời nhau — task đã găng chặt thì không mang nhãn lỏng', () => {
+    const r = call(holidayCase, twoCalendars);
+    for (const uid of r.critical) expect(r.nearCritical.has(uid)).toBe(false);
+  });
+
+  it('chuỗi liền mạch thì không có gì gần găng', () => {
+    const c: Case = {
+      schedule: {
+        A: ['2026-01-05', '2026-01-06'],
+        B: ['2026-01-07', '2026-01-08'],
+      },
+      edges: [{ predUid: 'A', succUid: 'B', type: 'FS', lagDays: 0 }],
+    };
+    expect(run(c)).toEqual(['A', 'B']);
+    expect(near(c)).toEqual([]);
+  });
+
+  /** Không ai được gán (mốc thuần §7.10) thì không có lịch A để hỏi — không kết luận. */
+  it('task không có người thì không gắn nhãn', () => {
+    const c: Case = {
+      schedule: { A: ['2026-01-05', '2026-01-05'], M: ['2026-01-08', '2026-01-08'] },
+      edges: [{ predUid: 'A', succUid: 'M', type: 'FS', lagDays: 0 }],
+    };
+    expect(near(c, twoCalendars)).toEqual([]);
   });
 });

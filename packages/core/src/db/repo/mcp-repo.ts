@@ -143,6 +143,15 @@ export interface CriticalPathRow {
   readonly startDate: string | null;
   readonly endDate: string | null;
   readonly totalFloat: number | null;
+  /**
+   * Chỉ có ở mode `resource`.
+   *
+   * `true` = găng nghĩa chặt: dời một ngày là đẩy cả chuỗi.
+   * `false` = chỉ rời khỏi chuỗi vì LỆCH LỊCH (lễ Nhật, người làm ở JP còn dự án chạy
+   * lịch VN), không vì có chỗ trống thật. PM chốt báo cả hai — xem
+   * `docs/decisions/2026-09-13-resource-critical-path-chua-co.md` §5.
+   */
+  readonly strict?: boolean;
 }
 
 /**
@@ -161,28 +170,51 @@ export function loadCriticalPath(
   projectId: string,
   mode: 'cpm' | 'resource',
 ): CriticalPathRow[] {
-  const sql =
-    mode === 'cpm'
-      ? `SELECT t.uid, t.wbs_code, t.name, s.start_date, s.end_date, s.total_float
-           FROM task t JOIN schedule s ON s.task_uid = t.uid
-          WHERE t.project_id = ? AND s.is_critical = 1
-          ORDER BY s.start_date, t.wbs_code`
-      : `SELECT t.uid, t.wbs_code, t.name, s.start_date, s.end_date, s.total_float
-           FROM task t JOIN schedule s ON s.task_uid = t.uid
-          WHERE t.project_id = ? AND s.is_resource_critical = 1
-          ORDER BY s.start_date, t.wbs_code`;
-
+  // Cột là hằng trong mã nguồn, không ghép từ tham số — `mode` là union hai giá trị nên
+  // không có đường nào để chuỗi từ ngoài chạm vào câu SQL.
+  //
   // Tie-break bằng `wbs_code` sau `start_date`: nhiều task cùng ngày bắt đầu là chuyện
   // thường, và thứ tự trả về phải xác định (N2).
-  const rows = db.prepare(sql).all(projectId) as Array<Record<string, unknown>>;
+  if (mode === 'cpm') {
+    const rows = db
+      .prepare(
+        `SELECT t.uid, t.wbs_code, t.name, s.start_date, s.end_date, s.total_float
+           FROM task t JOIN schedule s ON s.task_uid = t.uid
+          WHERE t.project_id = ? AND s.is_critical = 1
+          ORDER BY s.start_date, t.wbs_code`,
+      )
+      .all(projectId) as Array<Record<string, unknown>>;
+    return rows.map(toPathRow);
+  }
+
+  // Mode `resource` trả CẢ HAI mức, mỗi dòng tự nói mình thuộc mức nào. Lọc sẵn chỉ mức
+  // chặt sẽ giấu mất phần chuỗi bị lễ Nhật cắt — đúng thứ phương án (iii) sinh ra để
+  // khỏi mất.
+  const rows = db
+    .prepare(
+      `SELECT t.uid, t.wbs_code, t.name, s.start_date, s.end_date, s.total_float,
+              s.is_resource_critical
+         FROM task t JOIN schedule s ON s.task_uid = t.uid
+        WHERE t.project_id = ?
+          AND (s.is_resource_critical = 1 OR s.is_resource_near_critical = 1)
+        ORDER BY s.start_date, t.wbs_code`,
+    )
+    .all(projectId) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
+    ...toPathRow(r),
+    strict: (r['is_resource_critical'] as number) === 1,
+  }));
+}
+
+function toPathRow(r: Record<string, unknown>): CriticalPathRow {
+  return {
     uid: r['uid'] as string,
     wbsCode: r['wbs_code'] as string,
     name: r['name'] as string,
     startDate: (r['start_date'] as string | null) ?? null,
     endDate: (r['end_date'] as string | null) ?? null,
     totalFloat: (r['total_float'] as number | null) ?? null,
-  }));
+  };
 }
 
 /** Một mắt trong chuỗi chặn. `ref` là task uid, resource id hay project id tuỳ `reason`. */
