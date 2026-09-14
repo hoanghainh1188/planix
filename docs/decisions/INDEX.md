@@ -40,3 +40,4 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 | 2026-09-14 | [Tải nhân sự đang tính sai — allocation không phải tải/ngày](2026-09-14-tai-nhan-su-tinh-sai.md)                | §12.1, §8.2 J06                       | Đã sửa báo cáo; **J06 cần PM**            |
 | 2026-09-14 | [S9 — Resource pool: phạm vi tự quyết](2026-09-14-s9-pham-vi.md)                                                | §10.3, §7.12                          | Tự quyết — chỉ đọc, xuyên dự án           |
 | 2026-09-14 | [delay_reason gọi sai tên — resource/cross_project chưa từng xuất hiện](2026-09-14-delay-reason-goi-sai-ten.md) | §7.6, §7.12                           | Đã sửa; **79 J14 mới, PM cân**            |
+| 2026-09-14 | [Lớp test component cho web](2026-09-14-lop-test-component-web.md)                                              | §10 (không có mục riêng)              | Đã làm — 29 test, 3 dependency            |
