@@ -296,3 +296,82 @@ export function explainTask(db: Db, uid: string): TaskExplanation {
 
   return { taskUid: uid, chain, truncated };
 }
+
+/** Một lượt đặt chỗ, dùng cho ma trận người × kỳ (§12.1 `wbs_get_resource_load`). */
+export interface LoadSpanRow {
+  readonly resourceId: string;
+  readonly resourceName: string;
+  readonly fromDate: string;
+  readonly toDate: string;
+  readonly allocation: number;
+  readonly projectId: string;
+}
+
+/**
+ * Đặt chỗ giao với cửa sổ `[from, to]`.
+ *
+ * `crossProject` quyết định phạm vi, và khác biệt giữa hai chế độ là có thật: §7.12 cho
+ * hai dự án dùng chung một pool nhân sự, nên chỉ nhìn dự án đang xét sẽ thấy một người
+ * bận kín ở nơi khác là "đang rảnh". Đó là câu trả lời sai cho câu hỏi hay được hỏi nhất.
+ *
+ * Lọc giao khoảng ngay trong SQL chứ không tải hết rồi lọc trong JS: pool nhân sự dùng
+ * chung nên bảng `assignment` là toàn cục, không giới hạn theo dự án.
+ */
+export function loadSpansInWindow(
+  db: Db,
+  params: {
+    readonly projectId: string;
+    readonly from: string;
+    readonly to: string;
+    readonly crossProject: boolean;
+  },
+): LoadSpanRow[] {
+  const sql = `SELECT a.resource_id, r.name, a.from_date, a.to_date, a.allocation, t.project_id
+                 FROM assignment a
+                 JOIN task t     ON t.uid = a.task_uid
+                 JOIN resource r ON r.id = a.resource_id
+                WHERE a.from_date <= ? AND a.to_date >= ?
+                  ${params.crossProject ? '' : 'AND t.project_id = ?'}
+                ORDER BY a.resource_id, a.from_date, a.task_uid`;
+
+  const args: unknown[] = params.crossProject
+    ? [params.to, params.from]
+    : [params.to, params.from, params.projectId];
+
+  const rows = db.prepare(sql).all(...args) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    resourceId: r['resource_id'] as string,
+    resourceName: r['name'] as string,
+    fromDate: r['from_date'] as string,
+    toDate: r['to_date'] as string,
+    allocation: r['allocation'] as number,
+    projectId: r['project_id'] as string,
+  }));
+}
+
+/**
+ * Người cần báo cáo: ai có đặt chỗ trong dự án này, HOẶC ai đảm nhiệm được role mà dự án
+ * đang dùng.
+ *
+ * Vế thứ hai là chỗ quan trọng: người chưa được xếp việc nào thì không có dòng
+ * `assignment` nào, và họ chính là người PM đang đi tìm khi hỏi "ai đang rảnh".
+ */
+export function loadRelevantResources(
+  db: Db,
+  projectId: string,
+): Array<{ id: string; name: string }> {
+  const rows = db
+    .prepare(
+      `SELECT DISTINCT r.id, r.name
+         FROM resource r
+        WHERE r.id IN (SELECT a.resource_id FROM assignment a
+                         JOIN task t ON t.uid = a.task_uid
+                        WHERE t.project_id = ?)
+           OR r.id IN (SELECT rr.resource_id FROM resource_role rr
+                        WHERE rr.role IN (SELECT DISTINCT role FROM task
+                                           WHERE project_id = ? AND role IS NOT NULL))
+        ORDER BY r.id`,
+    )
+    .all(projectId, projectId) as Array<Record<string, unknown>>;
+  return rows.map((r) => ({ id: r['id'] as string, name: r['name'] as string }));
+}

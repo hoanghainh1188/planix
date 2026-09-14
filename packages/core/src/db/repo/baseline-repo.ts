@@ -123,6 +123,15 @@ export function closePeriod(db: Db, params: ClosePeriodParams): ClosePeriodResul
 
 // ── EVM (SPI) ───────────────────────────────────────────────────────────────
 
+/** Baseline có thuộc dự án này không — chặn việc so baseline của dự án khác. */
+export function baselineBelongsTo(db: Db, baselineId: string, projectId: string): boolean {
+  return (
+    db
+      .prepare('SELECT 1 FROM baseline WHERE id = ? AND project_id = ?')
+      .get(baselineId, projectId) !== undefined
+  );
+}
+
 export interface BaselineSummary {
   readonly id: string;
   readonly label: string;
@@ -152,6 +161,16 @@ export interface BaselineSnapshotRow {
   readonly effortMd: number;
   readonly startDate: string | null;
   readonly endDate: string | null;
+  /**
+   * Hai trường chỉ để ĐỌC ra cho người, không dùng để tính.
+   *
+   * `diffBaseline` chỉ cần uid/effort/endDate. Nhưng §12.1 `wbs_diff_baseline` trả về
+   * danh sách task ĐÃ BỊ XOÁ — và với những task đó thì bản chụp là nơi DUY NHẤT còn tên
+   * và mã của chúng. Thiếu hai trường này thì AI chỉ nhận được một danh sách uid trần,
+   * và phải đi hỏi lại đúng thứ không còn tồn tại nữa.
+   */
+  readonly wbsCode: string;
+  readonly name: string;
 }
 
 /** Đọc một trường chuỗi có thể null, không tin hình dạng JSON. */
@@ -193,6 +212,8 @@ export function readBaselineSnapshot(db: Db, baselineId: string): BaselineSnapsh
       effortMd: typeof effortMd === 'number' ? effortMd : 0,
       startDate: optionalDate(t['startDate']),
       endDate: optionalDate(t['endDate']),
+      wbsCode: typeof t['wbsCode'] === 'string' ? t['wbsCode'] : '',
+      name: typeof t['name'] === 'string' ? t['name'] : '',
     };
   });
 }
