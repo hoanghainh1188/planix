@@ -274,7 +274,7 @@ describe('endpoint (§12.4)', () => {
    * Danh sách tool là bề mặt API của lớp này. Thêm nhầm một tool hay gỡ mất một tool đều
    * là thay đổi hợp đồng với mọi client, và kiểu "có chứa" sẽ không thấy cái nào cả.
    */
-  it('liệt kê đúng bộ tool §12.1, §12.2 và §12.3', async () => {
+  it('liệt kê đúng bộ tool §12.1, §12.2 và §12.3 — đủ, không thừa', async () => {
     const res = await rpc('tools/list', {});
     const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual(
@@ -288,6 +288,9 @@ describe('endpoint (§12.4)', () => {
         'wbs_list_projects',
         'wbs_list_tasks',
         'wbs_validate',
+        'wbs_get_resource_load',
+        'wbs_diff_baseline',
+        'wbs_list_baselines',
         // §12.2 — ghi
         'wbs_delete_dependency',
         'wbs_delete_subtree',
