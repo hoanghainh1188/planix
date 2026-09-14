@@ -151,8 +151,15 @@
 .app__state--error {
   color: var(--c-critical);
 }
-/* Dự án rỗng: chữ và lối vào nằm chồng nhau giữa khung, cần khoảng thở giữa các dòng. */
+/*
+ * Dự án rỗng: ba dòng gom vào giữa khung.
+ *
+ * `.app__state` là grid với `place-items: center` — cái đó căn nội dung TRONG từng ô, còn
+ * các hàng vẫn `stretch` nên ba dòng bị trải đều cả chiều cao: câu dẫn dính trần, nút nằm
+ * giữa, câu cuối rơi xuống đáy. `align-content` mới là thứ dồn hàng lại.
+ */
 .app__state--empty {
+  align-content: center;
   gap: var(--space-3);
   text-align: center;
 }
