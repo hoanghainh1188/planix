@@ -247,13 +247,16 @@ describe('§7 pha C — đường găng sau san tài nguyên', () => {
   });
 
   /**
-   * M2: cùng INPUT ra cùng OUTPUT. Nên phải dựng hai DB sạch giống hệt nhau, không phải
-   * xếp lại hai lần trên cùng một DB.
+   * M2: cùng INPUT ra cùng OUTPUT. Dựng hai DB sạch giống hệt nhau rồi so kết quả.
    *
-   * Bản đầu tôi viết kiểu xếp-lại và nó đỏ — nhưng không phải vì engine bất định. Sau
-   * lần xếp thứ nhất, assignment của P-SIDE đã nằm trong DB và lần sau P-MAIN nạp chúng
-   * làm chỗ đã bị chiếm (§7.12). Input khác thì output khác là ĐÚNG; 85/426 dòng lệch
-   * ngày chính là cơ chế chia sẻ pool đang hoạt động.
+   * Bản đầu của bài này viết kiểu xếp-lại-hai-lần-trên-một-DB và nó đỏ. Lúc đó tôi kết
+   * luận là "input khác thì output khác, đúng thôi" rồi đổi bài đi cho xanh. Kết luận đó
+   * SAI, và nó là lý do một lỗi thật sống sót nhiều tháng: trong một lượt "Recalculate
+   * all", lịch cũ của P-SIDE là output của lượt trước chứ không phải chỗ đã bị chiếm
+   * thật, nên P-MAIN không được phép né nó. Xem bài ngay dưới.
+   *
+   * Bài này vẫn giữ nguyên — hai DB sạch là cách đo M2 đúng nhất — nhưng nó KHÔNG còn
+   * gánh một mình: một bài xanh vì đã tránh chỗ đau thì không phải bằng chứng.
    */
   it('tất định — hai DB sạch giống hệt cho cùng kết quả (N2, M2)', () => {
     const build = (): Db => {
@@ -288,5 +291,34 @@ describe('§7 pha C — đường găng sau san tài nguyên', () => {
       one.close();
       two.close();
     }
+  });
+
+  /**
+   * "Recalculate all" chạy lại trên dữ liệu y nguyên phải cho ĐÚNG kết quả cũ.
+   *
+   * Đây là bài bắt được lỗi mà `cross-project.test.ts` không bắt nổi: ở đó hai dự án nhỏ
+   * dùng chung MỘT người, dự án ưu tiên 1 lấy được khoảng sớm nhất ngay lượt đầu nên lượt
+   * sau nó lấy lại đúng chỗ đó — xanh vì may. Fixture ở đây có 500 + 100 task, nhiều
+   * người và nhiều role, nên một khác biệt nhỏ ở lượt trước đủ để đổi cả RESOURCE_KEY của
+   * lượt sau. Trước khi sửa, ba lượt liên tiếp ra ba kết quả khác nhau và không bao giờ
+   * dừng lại.
+   *
+   * Ba lượt chứ không phải hai: hai lượt chỉ chứng minh "có đổi", ba lượt chứng minh nó
+   * KHÔNG hội tụ về đâu cả.
+   */
+  it('chạy Recalculate all ba lượt trên cùng DB cho kết quả y hệt (M2)', () => {
+    const snap = (): string =>
+      JSON.stringify(
+        db.prepare('SELECT task_uid, start_date, end_date FROM schedule ORDER BY task_uid').all(),
+      );
+
+    const run = (): string => {
+      scheduleAllProjects(db, { runId: 'RPT', now: SCENARIO_AT, windowDays: 2000 });
+      return snap();
+    };
+
+    const first = run();
+    expect(run(), 'lượt 2 phải bằng lượt 1').toBe(first);
+    expect(run(), 'lượt 3 phải bằng lượt 1').toBe(first);
   });
 });

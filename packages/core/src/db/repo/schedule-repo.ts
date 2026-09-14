@@ -285,16 +285,27 @@ export interface ExternalAssignmentRow {
  *
  * Dự án `onhold` / `closed` vẫn được tính: người của họ đã bị giữ chỗ trên thực tế, và
  * bỏ qua sẽ khiến engine hứa một người đang bận ở nơi khác.
+ *
+ * `excludeProjectIds` gồm chính dự án đang xếp, và — khi đang chạy "Recalculate all" —
+ * cả những dự án CHƯA tới lượt trong chính lượt chạy đó. Lịch cũ của nhóm sau là output
+ * của lượt trước, không phải chỗ đã bị chiếm thật; coi nó là đã chiếm thì dự án ưu tiên
+ * cao phải né dự án ưu tiên thấp, và kết quả không bao giờ hội tụ.
  */
-export function loadExternalAssignments(db: Db, excludeProjectId: string): ExternalAssignmentRow[] {
+export function loadExternalAssignments(
+  db: Db,
+  excludeProjectIds: readonly string[],
+): ExternalAssignmentRow[] {
+  // Danh sách do người gọi dựng, không phải từ input ngoài; vẫn đi qua placeholder để
+  // không bao giờ có đường nối chuỗi vào SQL (CLAUDE.md §3).
+  const holes = excludeProjectIds.map(() => '?').join(',');
   const rows = db
     .prepare(
       `SELECT a.resource_id, a.from_date, a.to_date, a.allocation, t.project_id
        FROM assignment a JOIN task t ON t.uid = a.task_uid
-       WHERE t.project_id != ?
+       WHERE t.project_id NOT IN (${holes === '' ? "''" : holes})
        ORDER BY a.resource_id, a.from_date, t.project_id, a.task_uid`,
     )
-    .all(excludeProjectId) as Array<Record<string, unknown>>;
+    .all(...excludeProjectIds) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
     resourceId: r['resource_id'] as string,
     fromDate: r['from_date'] as DateOnly,

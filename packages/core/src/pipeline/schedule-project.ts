@@ -61,10 +61,19 @@ export interface ScheduleOptions {
   /**
    * Coi assignment của dự án khác là đã chiếm chỗ (§7.12). Mặc định BẬT.
    *
-   * Tắt chỉ hợp lý khi người gọi đang chạy "Recalculate all" và đã tự xoá sạch lịch của
-   * mọi dự án — khi đó chưa có gì để tôn trọng.
+   * Tắt là bỏ qua TOÀN BỘ dự án khác. Để bỏ qua có chọn lọc, dùng `pendingProjects`.
    */
   readonly respectOtherProjects?: boolean;
+  /**
+   * Dự án sẽ được xếp lại ở phần sau của CÙNG lượt "Recalculate all".
+   *
+   * Lịch hiện có của chúng là output của lượt chạy trước, sắp bị ghi đè, nên không phải
+   * chỗ đã bị chiếm thật — §7.12 nói các dự án tranh pool theo `priority`, mà tranh với
+   * một cái bóng sắp biến mất thì không còn là thứ tự ưu tiên nữa.
+   *
+   * Bỏ trống khi xếp một dự án lẻ: lúc đó mọi dự án khác đều đang giữ chỗ thật.
+   */
+  readonly pendingProjects?: readonly string[];
 }
 
 export interface ScheduleIssue {
@@ -313,13 +322,15 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
   const externalReservations =
     options.respectOtherProjects === false
       ? []
-      : scheduleRepo.loadExternalAssignments(db, settings.id).map((a) => ({
-          resourceId: a.resourceId,
-          fromDate: a.fromDate,
-          toDate: a.toDate,
-          allocation: a.allocation,
-          projectId: a.projectId,
-        }));
+      : scheduleRepo
+          .loadExternalAssignments(db, [settings.id, ...(options.pendingProjects ?? [])])
+          .map((a) => ({
+            resourceId: a.resourceId,
+            fromDate: a.fromDate,
+            toDate: a.toDate,
+            allocation: a.allocation,
+            projectId: a.projectId,
+          }));
 
   // Đặt tên cho tập cạnh SGS dùng: pha C phải tính mốc ép trên ĐÚNG tập này. Lọc lại
   // một lần nữa ở dưới sẽ là hai định nghĩa song song, và chúng sẽ trôi khỏi nhau.
@@ -549,6 +560,22 @@ export interface ScheduleAllResult {
  * `scheduleProject` đọc lại assignment của các dự án đã xếp xong, nên trạng thái trung
  * gian luôn nhất quán kể cả khi một dự án ở giữa bị chặn vì Critical.
  *
+ * ## "Lịch trống" phải được nói rõ là trống với những ai
+ *
+ * Bản trước truyền `respectOtherProjects: true` cho mọi dự án với lập luận "dự án chưa
+ * xếp thì chưa có assignment nào trong DB". Câu đó chỉ đúng ở lần chạy đầu tiên trong
+ * đời một DB. Từ lần thứ hai trở đi, dự án ưu tiên 1 phải né lịch CŨ của dự án ưu tiên 2
+ * — lịch mà chính lượt chạy này sắp ghi đè — nên:
+ *
+ * - thứ tự ưu tiên đảo ngược trên thực tế (đo trên `data/dev.db`: dự án `priority 1` sinh
+ *   10 issue `J14` đổ lỗi cho dự án `priority 2`);
+ * - kết quả không hội tụ: mỗi lượt lấy output lượt trước làm input, chạy ba lượt ra ba
+ *   lịch khác nhau, vi phạm M2.
+ *
+ * Cách sửa: mỗi lượt chỉ tôn trọng dự án đã xếp xong và dự án NGOÀI lượt chạy (`onhold`,
+ * `closed` — họ giữ chỗ thật). Không xoá sạch bảng `assignment` trước vòng lặp, vì
+ * `loadRunningAssignees` đọc đúng bảng đó để giữ người cho task `in_progress` (§7.12).
+ *
  * Lệnh này đụng lịch của MỌI dự án, nên §10.6 chỉ cho admin chạy.
  */
 export function scheduleAllProjects(db: Db, options: ScheduleAllOptions): ScheduleAllResult {
@@ -556,15 +583,17 @@ export function scheduleAllProjects(db: Db, options: ScheduleAllOptions): Schedu
   const perProject = new Map<string, ScheduleResult>();
   const order: string[] = [];
 
-  for (const project of projects) {
+  for (let i = 0; i < projects.length; i += 1) {
+    const project = projects[i];
+    if (project === undefined) continue;
     const result = scheduleProject(db, {
       projectId: project.id,
       runId: options.runId,
       now: options.now,
       ...(options.windowDays === undefined ? {} : { windowDays: options.windowDays }),
-      // Dự án đã xếp xong ở lượt trước phải được tôn trọng; dự án chưa xếp thì chưa có
-      // assignment nào trong DB nên không ảnh hưởng.
       respectOtherProjects: true,
+      // Chưa tới lượt — lịch hiện có của họ là output lượt trước, không phải chỗ đã chiếm.
+      pendingProjects: projects.slice(i + 1).map((p) => p.id),
     });
     perProject.set(project.id, result);
     order.push(project.id);
