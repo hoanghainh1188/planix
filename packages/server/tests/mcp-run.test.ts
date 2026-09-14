@@ -320,8 +320,96 @@ describe('wbs_schedule', () => {
   });
 });
 
+describe('wbs_what_if (§12.3, P14)', () => {
+  /**
+   * Ảnh chụp NỘI DUNG mọi bảng, trừ `mcp_token`.
+   *
+   * So byte-for-byte cả file là phép kiểm mạnh hơn, và nó nằm ở
+   * `core/tests/pipeline/what-if.test.ts` — nơi không có lớp xác thực.
+   *
+   * Ở tầng HTTP thì không dùng được, vì `resolveMcpToken` ghi `last_used_at` cho MỖI
+   * request. Đó là chủ đích (§12.4: cần biết token nào còn ai dùng để thu hồi bớt), nên
+   * loại đúng bảng đó ra thay vì nới phép kiểm.
+   *
+   * Chụp nội dung chứ không chụp số dòng: bản đầu tôi đếm số dòng và nó KHÔNG thấy gì —
+   * một `UPDATE` ghi đè giá trị không làm đổi số dòng nào.
+   */
+  const snapshot = (): string => {
+    const tables = (
+      db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as Array<{
+        name: string;
+      }>
+    )
+      .map((t) => t.name)
+      .filter((n) => n !== 'mcp_token');
+    return tables
+      .map((n) => `${n}:${JSON.stringify(db.prepare(`SELECT * FROM "${n}"`).all())}`)
+      .join('\n');
+  };
+
+  it('KHÔNG đổi một dòng dữ liệu dự án nào', async () => {
+    const before = snapshot();
+    const uid = (db.prepare(`SELECT uid FROM task WHERE name = 'Design'`).get() as { uid: string })
+      .uid;
+
+    const res = await callTool('wbs_what_if', {
+      project: 'UTG',
+      changes: [
+        { kind: 'set_effort', task_uid: uid, effort_md: 99 },
+        { kind: 'add_resource', resource_id: 'R-MOI', name: 'Người mới', roles: ['Dev'] },
+      ],
+    });
+    expect(res.isError, res.text).toBe(false);
+    expect(snapshot()).toBe(before);
+  });
+
+  it('trả kết quả có applied, before/after và diff', async () => {
+    const uid = (db.prepare(`SELECT uid FROM task WHERE name = 'Design'`).get() as { uid: string })
+      .uid;
+    const res = await callTool('wbs_what_if', {
+      project: 'UTG',
+      changes: [{ kind: 'set_effort', task_uid: uid, effort_md: 20 }],
+    });
+    const out = res.result as unknown as {
+      applied: string[];
+      before: { totalMd: number };
+      after: { totalMd: number };
+      diff: { effortChanged: Array<{ uid: string }> };
+      validation: { projectId: string };
+      storedProjectEnd: string | null;
+    };
+    expect(out.applied).toHaveLength(1);
+    expect(out.after.totalMd).toBeGreaterThan(out.before.totalMd);
+    expect(out.diff.effortChanged.map((c) => c.uid)).toContain(uid);
+    expect(out.validation.projectId).toBe('P');
+    expect(out).toHaveProperty('storedProjectEnd');
+  });
+
+  /** §10.6 — what-if xếp lại lịch, nên đòi quyền xếp lịch chứ không phải quyền xem. */
+  it('viewer không chạy được what-if', async () => {
+    const uid = (db.prepare(`SELECT uid FROM task WHERE name = 'Design'`).get() as { uid: string })
+      .uid;
+    const res = await callTool(
+      'wbs_what_if',
+      { project: 'UTG', changes: [{ kind: 'set_effort', task_uid: uid, effort_md: 5 }] },
+      viewerToken,
+    );
+    expect(res.isError).toBe(true);
+    expect(res.text).toContain('FORBIDDEN');
+  });
+
+  it('thay đổi trỏ vào thứ không tồn tại thì báo BAD_REQUEST', async () => {
+    const res = await callTool('wbs_what_if', {
+      project: 'UTG',
+      changes: [{ kind: 'remove_resource', resource_id: 'R-KHONG-CO' }],
+    });
+    expect(res.isError).toBe(true);
+    expect(res.text).toContain('BAD_REQUEST');
+  });
+});
+
 describe('danh sách tool', () => {
-  it('đủ bộ chạy §12.3, và KHÔNG có wbs_what_if (thuộc P14)', async () => {
+  it('đủ bộ chạy §12.3, nay gồm cả wbs_what_if', async () => {
     rpcId += 1;
     const res = await app.request('/mcp', {
       method: 'POST',
@@ -334,9 +422,13 @@ describe('danh sách tool', () => {
     });
     const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
     const names = body.result.tools.map((t) => t.name);
-    for (const required of ['wbs_schedule', 'wbs_close_period', 'wbs_export_excel']) {
+    for (const required of [
+      'wbs_schedule',
+      'wbs_close_period',
+      'wbs_export_excel',
+      'wbs_what_if',
+    ]) {
       expect(names, `thiếu ${required}`).toContain(required);
     }
-    expect(names).not.toContain('wbs_what_if');
   });
 });

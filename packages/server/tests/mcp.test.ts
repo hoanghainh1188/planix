@@ -305,6 +305,7 @@ describe('endpoint (§12.4)', () => {
         'wbs_close_period',
         'wbs_export_excel',
         'wbs_schedule',
+        'wbs_what_if',
       ].sort(),
     );
   });
