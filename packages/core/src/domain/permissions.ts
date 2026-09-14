@@ -4,8 +4,28 @@
  * Bảng §10.6 chép nguyên vào đây thành dữ liệu, không rải if/else khắp router. Rải ra
  * thì không ai đối chiếu được với spec, và một ô sai sẽ lẫn vào giữa hàng trăm dòng.
  *
- * §10.6 chốt: **kiểm tra quyền ở server, không chỉ ẩn nút trên UI.** Hàm này là hàm
- * thuần; router gọi nó, UI chỉ dùng để quyết định hiện hay ẩn.
+ * §10.6 chốt: **kiểm tra quyền ở server, không chỉ ẩn nút trên UI.** Hai vế, hai nơi
+ * gọi — nhưng phải cùng MỘT bảng.
+ *
+ * ## Vì sao file này nằm ở `core` chứ không ở `server`
+ *
+ * Nó từng ở `packages/server/src/auth/`. Web với tới không được, nên `App.tsx` chép tay
+ * từng ô ra thành `canImport`, `canEditWbs`, `canRecalculate`… — và bản chép trôi đi
+ * đúng như mọi bản chép tay đều trôi:
+ *
+ * - `updateLabels` kiểm `edit_wbs`, nhưng UI khoá nó bằng `canImport`. Đúng kết quả vì
+ *   hai quyền tình cờ cùng một dòng, không vì ai chủ ý.
+ * - Ba màn `Import` / `Reports` / `Pool` dùng chung một cờ `pmOnly` tra bằng `canImport`,
+ *   nên `export_report` — vốn CHO lead bản `full` — bị khoá nhầm suốt, và không có chỗ
+ *   nào để nó khai rằng nó khác.
+ * - `view_resource_pool` ở server hỏi "có làm PM ở đâu đó không", UI lại hỏi vai ở dự án
+ *   đang chọn. Hai câu hỏi khác nhau cho cùng một ô.
+ *
+ * Viết test canh trôi cũng không xong: `packages/web` có `rootDir` riêng nên import
+ * `packages/server/src` là typecheck đỏ (mà `npm test` vẫn xanh — kiểu hỏng tệ nhất).
+ *
+ * `can()` là hàm thuần: nhận dữ liệu, trả dữ liệu, không đọc DB. Đúng chỗ của
+ * `packages/core/src/domain/` theo CLAUDE.md §3, và cả server lẫn web đều import được.
  *
  * Quyền gắn với cặp `(user, project)` qua `user_project`. `is_admin` nằm ở `app_user`,
  * nên một người có thể là admin toàn hệ thống, hoặc PM dự án A và lead dự án B.
@@ -42,9 +62,6 @@ export interface PermissionContext {
 const TABLE: Record<Action, { pm: boolean; lead: boolean }> = {
   view_assigned_project: { pm: true, lead: true },
   view_other_project: { pm: false, lead: false },
-  // Ô này có một bản chép tay ở `packages/web/src/app/App.tsx` (`canEditWbs`) để ẩn nút
-  // sửa cây. Đổi ở đây thì sửa cả ở đó — server vẫn chặn đúng, nhưng UI sẽ mời người dùng
-  // làm việc họ không làm được, hoặc giấu việc họ được làm.
   edit_wbs: { pm: true, lead: false },
   enter_progress_own_team: { pm: true, lead: true },
   enter_progress_other_team: { pm: true, lead: false },

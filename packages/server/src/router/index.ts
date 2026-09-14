@@ -31,7 +31,11 @@ import { moveRejectionMessage } from '@planix/core/domain/move.js';
 import { dryRunImport, ImportValidationError, importTasks } from '@planix/core/io/importer.js';
 import { closePeriod, PeriodNotClosedError } from '@planix/core/db/repo/baseline-repo.js';
 import { previewRecalculate } from '../scheduler/preview.js';
-import { assertCan, ForbiddenError, type PermissionContext } from '../auth/permissions.js';
+import {
+  assertCan,
+  ForbiddenError,
+  type PermissionContext,
+} from '@planix/core/domain/permissions.js';
 import { recordUpdate } from '../audit/audit-log.js';
 import { runSchedulerInWorker } from '../scheduler/run-in-worker.js';
 

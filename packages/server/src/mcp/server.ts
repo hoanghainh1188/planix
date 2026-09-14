@@ -35,7 +35,7 @@ import {
 import { createCalendarEngine } from '@planix/core/domain/calendar.js';
 import { loadCalendarSnapshot } from '@planix/core/db/repo/calendar-repo.js';
 import { unsafeDateOnly } from '@planix/core/domain/date-only.js';
-import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { assertCan, ForbiddenError } from '@planix/core/domain/permissions.js';
 import { errorResult, jsonResult, type McpContext, type McpToolResult } from './result.js';
 import { registerWriteTools } from './write-tools.js';
 import { registerRunTools } from './run-tools.js';
