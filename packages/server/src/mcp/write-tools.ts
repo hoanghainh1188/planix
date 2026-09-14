@@ -36,7 +36,7 @@ import { validate } from '@planix/core/domain/validator.js';
 import type { ValidationReport } from '@planix/core/domain/validation-types.js';
 import { recordUpdate } from '../audit/audit-log.js';
 import { appRouter, type Context } from '../router/index.js';
-import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { assertCan, ForbiddenError } from '@planix/core/domain/permissions.js';
 import { findProjectRole } from '@planix/core/db/repo/auth-repo.js';
 import type { McpContext, McpToolResult } from './result.js';
 import { errorResult, jsonResult } from './result.js';

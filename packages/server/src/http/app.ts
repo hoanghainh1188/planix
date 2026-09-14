@@ -20,7 +20,7 @@ import {
 } from '../auth/session.js';
 import { securityHeaders } from './security.js';
 import { exportExcel, ExportBlockedError, type ReportKind } from '@planix/core/io/excel/index.js';
-import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { assertCan, ForbiddenError } from '@planix/core/domain/permissions.js';
 import { findProjectRole } from '@planix/core/db/repo/auth-repo.js';
 import { redactPath, stdoutSink, type LogSink } from './request-log.js';
 import { authenticateMcp, handleMcpRequest } from './mcp.js';
