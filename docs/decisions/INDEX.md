@@ -37,3 +37,5 @@ Append 1 dòng mỗi lần, mới nhất lên trên cùng.
 | 2026-09-13 | [Resource-critical path — định nghĩa và cài đặt](2026-09-13-resource-critical-path-chua-co.md)         | §7 pha C (C1), §12.1                  | Chốt (b) + (iii); còn hạn chế nút gộp §5b |
 | 2026-09-14 | [S2 — Task detail: sửa được những gì](2026-09-14-s2-pham-vi.md)                                        | §10.3 (S2 không có spec riêng)        | Đã chốt — nhóm nhãn phân loại             |
 | 2026-09-14 | [S5 — Resources & calendars: phạm vi](2026-09-14-s5-pham-vi.md)                                        | §10.3 (S5 không có spec riêng)        | Đã chốt — cả hai khu một màn              |
+| 2026-09-14 | [Tải nhân sự đang tính sai — allocation không phải tải/ngày](2026-09-14-tai-nhan-su-tinh-sai.md)       | §12.1, §8.2 J06                       | Đã sửa báo cáo; **J06 cần PM**            |
+| 2026-09-14 | [S9 — Resource pool: phạm vi tự quyết](2026-09-14-s9-pham-vi.md)                                       | §10.3, §7.12                          | Tự quyết — chỉ đọc, xuyên dự án           |

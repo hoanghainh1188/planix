@@ -348,6 +348,8 @@ export interface LoadSpanRow {
   readonly fromDate: string;
   readonly toDate: string;
   readonly allocation: number;
+  /** Khối lượng thật của task — thứ dùng để rải tải, xem `spreadOf` trong domain. */
+  readonly effortMd: number;
   readonly projectId: string;
 }
 
@@ -370,7 +372,8 @@ export function loadSpansInWindow(
     readonly crossProject: boolean;
   },
 ): LoadSpanRow[] {
-  const sql = `SELECT a.resource_id, r.name, a.from_date, a.to_date, a.allocation, t.project_id
+  const sql = `SELECT a.resource_id, r.name, a.from_date, a.to_date, a.allocation,
+                      COALESCE(t.effort_md, 0) AS effort_md, t.project_id
                  FROM assignment a
                  JOIN task t     ON t.uid = a.task_uid
                  JOIN resource r ON r.id = a.resource_id
@@ -389,6 +392,7 @@ export function loadSpansInWindow(
     fromDate: r['from_date'] as string,
     toDate: r['to_date'] as string,
     allocation: r['allocation'] as number,
+    effortMd: r['effort_md'] as number,
     projectId: r['project_id'] as string,
   }));
 }
@@ -418,4 +422,74 @@ export function loadRelevantResources(
     )
     .all(projectId, projectId) as Array<Record<string, unknown>>;
   return rows.map((r) => ({ id: r['id'] as string, name: r['name'] as string }));
+}
+
+/**
+ * Mọi lượt đặt chỗ giao với cửa sổ, kèm dự án giữ nó — S9 (§10.3, §7.12).
+ *
+ * Không lọc theo dự án nào: `resource` là tài nguyên toàn cục (§7.12) và cả điểm của màn
+ * này là nhìn thấy phần mà một dự án đơn lẻ KHÔNG nhìn thấy.
+ *
+ * Chỉ lấy dự án `planning` / `active` — cùng tập §7.12 dùng khi xếp lịch. Dự án đã đóng
+ * vẫn còn `assignment` trong DB, và đếm chúng vào sẽ khiến người ta trông như bị đặt kín
+ * bởi việc không còn ai làm nữa.
+ */
+export function loadPoolSpans(
+  db: Db,
+  params: { readonly from: string; readonly to: string },
+): Array<{
+  resourceId: string;
+  resourceName: string;
+  fromDate: string;
+  toDate: string;
+  allocation: number;
+  effortMd: number;
+  projectId: string;
+  projectCode: string;
+}> {
+  const rows = db
+    .prepare(
+      `SELECT a.resource_id, r.name, a.from_date, a.to_date, a.allocation,
+              COALESCE(t.effort_md, 0) AS effort_md,
+              p.id AS project_id, p.code AS project_code
+         FROM assignment a
+         JOIN task t     ON t.uid = a.task_uid
+         JOIN project p  ON p.id = t.project_id
+         JOIN resource r ON r.id = a.resource_id
+        WHERE a.from_date <= ? AND a.to_date >= ?
+          AND p.status IN ('planning','active')
+        ORDER BY a.resource_id, a.from_date, a.task_uid`,
+    )
+    .all(params.to, params.from) as Array<Record<string, unknown>>;
+
+  return rows.map((r) => ({
+    resourceId: r['resource_id'] as string,
+    resourceName: r['name'] as string,
+    fromDate: r['from_date'] as string,
+    toDate: r['to_date'] as string,
+    allocation: r['allocation'] as number,
+    effortMd: r['effort_md'] as number,
+    projectId: r['project_id'] as string,
+    projectCode: r['project_code'] as string,
+  }));
+}
+
+/** Dự án đang hoạt động, để S9 chú giải và sắp theo đúng thứ tự tranh chấp (§7.12). */
+export function listActiveProjects(
+  db: Db,
+): Array<{ id: string; code: string; name: string; priority: number; status: string }> {
+  const rows = db
+    .prepare(
+      `SELECT id, code, name, priority, status FROM project
+        WHERE status IN ('planning','active')
+        ORDER BY priority, code`,
+    )
+    .all() as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: r['id'] as string,
+    code: r['code'] as string,
+    name: r['name'] as string,
+    priority: r['priority'] as number,
+    status: r['status'] as string,
+  }));
 }

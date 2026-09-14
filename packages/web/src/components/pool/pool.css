@@ -1,0 +1,187 @@
+/*
+ * S9 — Resource pool. Ma trận người × kỳ, nên bảng là trung tâm chứ không phải form.
+ *
+ * Cột tên người `sticky`: với 20 người × 26 tuần, cuộn ngang mà mất cột tên thì không ai
+ * biết đang đọc dòng của ai.
+ */
+
+.pool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.pool__intro {
+  max-width: 68ch;
+}
+.pool__title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.pool__lead {
+  margin: var(--space-1) 0 0;
+  color: var(--c-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.pool__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+.pool__field {
+  display: block;
+  min-width: 0;
+}
+.pool__label {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  margin-bottom: 2px;
+}
+.pool__input {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-1);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+  background: var(--c-bg);
+  color: var(--c-ink);
+}
+.pool__input:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+.pool__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--c-ink-muted);
+}
+.pool__check b {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.pool__error {
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--c-danger, var(--c-rule));
+  border-radius: 3px;
+  font-size: var(--text-sm);
+}
+.pool__empty {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--c-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.pool__legend {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--c-ink-muted);
+}
+.pool__chip {
+  display: inline-block;
+  margin-right: var(--space-1);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.pool__chip i {
+  font-style: normal;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+.pool__tableWrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--c-rule);
+  border-radius: 4px;
+}
+.pool__table {
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.pool__table th,
+.pool__table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--c-rule);
+  white-space: nowrap;
+}
+.pool__table thead th {
+  text-align: left;
+  font-weight: 500;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--c-ink-muted);
+}
+.pool__table tr:last-child td,
+.pool__table tr:last-child th {
+  border-bottom: none;
+}
+
+/* Giữ cột tên khi cuộn ngang — nếu không thì không biết đang đọc dòng của ai. */
+.pool__sticky {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--c-surface);
+  border-right: 1px solid var(--c-rule);
+}
+.pool__person {
+  text-align: left;
+  font-weight: 400;
+}
+.pool__personName {
+  display: block;
+}
+.pool__personId {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pool__period {
+  font-variant-numeric: tabular-nums;
+}
+.pool__cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Màu mang nghĩa, không trang trí: đỏ là đặt quá năng lực — thứ §7.12 sinh ra để tránh.
+ * Vẫn kèm con số phần trăm, vì màu một mình không đọc được với người mù màu.
+ */
+.pool__cell--over {
+  background: var(--c-danger-soft, #fdecec);
+  color: var(--c-danger, #a11);
+  font-weight: 600;
+}
+.pool__cell--tight {
+  background: var(--c-warn-soft, #fdf6e3);
+}
+.pool__cell--free {
+  color: var(--c-ink-muted);
+}
+.pool__cell--off {
+  color: var(--c-ink-muted);
+  opacity: 0.5;
+}
+
+.pool__by {
+  white-space: normal;
+  min-width: 12rem;
+}

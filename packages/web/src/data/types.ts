@@ -25,6 +25,8 @@ export type AdminResource = AdminOverview['resources'][number];
 export type AdminCalendar = AdminOverview['calendars'][number];
 export type AdminLocation = AdminOverview['locations'][number];
 export type CalendarException = Outputs['admin']['exceptions'][number];
+export type PoolLoad = Outputs['pool']['load'];
+export type PoolRow = PoolLoad['rows'][number];
 export type SaveResourceInput = Inputs['admin']['saveResource'];
 export type TaskLabels = Pick<
   Inputs['wbs']['updateLabels'],
