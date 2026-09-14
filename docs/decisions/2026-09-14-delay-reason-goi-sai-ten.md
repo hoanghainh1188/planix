@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-14
 **Phát hiện khi:** truy lại chỗ chuỗi resource-critical của GEO bị đứt
-**Trạng thái:** Đã sửa. **Số lượng issue `J14` mới cần PM biết.**
+**Trạng thái:** Đã sửa. PM chốt gộp `J14` theo cặp — xem mục cuối.
 
 ## Lỗi
 
@@ -54,7 +54,15 @@ gọi tên **ràng buộc thật sự quyết định ngày bắt đầu**. Và 
 cái tương ứng một task thật sự bị dự án khác đẩy — nhưng đó là một thay đổi lớn trong thứ
 PM nhìn thấy hằng ngày.
 
-Nếu thấy quá ồn, hai hướng đều hợp lý và đều là quyết định của PM, không phải của tôi:
+**PM chốt ngày 2026-09-14: gộp theo cặp (dự án chiếm chỗ, người).**
 
-- Gộp `J14` theo **cặp (dự án chiếm chỗ, người)** thay vì mỗi task một issue.
-- Hạ `J14` xuống Minor, giữ Major cho trường hợp đẩy quá một ngưỡng nào đó.
+Kết quả trên `data/dev.db`: **79 → 17 issue**, và cả 79 task vẫn nằm đủ trong
+`detail.taskUids` cho ai muốn đi sâu. Thông điệp nay nói thẳng cặp nào đang tranh:
+
+> Project P-GEO holds R-09, pushing 13 tasks (earliest wanted 2026-04-13, latest actual
+> 2026-06-19).
+
+Làm việc này cũng lộ ra một chỗ hỏng lặng lẽ: pipeline **vứt mất `detail`** khi chuyển
+issue từ `SgsIssue` sang `ScheduleIssue`. Không ai nhận ra vì chưa issue nào của pipeline
+cần tới nó. Đã sửa cùng lúc, nếu không thì danh sách task gộp lại sẽ không tới được đâu
+cả.
