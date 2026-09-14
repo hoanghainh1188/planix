@@ -10,7 +10,32 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TaskDetailPanel } from '../src/components/detail/TaskDetailPanel.js';
 
-function detailOf(over: Record<string, unknown> = {}) {
+type Link = {
+  taskUid: string;
+  wbsCode: string;
+  name: string;
+  startDate: string | null;
+  endDate: string | null;
+  reason: string | null;
+  ref: string | null;
+  refLabel: string | null;
+};
+
+function link(over: Partial<Link> = {}): Link {
+  return {
+    taskUid: 'T-1',
+    wbsCode: '1.1',
+    name: 'Thiết kế',
+    startDate: '2026-01-05',
+    endDate: '2026-01-06',
+    reason: null,
+    ref: null,
+    refLabel: null,
+    ...over,
+  };
+}
+
+function detailOf(over: Record<string, unknown> = {}, chain: Link[] = []) {
   return {
     task: {
       uid: 'T-1',
@@ -46,7 +71,7 @@ function detailOf(over: Record<string, unknown> = {}) {
       ...over,
     },
     dependencies: { predecessors: [], successors: [] },
-    explanation: { taskUid: 'T-1', chain: [], truncated: false },
+    explanation: { taskUid: 'T-1', chain, truncated: false },
   } as never;
 }
 
@@ -218,5 +243,68 @@ describe('S2 — chuỗi chặn (§7.6)', () => {
     expect(screen.getByRole('heading', { name: 'Why it starts here' })).toBeTruthy();
     // Mắt không phải dependency thì `ref` là dự án hoặc người — phải hiện ra.
     expect(screen.getByText(/cross_project · P-UTG/)).toBeTruthy();
+  });
+});
+
+/**
+ * §7.6 — vì sao task nằm ở chỗ nó đang nằm.
+ *
+ * Bug đã có thật: khối giải thích chỉ hiện khi chuỗi dài hơn MỘT mắt, tức chỉ khi task chờ
+ * task khác. Chờ người hay bị dự án khác chiếm chỗ thì chuỗi đúng một mắt, và khối biến
+ * mất. Trên `data/dev.db` là 299/744 task — đúng những task PM khó tự đoán ra nhất.
+ */
+describe('S2 — lý do bắt đầu muộn (§7.6)', () => {
+  const why = (): string => screen.getByText(/./, { selector: '.detail__why' }).textContent ?? '';
+
+  it('chờ người: hiện dù chuỗi chỉ một mắt, và gọi TÊN người', () => {
+    setup({
+      detail: detailOf({}, [link({ reason: 'resource', ref: 'R-03', refLabel: 'Pham D' })]),
+    });
+    expect(why()).toContain('Pham D');
+    expect(why()).not.toContain('R-03');
+  });
+
+  it('bị dự án khác chiếm chỗ: hiện dù chuỗi chỉ một mắt, và gọi MÃ dự án', () => {
+    setup({
+      detail: detailOf({}, [link({ reason: 'cross_project', ref: 'P-UTG', refLabel: 'UTG' })]),
+    });
+    expect(why()).toContain('UTG');
+    expect(why()).not.toContain('P-UTG');
+  });
+
+  it('không có gì đẩy: vẫn nói ra, không để trống', () => {
+    setup({ detail: detailOf({}, [link({ reason: null })]) });
+    expect(why()).toMatch(/earliest date allowed/);
+  });
+
+  it('chờ task đứng trước: câu dẫn cộng cả chuỗi', () => {
+    setup({
+      detail: detailOf({}, [
+        link({ reason: 'dependency', ref: 'T-0', refLabel: '1.0' }),
+        link({
+          taskUid: 'T-0',
+          wbsCode: '1.0',
+          name: 'Khảo sát',
+          reason: 'resource',
+          ref: 'R-1',
+          refLabel: 'An',
+        }),
+      ]),
+    });
+    expect(why()).toContain('1.0');
+    expect(screen.getByText('Khảo sát')).toBeTruthy();
+    // Mắt cuối không phải dependency thì in tên, không in khoá.
+    expect(screen.getByText(/resource · An/)).toBeTruthy();
+  });
+
+  it('chưa xếp lịch lần nào: không có khối', () => {
+    setup({ detail: detailOf({}, []) });
+    expect(screen.queryByText('Why it starts here')).toBeNull();
+  });
+
+  it('thứ ref trỏ tới đã không còn: rơi về khoá, không in "null"', () => {
+    setup({ detail: detailOf({}, [link({ reason: 'resource', ref: 'R-GONE', refLabel: null })]) });
+    expect(why()).toContain('R-GONE');
+    expect(why()).not.toContain('null');
   });
 });

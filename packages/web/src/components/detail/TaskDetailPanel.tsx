@@ -1,5 +1,5 @@
 import { useState, type JSX } from 'react';
-import type { TaskDetail, TaskLabels } from '../../data/types.js';
+import type { BlockingLink, TaskDetail, TaskLabels } from '../../data/types.js';
 import './detail.css';
 
 /**
@@ -119,28 +119,35 @@ export function TaskDetailPanel({
       ) : null}
 
       {/*
-        §7.6 — vì sao task nằm ở chỗ nó đang nằm. Chuỗi dừng ở mắt không phải dependency,
-        và `ref` khi đó là một người hoặc một dự án, không phải task.
+        §7.6 — vì sao task nằm ở chỗ nó đang nằm.
+
+        Trước đây khối này chỉ hiện khi chuỗi dài hơn MỘT mắt, tức là chỉ khi task chờ task
+        khác. Task chờ người (`resource`) hoặc bị dự án khác chiếm chỗ (`cross_project`) có
+        chuỗi đúng một mắt — chính nó — nên khối biến mất. Trên `data/dev.db` đó là 299/744
+        task, và lại đúng là những task PM khó tự đoán ra nhất.
       */}
-      {explanation.chain.length > 1 ? (
+      {explanation.chain.length > 0 ? (
         <section className="detail__block" aria-labelledby="why-heading">
           <h3 className="detail__heading" id="why-heading">
             Why it starts here
           </h3>
-          <ol className="detail__chain">
-            {explanation.chain.map((link) => (
-              <li key={link.taskUid} className="detail__chainItem">
-                <span className="detail__chainCode">{link.wbsCode}</span>
-                <span className="detail__chainName">{link.name}</span>
-                {link.reason === null ? null : (
-                  <span className="detail__chainReason">
-                    {link.reason}
-                    {link.reason !== 'dependency' && link.ref !== null ? ` · ${link.ref}` : ''}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ol>
+          <p className="detail__why">{whyOf(explanation.chain[0])}</p>
+          {explanation.chain.length > 1 ? (
+            <ol className="detail__chain">
+              {explanation.chain.map((link) => (
+                <li key={link.taskUid} className="detail__chainItem">
+                  <span className="detail__chainCode">{link.wbsCode}</span>
+                  <span className="detail__chainName">{link.name}</span>
+                  {link.reason === null ? null : (
+                    <span className="detail__chainReason">
+                      {link.reason}
+                      {link.reason !== 'dependency' ? ` · ${link.refLabel ?? link.ref ?? ''}` : ''}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          ) : null}
           {explanation.truncated ? (
             <p className="detail__note">Chain cut at the depth limit; there is more upstream.</p>
           ) : null}
@@ -245,4 +252,31 @@ function Fact({ label, value }: { readonly label: string; readonly value: string
       <dd className="detail__factValue">{value}</dd>
     </>
   );
+}
+
+/**
+ * Một câu cho `delay_reason` của mắt đầu chuỗi — đúng năm giá trị của bảng §7.6.
+ *
+ * Ưu tiên `refLabel` (tên người, mã dự án, mã WBS) hơn `ref` (khoá): "Waiting for R-03"
+ * không trả lời được câu hỏi nào. Rơi về `ref` chỉ khi thứ nó trỏ tới đã không còn.
+ */
+function whyOf(link: BlockingLink | undefined): string {
+  if (link === undefined) return '';
+  const who = link.refLabel ?? link.ref ?? 'unknown';
+  switch (link.reason) {
+    case 'dependency':
+      return `Waiting for ${who} to finish.`;
+    case 'resource':
+      return `Waiting for ${who} to be free — they are busy on other tasks until then.`;
+    case 'cross_project':
+      return `Held by project ${who}, which has higher priority for the same people.`;
+    case 'calendar':
+      return 'Pushed by a holiday or personal leave.';
+    case 'constraint':
+      return 'Pinned by a date constraint on this task.';
+    default:
+      // Engine không gắn lý do khi không có gì đẩy task muộn hơn ngày sớm nhất được phép
+      // (ngày bắt đầu dự án hoặc mốc chuẩn, lấy ngày muộn hơn).
+      return 'Nothing pushed it later — it starts on the earliest date allowed.';
+  }
 }
