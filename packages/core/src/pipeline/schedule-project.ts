@@ -72,6 +72,14 @@ export interface ScheduleIssue {
   readonly severity: 'Critical' | 'Major' | 'Minor';
   readonly message: string;
   readonly taskUid?: string;
+  /**
+   * Dữ liệu kèm theo, để lớp trên đi sâu mà không phải tra lại.
+   *
+   * Trước đây bị vứt mất khi chuyển từ `SgsIssue` sang đây, và không ai nhận ra vì chưa
+   * issue nào của pipeline cần tới nó. `J14` gộp theo cặp thì cần: thông điệp chỉ nói
+   * "đẩy 10 task", còn danh sách 10 uid nằm ở đây.
+   */
+  readonly detail?: Readonly<Record<string, unknown>>;
 }
 
 export interface ScheduleResult {
@@ -345,6 +353,7 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       message: i.message,
       // exactOptionalPropertyTypes: chỉ thêm khoá khi thật sự có giá trị, không gán undefined.
       ...(i.taskUid === undefined ? {} : { taskUid: i.taskUid }),
+      ...(i.detail === undefined ? {} : { detail: i.detail }),
     });
   }
 

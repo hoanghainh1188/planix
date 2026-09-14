@@ -396,3 +396,69 @@ describe('runSgs — delay_reason gọi tên ràng buộc BINDING (§7.6)', () =
     expect(out.schedule.get('T-2')?.blockingRef).toBe('T-1');
   });
 });
+
+/**
+ * `J14` gộp theo CẶP (dự án chiếm chỗ, người) — PM chốt 2026-09-14.
+ *
+ * Trước đó mỗi task bị đẩy là một issue Major riêng. Sau khi `delay_reason` thôi bỏ sót,
+ * `data/dev.db` sinh ra **79 issue** — đúng nhưng không đọc nổi, vì chúng lặp lại cùng
+ * một câu: dự án kia đang giữ người này. Gộp lại còn **17**, và cả 79 task vẫn nằm đủ
+ * trong `detail.taskUids`.
+ */
+describe('runSgs — J14 gộp theo cặp (dự án, người) (§7.12)', () => {
+  /** Dự án khác giữ `R-1` trọn tuần đầu, nên mọi task ở đây đều bị đẩy. */
+  function withHold(taskUids: readonly string[]) {
+    return run({
+      clusters: [{ uid: 'C1', leafUids: [...taskUids] }],
+      tasks: taskUids.map((uid) => task(uid, { effortMd: 1 })),
+      resources: [res('R-1', { maxParallel: 1 })],
+      externalReservations: [
+        {
+          resourceId: 'R-1',
+          fromDate: MON,
+          toDate: d('2026-05-08'),
+          allocation: 1,
+          projectId: 'P-KHAC',
+        },
+      ],
+      projectId: 'P-NAY',
+    });
+  }
+
+  it('ba task cùng bị một dự án giữ một người ⇒ MỘT issue, không phải ba', () => {
+    const j14 = withHold(['T-1', 'T-2', 'T-3']).issues.filter((i) => i.code === 'J14');
+    expect(j14).toHaveLength(1);
+    expect(j14[0]?.severity).toBe('Major');
+  });
+
+  it('issue nói rõ cặp nào, và đếm đúng số task', () => {
+    const j14 = withHold(['T-1', 'T-2', 'T-3']).issues.filter((i) => i.code === 'J14');
+    expect(j14[0]?.message).toContain('P-KHAC');
+    expect(j14[0]?.message).toContain('R-1');
+    expect(j14[0]?.message).toContain('3 tasks');
+    expect(j14[0]?.detail?.['taskCount']).toBe(3);
+  });
+
+  /**
+   * Gộp mà mất danh sách thì PM hết đường đi sâu. Thông điệp nói "đẩy 3 task", còn ba
+   * uid phải nằm trong `detail` — và phải SẮP, để cùng input ra cùng chuỗi JSON (M2).
+   */
+  it('giữ đủ danh sách task trong detail, đã sắp', () => {
+    const j14 = withHold(['T-3', 'T-1', 'T-2']).issues.filter((i) => i.code === 'J14');
+    expect(j14[0]?.detail?.['taskUids']).toEqual(['T-1', 'T-2', 'T-3']);
+  });
+
+  it('một task thì dùng số ít, không phải "1 tasks"', () => {
+    const j14 = withHold(['T-1']).issues.filter((i) => i.code === 'J14');
+    expect(j14[0]?.message).toContain('1 task ');
+  });
+
+  it('không bị ai giữ thì không có J14 nào', () => {
+    const out = run({
+      clusters: [{ uid: 'C1', leafUids: ['T-1'] }],
+      tasks: [task('T-1')],
+      resources: [res('R-1')],
+    });
+    expect(out.issues.filter((i) => i.code === 'J14')).toHaveLength(0);
+  });
+});

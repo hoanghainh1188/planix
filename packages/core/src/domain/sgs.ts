@@ -212,6 +212,28 @@ export function runSgs(input: SgsInput): SgsResult {
     else list.push(e);
   }
 
+  /**
+   * `J14` gom theo CẶP (dự án chiếm chỗ, người) — PM chốt 2026-09-14.
+   *
+   * Trước đó mỗi task bị đẩy là một issue Major riêng. Sau khi `delay_reason` thôi bỏ sót
+   * (xem `docs/decisions/2026-09-14-delay-reason-goi-sai-ten.md`), `data/dev.db` sinh ra
+   * **79 issue** — đúng nhưng không đọc nổi, vì chúng lặp lại cùng một câu: dự án kia
+   * đang giữ người này.
+   *
+   * PM cần biết CẶP nào đang tranh nhau, không cần từng dòng một. Danh sách task vẫn còn
+   * trong `detail.taskUids` cho ai muốn đi sâu.
+   */
+  const crossProjectHolds = new Map<
+    string,
+    {
+      projectId: string;
+      resourceId: string;
+      taskUids: string[];
+      firstWanted: DateOnly;
+      lastActual: DateOnly;
+    }
+  >();
+
   const assignments: SgsAssignment[] = [];
   const schedule = new Map<string, SgsScheduleRow>();
   const issues: SgsIssue[] = [];
@@ -451,18 +473,23 @@ export function runSgs(input: SgsInput): SgsResult {
         if (blockerProject !== null) {
           reason = 'cross_project';
           blockingRef = blockerProject;
-          issues.push({
-            code: 'J14',
-            severity: 'Major',
-            message: `Task ${t.uid} was pushed from ${earliest} to ${best.start} because project ${blockerProject} holds ${best.res.id}.`,
-            taskUid: t.uid,
-            detail: {
+          // Gom lại, phát ra MỘT issue cho mỗi cặp (dự án chiếm chỗ, người) sau vòng lặp
+          // — PM chốt 2026-09-14. Xem `crossProjectHolds` ở cuối hàm.
+          const key = `${blockerProject}\u0000${best.res.id}`;
+          const entry = crossProjectHolds.get(key);
+          if (entry === undefined) {
+            crossProjectHolds.set(key, {
+              projectId: blockerProject,
               resourceId: best.res.id,
-              blockingProjectId: blockerProject,
-              wantedStart: earliest,
-              actualStart: best.start,
-            },
-          });
+              taskUids: [t.uid],
+              firstWanted: earliest,
+              lastActual: best.start,
+            });
+          } else {
+            entry.taskUids.push(t.uid);
+            if (earliest < entry.firstWanted) entry.firstWanted = earliest;
+            if (best.start > entry.lastActual) entry.lastActual = best.start;
+          }
         } else {
           reason = 'resource';
           blockingRef = best.res.id;
@@ -489,6 +516,30 @@ export function runSgs(input: SgsInput): SgsResult {
       pending.delete(t.uid);
       scheduledLocal.add(t.uid);
     }
+  }
+
+  // Sắp theo khoá rồi mới phát: thứ tự issue không được phụ thuộc thứ tự duyệt (N2).
+  for (const key of [...crossProjectHolds.keys()].sort()) {
+    const hold = crossProjectHolds.get(key);
+    if (hold === undefined) continue;
+    const n = hold.taskUids.length;
+    issues.push({
+      code: 'J14',
+      severity: 'Major',
+      message:
+        `Project ${hold.projectId} holds ${hold.resourceId}, pushing ${String(n)} ` +
+        `${n === 1 ? 'task' : 'tasks'} (earliest wanted ${hold.firstWanted}, latest actual ` +
+        `${hold.lastActual}).`,
+      detail: {
+        resourceId: hold.resourceId,
+        blockingProjectId: hold.projectId,
+        taskCount: n,
+        // Sắp uid: cùng input phải ra cùng chuỗi JSON (M2).
+        taskUids: [...hold.taskUids].sort(),
+        wantedStart: hold.firstWanted,
+        actualStart: hold.lastActual,
+      },
+    });
   }
 
   // Thứ tự assignment không được phụ thuộc thứ tự duyệt (M2).
