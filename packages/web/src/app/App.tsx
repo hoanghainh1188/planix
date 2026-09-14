@@ -7,6 +7,7 @@ import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
 import { TaskDetailPanel } from '../components/detail/TaskDetailPanel.js';
 import { AdminScreen } from '../components/admin/AdminScreen.js';
+import { PoolScreen } from '../components/pool/PoolScreen.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
 import { PeriodScreen } from '../components/period/PeriodScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
@@ -41,7 +42,7 @@ import './app.css';
  * động. Chỉ báo cáo Excel mới có tham số `lang` (§11.1).
  */
 /** §10.3 — ba màn của MVP (P8/P9) cộng S8 Import (P12). */
-type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period' | 'admin';
+type Screen = 'wbs' | 'gantt' | 'progress' | 'import' | 'period' | 'admin' | 'pool';
 
 /**
  * `pmOnly` không phải là cơ chế bảo vệ — §10.6 chốt "kiểm tra quyền ở server, không chỉ
@@ -62,6 +63,9 @@ const SCREENS: ReadonlyArray<{
   // §10.3: S5 "nằm ngoài phạm vi dự án — thuộc về tổ chức", và §10.6 đặt
   // `manage_resources` chỉ cho admin. Nên nó không đi theo dự án đang chọn.
   { id: 'admin', label: 'Resources', adminOnly: true },
+  // §10.3 "Admin, PM đọc" — §10.6 cho `view_resource_pool` là {pm: true, lead: false},
+  // nên PM thấy tab này còn lead thì không.
+  { id: 'pool', label: 'Pool', pmOnly: true },
 ];
 
 /**
@@ -278,6 +282,39 @@ function Workspace({
     projects.status === 'ready'
       ? (projects.data.find((p) => p.id === projectId)?.statusDate ?? '')
       : '';
+  /**
+   * S9 — cửa sổ mặc định: từ `status_date` của dự án đang chọn, 12 tuần tới.
+   *
+   * Không lấy "hôm nay của máy": §7.13 đặt `status_date` làm mốc chuẩn, và một máy lệch
+   * ngày sẽ cho ra bảng khác máy bên cạnh.
+   */
+  const [poolRange, setPoolRange] = useState<{
+    from: string;
+    to: string;
+    by: 'day' | 'week' | 'month';
+  } | null>(null);
+
+  const loadPool = useCallback(() => {
+    if (screen !== 'pool' || poolRange === null) return Promise.resolve(null);
+    return trpc.pool.load.query(poolRange);
+  }, [screen, poolRange]);
+
+  /**
+   * Đặt cửa sổ mặc định MỘT lần, khi đã biết `status_date`.
+   *
+   * Không dùng `useState(...)` với giá trị ban đầu: `status_date` tới sau (nó là một
+   * truy vấn riêng), và `useState` chỉ đọc giá trị khởi tạo đúng một lần — đúng lớp lỗi
+   * đã hạ S7 hai lần.
+   */
+  useEffect(() => {
+    if (poolRange !== null || statusDate === '') return;
+    const start = new Date(`${statusDate}T00:00:00Z`);
+    const end = new Date(start.getTime() + 12 * 7 * 86400000);
+    setPoolRange({ from: statusDate, to: end.toISOString().slice(0, 10), by: 'week' });
+  }, [statusDate, poolRange]);
+
+  const poolData = useAsync(loadPool, [screen, poolRange, savedAt]);
+
   // §10.6: `import_from_ai` chỉ PM. Admin được `listUserProjects` trả về vai 'pm' nên
   // một phép so sánh là đủ.
   const canImport =
@@ -788,7 +825,17 @@ function Workspace({
       ) : null}
 
       <main className={screen === 'wbs' ? 'app__main' : 'app__main app__main--wide'}>
-        {screen === 'admin' ? (
+        {screen === 'pool' ? (
+          <PoolScreen
+            data={poolData.status === 'ready' ? poolData.data : null}
+            loading={poolData.status === 'loading'}
+            error={poolData.status === 'error' ? poolData.error.message : null}
+            from={poolRange?.from ?? ''}
+            to={poolRange?.to ?? ''}
+            by={poolRange?.by ?? 'week'}
+            onRange={(from, to, by) => setPoolRange({ from, to, by })}
+          />
+        ) : screen === 'admin' ? (
           <AdminScreen
             resources={adminData.status === 'ready' ? (adminData.data?.resources ?? []) : []}
             calendars={adminData.status === 'ready' ? (adminData.data?.calendars ?? []) : []}

@@ -17,6 +17,10 @@ import * as read from '@planix/core/db/repo/read-repo.js';
 import * as baselineRepo from '@planix/core/db/repo/baseline-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { validate } from '@planix/core/domain/validator.js';
+import { poolLoad, LoadWindowTooWideError } from '@planix/core/domain/resource-load.js';
+import { createCalendarEngine } from '@planix/core/domain/calendar.js';
+import { loadCalendarSnapshot } from '@planix/core/db/repo/calendar-repo.js';
+import { unsafeDateOnly } from '@planix/core/domain/date-only.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
 import * as mcpRepo from '@planix/core/db/repo/mcp-repo.js';
 import * as adminRepo from '@planix/core/db/repo/admin-repo.js';
@@ -91,6 +95,21 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
  * `manage_resources` là `{pm: false, lead: false}` — chỉ admin — nên `projectRole: null`
  * là đúng ngữ nghĩa: người này không đứng trong dự án nào khi làm việc này.
  */
+/**
+ * Người này có đứng vai `pm` ở ÍT NHẤT một dự án không.
+ *
+ * S9 là màn toàn cục nên không có "dự án đang xét" để tra vai, nhưng §10.6 vẫn cho
+ * `view_resource_pool` theo vai chứ không theo tài khoản. Cách đọc đúng của bảng: người
+ * làm PM ở đâu đó thì được nhìn pool, còn lead thì không — và một người chưa được gán
+ * vào dự án nào thì cũng chưa có lý do gì để nhìn.
+ */
+function pmSomewhere(ctx: Context & { user: { userId: string; isAdmin: boolean } }): boolean {
+  const row = ctx.db
+    .prepare(`SELECT 1 FROM user_project WHERE user_id = ? AND role = 'pm' LIMIT 1`)
+    .get(ctx.user.userId);
+  return row !== undefined;
+}
+
 function requireAdmin(ctx: Context & { user: { userId: string; isAdmin: boolean } }): void {
   try {
     assertCan('manage_resources', { isAdmin: ctx.user.isAdmin, projectRole: null });
@@ -1219,6 +1238,67 @@ export const appRouter = t.router({
           throw new TRPCError({ code: 'NOT_FOUND' });
         }
         return { ok: true as const };
+      }),
+  }),
+
+  /**
+   * S9 — Resource pool xuyên dự án (§10.3, §7.12).
+   *
+   * §10.6: `view_resource_pool` là `{pm: true, lead: false}` — PM đọc được, lead thì
+   * không. Đúng như §10.3 ghi: "Admin, PM đọc".
+   *
+   * Chỉ đọc. Sửa người và lịch nghỉ nằm ở S5 (admin); màn này trả lời một câu khác: ai
+   * đang giữ người nào, và ở đâu đang tranh nhau.
+   */
+  pool: t.router({
+    load: authed
+      .input(
+        z.object({
+          from: z.string().regex(DATE),
+          to: z.string().regex(DATE),
+          by: z.enum(['day', 'week', 'month']).default('week'),
+        }),
+      )
+      .query(({ ctx, input }) => {
+        // Không gắn với dự án nào: pool là toàn cục (§7.12). Vai dự án vì thế không có
+        // nghĩa ở đây, và bảng §10.6 cho PM quyền này ở mức tài khoản.
+        try {
+          assertCan('view_resource_pool', {
+            isAdmin: ctx.user.isAdmin,
+            projectRole: pmSomewhere(ctx) ? 'pm' : null,
+          });
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        const engine = createCalendarEngine(loadCalendarSnapshot(ctx.db));
+        try {
+          return {
+            ...poolLoad({
+              spans: mcpRepo.loadPoolSpans(ctx.db, { from: input.from, to: input.to }).map((s) => ({
+                resourceId: s.resourceId,
+                resourceName: s.resourceName,
+                fromDate: unsafeDateOnly(s.fromDate),
+                toDate: unsafeDateOnly(s.toDate),
+                allocation: s.allocation,
+                effortMd: s.effortMd,
+                projectId: s.projectId,
+                projectCode: s.projectCode,
+              })),
+              from: unsafeDateOnly(input.from),
+              to: unsafeDateOnly(input.to),
+              bucket: input.by,
+              capacityOn: (resourceId, date) => engine.capacityOn(resourceId, date),
+              resources: adminRepo.listResources(ctx.db),
+            }),
+            projects: mcpRepo.listActiveProjects(ctx.db),
+          };
+        } catch (error) {
+          if (error instanceof LoadWindowTooWideError) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: error.message });
+          }
+          throw error;
+        }
       }),
   }),
 

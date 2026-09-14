@@ -427,6 +427,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
                   fromDate: unsafeDateOnly(s.fromDate),
                   toDate: unsafeDateOnly(s.toDate),
                   allocation: s.allocation,
+                  effortMd: s.effortMd,
                   projectId: s.projectId,
                 })),
               from: unsafeDateOnly(args.from),

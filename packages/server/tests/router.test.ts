@@ -1533,3 +1533,94 @@ describe('S5 — resources & calendars', () => {
     );
   });
 });
+
+/**
+ * S9 — Resource pool xuyên dự án (§10.3, §7.12).
+ *
+ * §10.6 cho `view_resource_pool` là `{pm: true, lead: false}`. Điều đáng kiểm nhất là
+ * đúng thứ một dự án đơn lẻ KHÔNG nhìn thấy: người bị hai dự án đặt chồng lên nhau.
+ */
+describe('S9 — resource pool', () => {
+  beforeEach(() => {
+    db.prepare(
+      `INSERT INTO app_user (id,email,name,password_hash,is_admin,created_at)
+       VALUES ('U-ADMIN2','admin2@x.com','Admin','h',1,?)`,
+    ).run(AT);
+    // Dự án thứ hai, cùng pool nhân sự (§7.12).
+    db.prepare(
+      `INSERT INTO project (id,code,name,priority,start_date,status_date,calendar_id,default_location,created_at)
+       VALUES ('P2','GEO','GEO',2,'2026-01-05','2026-01-05','CAL','VN',?)`,
+    ).run(AT);
+    db.prepare(
+      `INSERT INTO task (uid,project_id,wbs_code,depth,sort_order,name,kind,effort_md,role,created_at,updated_at)
+       VALUES ('T-GEO','P2','1',1,1,'Việc GEO','work',5,'Dev',?,?)`,
+    ).run(AT, AT);
+  });
+
+  const window = { from: '2026-01-05', to: '2026-01-09', by: 'week' as const };
+
+  it('lead KHÔNG xem được pool', async () => {
+    await expectTrpcCode(caller('U-LEAD').pool.load(window), 'FORBIDDEN');
+  });
+
+  it('PM xem được', async () => {
+    const out = await caller('U-PM').pool.load(window);
+    expect(out.rows.length).toBeGreaterThan(0);
+    expect(out.projects.map((p) => p.code).sort()).toEqual(['GEO', 'UTG']);
+  });
+
+  it('người chưa được xếp việc nào vẫn hiện, với 0 MD', async () => {
+    db.prepare(`INSERT INTO resource (id,name,location_id) VALUES ('R-RANH','Rảnh','VN')`).run();
+    const out = await caller('U-PM').pool.load(window);
+    const idle = out.rows.find((r) => r.resourceId === 'R-RANH');
+    expect(idle?.totalAllocatedMd).toBe(0);
+    expect(idle?.byProject).toEqual([]);
+  });
+
+  /**
+   * Đây là câu hỏi màn này sinh ra để trả lời.
+   *
+   * R-1 bị cả UTG lẫn GEO đặt kín cùng một tuần. Nhìn từ trong một dự án thì mỗi bên đều
+   * thấy "một người, đặt 100%" — hoàn toàn bình thường. Chỉ pool mới thấy 200%.
+   */
+  it('thấy người bị HAI dự án đặt chồng lên nhau', async () => {
+    db.prepare(
+      `INSERT INTO assignment (task_uid,resource_id,allocation,from_date,to_date)
+       VALUES ('T-GEO','R-1',1,'2026-01-05','2026-01-09')`,
+    ).run();
+
+    const out = await caller('U-PM').pool.load(window);
+    const r1 = out.rows.find((r) => r.resourceId === 'R-1');
+
+    // Cửa sổ là 5 ngày làm ⇒ năng lực 5 MD. GEO 5 MD + UTG 2 MD = 7 MD ⇒ 140%.
+    // Tải rải theo EFFORT, nên muốn quá tải thì tổng effort phải thật sự vượt năng lực —
+    // không phải cứ hai dòng assignment chồng nhau là quá tải.
+    expect(r1?.overbooked, 'phải nhận ra bị đặt quá tay').toBe(true);
+    expect(r1?.byProject.map((p) => p.projectCode).sort()).toEqual(['GEO', 'UTG']);
+    expect((r1?.cells[0]?.utilisation ?? 0) > 1).toBe(true);
+  });
+
+  /** Dự án đã đóng vẫn còn assignment trong DB; đếm chúng là báo bận bằng việc đã xong. */
+  it('KHÔNG đếm dự án đã đóng', async () => {
+    db.prepare(
+      `INSERT INTO assignment (task_uid,resource_id,allocation,from_date,to_date)
+       VALUES ('T-GEO','R-1',1,'2026-01-05','2026-01-09')`,
+    ).run();
+    const before = (await caller('U-PM').pool.load(window)).rows.find(
+      (r) => r.resourceId === 'R-1',
+    );
+    expect(before?.byProject).toHaveLength(2);
+
+    db.prepare(`UPDATE project SET status = 'closed' WHERE id = 'P2'`).run();
+    const after = (await caller('U-PM').pool.load(window)).rows.find((r) => r.resourceId === 'R-1');
+    expect(after?.byProject.map((p) => p.projectCode)).toEqual(['UTG']);
+    expect(after?.overbooked).toBe(false);
+  });
+
+  it('cửa sổ quá rộng thì BAD_REQUEST, không quét vô hạn', async () => {
+    await expectTrpcCode(
+      caller('U-PM').pool.load({ from: '2020-01-01', to: '2030-01-01', by: 'month' }),
+      'BAD_REQUEST',
+    );
+  });
+});

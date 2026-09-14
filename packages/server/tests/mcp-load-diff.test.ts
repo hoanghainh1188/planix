@@ -237,8 +237,10 @@ describe('wbs_get_resource_load', () => {
 
     expect(without.rows.find((r) => r.resourceId === 'R-VN')?.totalAllocatedMd).toBe(0);
     const cross = withCross.rows.find((r) => r.resourceId === 'R-VN');
-    expect(cross?.totalAllocatedMd).toBe(5);
-    expect(cross?.cells[0]?.otherProjectMd).toBe(5);
+    // `Design GEO` là task 2 MD. Tải rải ra bằng đúng EFFORT, không phải `allocation`
+    // nhân với mọi ngày trong bao ngoài — xem `spreadOf` trong `resource-load.ts`.
+    expect(cross?.totalAllocatedMd).toBe(2);
+    expect(cross?.cells[0]?.otherProjectMd).toBe(2);
     // Và của dự án đang xét vẫn là 0 — hai con số tách bạch, không trộn.
     expect(cross?.cells[0]?.allocatedMd).toBe(0);
   });
