@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'node:url';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -32,10 +33,24 @@ export default defineConfig({
         },
       },
       {
+        // `model/` là hàm thuần, chạy trên `node` cũng được. Nhưng component thì cần DOM,
+        // và chia làm hai project chỉ để tiết kiệm vài trăm mili-giây khởi động sẽ khiến
+        // mỗi lần thêm test phải nhớ đặt nó vào đúng chỗ nào.
+        plugins: [react()],
         test: {
           name: 'web',
           root: './packages/web',
-          include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
+          environment: 'jsdom',
+          include: [
+            'tests/**/*.test.ts',
+            'tests/**/*.test.tsx',
+            'src/**/*.test.ts',
+            'src/**/*.test.tsx',
+          ],
+          // Dọn DOM giữa các test. Thiếu nó thì test sau nhìn thấy cây của test trước, và
+          // `getByRole` trả về phần tử của một màn hình đã đóng.
+          globals: true,
+          setupFiles: ['./tests/setup.ts'],
         },
       },
     ],
@@ -48,6 +63,7 @@ export default defineConfig({
         'packages/core/src/domain/**',
         'packages/server/src/**',
         'packages/web/src/model/**',
+        'packages/web/src/components/**',
       ],
       // Hai file này là khởi động tiến trình và công cụ dev, không chứa nhánh nghiệp vụ:
       // `index.ts` đọc env rồi gọi `createApp` (đã có 18 test qua HTTP thật), `dev-seed.ts`
