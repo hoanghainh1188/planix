@@ -11,6 +11,8 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { WbsEmpty } from '../src/components/wbs-tree/WbsEmpty.js';
 import { WbsTree } from '../src/components/wbs-tree/WbsTree.js';
+import { DependencyPanel } from '../src/components/links/DependencyPanel.js';
+import { HeaderActions } from '../src/components/header/HeaderActions.js';
 import type { WbsRow } from '../src/data/types.js';
 
 /**
@@ -136,5 +138,70 @@ describe('§10.6 — thiếu edit_wbs thì cây chỉ để xem', () => {
     expect(screen.queryByTitle('Add a task right after this one')).toBeNull();
     expect(screen.queryByTitle('Add a task inside this one')).toBeNull();
     expect(screen.queryByTitle(/^Delete this task/)).toBeNull();
+  });
+});
+
+describe('§10.6 — thiếu edit_wbs thì panel Links cũng chỉ để xem', () => {
+  const task = rowOf({
+    uid: 'T-0002',
+    wbsCode: '1.1',
+    depth: 2,
+    parentUid: 'T-0001',
+    kind: 'work',
+  });
+  const links = { predecessors: [], successors: [] };
+
+  it('có quyền thì hiện lối thêm ràng buộc', () => {
+    render(
+      <DependencyPanel
+        task={task}
+        links={links}
+        loading={false}
+        rows={[task]}
+        issues={[]}
+        onAdd={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /Add link/i })).toBeTruthy();
+  });
+
+  /**
+   * `DependencyPanel` đã có sẵn chế độ chỉ-xem (`canEdit = onAdd !== undefined`) từ lúc
+   * viết, y như `WbsTree` — và cũng như `WbsTree`, `App.tsx` truyền callback vô điều kiện
+   * nên chế độ đó chưa từng chạy. Kiểm trên `data/dev.db` bằng tài khoản lead: nút
+   * "Add link" vẫn hiện, bấm vào là ăn lỗi quyền.
+   */
+  it('không có quyền thì không còn lối thêm ràng buộc', () => {
+    render(<DependencyPanel task={task} links={links} loading={false} rows={[task]} issues={[]} />);
+    // Panel PHẢI dựng được, nếu không thì "không thấy nút" chẳng chứng minh gì.
+    expect(screen.getByText(/1\.1/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Add link/i })).toBeNull();
+  });
+});
+
+describe('§10.6 — recalculate_project chỉ PM', () => {
+  it('PM thấy nút Recalculate', () => {
+    render(<HeaderActions canRecalculate hasTasks onRecalculate={vi.fn()} onSignOut={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeTruthy();
+  });
+
+  /** Đã xác nhận trên `data/dev.db`: lead nhìn thấy nút này trước khi sửa. */
+  it('lead không thấy nút Recalculate, nhưng vẫn thoát ra được', () => {
+    render(
+      <HeaderActions canRecalculate={false} hasTasks onRecalculate={vi.fn()} onSignOut={vi.fn()} />,
+    );
+    expect(screen.queryByRole('button', { name: 'Recalculate' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
+  });
+
+  /** Dự án rỗng: không có gì để xếp, nên nút còn đó nhưng khoá. */
+  it('dự án chưa có task thì nút bị khoá', () => {
+    render(
+      <HeaderActions canRecalculate hasTasks={false} onRecalculate={vi.fn()} onSignOut={vi.fn()} />,
+    );
+    const btn = screen.getByRole('button', { name: 'Recalculate' });
+    if (!(btn instanceof HTMLButtonElement)) throw new Error('Không phải button');
+    expect(btn.disabled).toBe(true);
   });
 });
