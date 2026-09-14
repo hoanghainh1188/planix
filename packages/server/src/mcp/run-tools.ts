@@ -17,7 +17,7 @@ import { exportExcel, ExportBlockedError } from '@planix/core/io/excel/index.js'
 import { findProjectRole } from '@planix/core/db/repo/auth-repo.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
 import { runWhatIf, WhatIfChangeError, type WhatIfChange } from '@planix/core/pipeline/what-if.js';
-import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { assertCan, ForbiddenError } from '@planix/core/domain/permissions.js';
 import { appRouter, type Context } from '../router/index.js';
 import { TRPCError } from '@trpc/server';
 import type { McpContext, McpToolResult } from './result.js';
