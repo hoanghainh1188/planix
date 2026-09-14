@@ -115,6 +115,13 @@
   color: var(--c-ink-muted);
 }
 
+/* §7.6 bằng một câu — thứ PM đọc trước tiên, nên đứng trên chuỗi và dùng màu chữ chính. */
+.detail__why {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--c-ink);
+}
+
 /* Chuỗi chặn: đọc từ task đang xem ngược lên nguồn, nên thụt dần cho thấy hướng đi. */
 .detail__chain {
   list-style: none;

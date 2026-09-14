@@ -20,6 +20,8 @@ export type GanttRowData = Outputs['gantt']['get'][number];
 export type ProgressBoardData = Outputs['progress']['board'];
 export type TaskLinks = Outputs['wbs']['dependencies'];
 export type TaskDetail = Outputs['wbs']['detail'];
+/** Một mắt của chuỗi chặn §7.6 — suy từ output tRPC để không trôi khỏi server. */
+export type BlockingLink = TaskDetail['explanation']['chain'][number];
 export type AdminOverview = Outputs['admin']['overview'];
 export type AdminResource = AdminOverview['resources'][number];
 export type AdminCalendar = AdminOverview['calendars'][number];
