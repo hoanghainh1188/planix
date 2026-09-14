@@ -318,6 +318,39 @@ export function updateTaskFields(
   ).run(fields.name, fields.effortMd, fields.role, fields.priority, now, taskUid);
 }
 
+/**
+ * Ghim người vào một task, hoặc gỡ ghim khi `resourceId === null` (§7.8).
+ *
+ * `pinned_resource` có từ migration 001 nhưng tới giờ **chỉ importer ghi được** — không
+ * màn nào trong §10.4 cho sửa nó, nên trước lớp MCP thì cách duy nhất để ghim một người
+ * là nạp lại cả file. §12.2 yêu cầu `wbs_pin_resource`, nên đường ghi đó phải có thật.
+ *
+ * Trả về `false` khi không có task nào mang uid đó — người gọi phân biệt được "đã ghim"
+ * với "gõ nhầm uid", hai thứ cần phản ứng khác nhau.
+ *
+ * Engine KHÔNG được tự đổi người đã ghim (N4): nó chỉ được báo `J01` nếu việc ghim gây
+ * quá tải. Ràng buộc đó nằm ở `sgs.ts`, không ở đây.
+ */
+export function setPinnedResource(
+  db: Db,
+  taskUid: string,
+  resourceId: string | null,
+  now: string,
+): boolean {
+  return (
+    db
+      .prepare('UPDATE task SET pinned_resource = ?, updated_at = ? WHERE uid = ?')
+      .run(resourceId, now, taskUid).changes > 0
+  );
+}
+
+/** Người đang bị ghim vào task, để ghi nhật ký giá trị trước khi đổi. */
+export function loadPinnedResource(db: Db, taskUid: string): string | null | undefined {
+  const r = db.prepare('SELECT pinned_resource FROM task WHERE uid = ?').get(taskUid) as
+    { pinned_resource: string | null } | undefined;
+  return r === undefined ? undefined : r.pinned_resource;
+}
+
 export function upsertProgress(
   db: Db,
   p: {
