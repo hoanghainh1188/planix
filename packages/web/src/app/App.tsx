@@ -12,6 +12,7 @@ import { AdminScreen } from '../components/admin/AdminScreen.js';
 import { PoolScreen } from '../components/pool/PoolScreen.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
 import { PeriodScreen, type ReportKind } from '../components/period/PeriodScreen.js';
+import { can, toProjectRole, type PermissionContext } from '@planix/core/domain/permissions.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
 import { SignIn } from '../components/auth/SignIn.js';
 import { buildRecalcDiff, type ScheduleSnapshotRow } from '../model/recalc-diff.js';
@@ -329,34 +330,52 @@ function Workspace({
 
   const poolData = useAsync(loadPool, [screen, poolRange, savedAt]);
 
-  // §10.6: `import_from_ai` và `edit_wbs` đều chỉ PM. Admin được `listUserProjects` trả về
-  // vai 'pm' nên một phép so sánh là đủ.
-  //
-  // Hai hằng số riêng chứ không một, dù bảng §10.6 đang cho chúng cùng một dòng: đó là hai
-  // quyền khác nhau, và gộp lại thì ngày nào bảng đổi một trong hai, chỗ này sai âm thầm.
+  /**
+   * Mọi câu "được hay không" đều HỎI bảng §10.6, không chép lại nó.
+   *
+   * Trước đây chỗ này là một dãy `projectRole === 'pm'` viết tay, và cả ba lỗi của đợt rà
+   * vừa rồi đều sinh ra từ đó: khoá nhầm tên quyền, gộp ba màn vào một cờ, hỏi một câu
+   * khác server. Giờ `can()` đến từ `@planix/core` — đúng bảng mà router dùng để từ chối.
+   *
+   * Vẫn không phải cơ chế bảo vệ: §10.6 chốt "kiểm tra quyền ở server, không chỉ ẩn nút".
+   * Đây chỉ để người dùng khỏi bấm vào một bức tường.
+   */
   const projectRole =
     projects.status === 'ready' ? projects.data.find((p) => p.id === projectId)?.role : undefined;
-  const canImport = projectRole === 'pm';
-  const canEditWbs = projectRole === 'pm';
-  const canRecalculate = projectRole === 'pm';
-  const canClosePeriod = projectRole === 'pm';
-  /** §10.6 `export_report` là `{pm: true, lead: true}` — lead chỉ bản `full`. */
-  const canExport = projectRole === 'pm' || projectRole === 'lead';
-  const exportKinds: readonly ReportKind[] =
-    projectRole === 'pm' ? ['full', 'summary', 'resource'] : ['full'];
+  const perm: PermissionContext = { isAdmin, projectRole: toProjectRole(projectRole) };
+
+  const canImport = can('import_from_ai', perm);
+  const canEditWbs = can('edit_wbs', perm);
+  const canRecalculate = can('recalculate_project', perm);
+  const canClosePeriod = can('close_period', perm);
+
+  /**
+   * Bảng §10.6 cho lead `export_report` "✅ (bản full)", và `can()` đã mang sẵn tinh chỉnh
+   * đó qua `reportKind`. Hỏi từng bản một là để danh sách trên màn hình đi theo bảng: mai
+   * kia bảng mở thêm `summary` cho lead thì UI tự có, không phải nhớ sửa ở đây.
+   */
+  const exportKinds: readonly ReportKind[] = (['full', 'summary', 'resource'] as const).filter(
+    (reportKind) => can('export_report', { ...perm, reportKind }),
+  );
+
   /**
    * `view_resource_pool` hỏi "có làm PM ở ĐÂU ĐÓ không", không phải vai ở dự án đang chọn.
    *
-   * S9 là màn toàn cục nên server tra đúng như vậy (`pmSomewhere`). Tra theo dự án đang
-   * chọn thì một người làm PM dự án A, lead dự án B sẽ mất tab Pool chỉ vì đang đứng ở B.
+   * S9 là màn toàn cục. Server tra đúng như vậy (`pmSomewhere`), nên ở đây phải dựng cùng
+   * một `PermissionContext` — tra theo dự án đang chọn thì một người làm PM dự án A, lead
+   * dự án B sẽ mất tab Pool chỉ vì đang đứng ở B.
    */
   const pmSomewhere = projects.status === 'ready' && projects.data.some((p) => p.role === 'pm');
 
   const screenGates: Readonly<Record<ScreenGate, boolean>> = {
     import_from_ai: canImport,
-    export_report: canExport,
-    manage_resources: isAdmin,
-    view_resource_pool: pmSomewhere,
+    export_report: exportKinds.length > 0,
+    // Màn toàn cục, không thuộc dự án nào — y như router (§10.3).
+    manage_resources: can('manage_resources', { isAdmin, projectRole: null }),
+    view_resource_pool: can('view_resource_pool', {
+      isAdmin,
+      projectRole: pmSomewhere ? 'pm' : null,
+    }),
   };
 
   /**
