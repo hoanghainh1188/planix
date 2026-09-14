@@ -37,11 +37,17 @@ lịch này có giống thứ một PM có kinh nghiệm sẽ tự xếp không.
 2. **Chọn ba task bị đẩy muộn nhất** (S1, cột Plan Start) và xem `delay_reason` của chúng.
    Lý do engine đưa ra có đúng là lý do bạn sẽ nói không?
 
-   **Lưu ý:** `delay_reason` hiện **chưa hiện trên màn web nào** — engine tính và lưu nó,
-   `wbs.tree` có trả về, nhưng không component nào vẽ ra. Tạm thời xem qua MCP
-   (`wbs_explain_task`) hoặc đọc thẳng cột `schedule.delay_reason`. Đây là lỗ hổng thật so
-   với §7.6 và R5 (_"`delay_reason` … là bắt buộc"_), không phải chi tiết giao diện: không
-   có nó thì chính bước kiểm này khó làm.
+   Xem ở tab **Detail** của panel bên phải màn WBS, khối _"Why it starts here"_.
+
+   **Sửa lại một câu sai trong bản đầu tài liệu này.** Bản đầu viết `delay_reason` _"chưa hiện
+   trên màn web nào"_. Sai: S2 có hiện, nhưng chỉ khi task chờ **task khác**. Kiểm lại ngày
+   2026-09-14 thì thực tế có hai lỗ hổng, đều đã sửa:
+   - Task chờ người (`resource`) hoặc bị dự án khác chiếm chỗ (`cross_project`) bị ẩn hẳn
+     khối giải thích — 299/744 task trên `data/dev.db`.
+   - 228/744 dòng có `blocking_ref` trỏ vào nút gộp nội bộ `~join-nnnnn` thay vì task thật,
+     nên chuỗi giải thích bị cắt ngay mắt đầu.
+
+   Dữ liệu đã lưu trước bản sửa vẫn mang ref cũ — bấm **Recalculate** một lần trước khi kiểm.
 
 3. **Đường găng.** Chuỗi task tô đậm có phải chuỗi bạn thật sự lo không? Có chuỗi nào bạn lo
    mà engine không tô?
