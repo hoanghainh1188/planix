@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import { WbsTree, type TaskEdit } from '../components/wbs-tree/WbsTree.js';
 import { WbsEmpty } from '../components/wbs-tree/WbsEmpty.js';
+import { HeaderActions } from '../components/header/HeaderActions.js';
 import { EvmStrip } from '../components/evm/EvmStrip.js';
 import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
@@ -325,6 +326,7 @@ function Workspace({
     projects.status === 'ready' ? projects.data.find((p) => p.id === projectId)?.role : undefined;
   const canImport = projectRole === 'pm';
   const canEditWbs = projectRole === 'pm';
+  const canRecalculate = projectRole === 'pm';
 
   /**
    * Bản so sánh THẬT: engine chạy thử trên bản sao DB rồi trả về lịch trước và sau.
@@ -460,6 +462,18 @@ function Workspace({
    * Server vẫn là chỗ chặn thật (`assertCan('edit_wbs')` trên từng procedure); cái này chỉ
    * là để người không có quyền khỏi phải đâm vào tường mới biết có tường.
    */
+  /** §10.6: `setDependency` / `deleteDependency` cũng là `edit_wbs`. */
+  const linkWriteHandlers = canEditWbs ? { onAdd: addLink, onRemove: removeLink } : {};
+
+  /**
+   * `updateLabels` kiểm `edit_wbs`, không phải `import_from_ai`.
+   *
+   * Chỗ này từng dùng `canImport`. Kết quả đúng — hai quyền đang cùng một dòng trong bảng
+   * §10.6 nên trùng nhau — nhưng đúng vì tình cờ: ngày nào bảng tách hai dòng ra, panel
+   * này sẽ hiện hay ẩn theo một quyền chẳng liên quan gì tới nó.
+   */
+  const labelWriteHandlers = canEditWbs ? { onSave: saveLabels } : {};
+
   const wbsWriteHandlers = canEditWbs
     ? {
         onEdit: editTask,
@@ -848,19 +862,13 @@ function Workspace({
           ))}
         </nav>
 
-        <div className="app__actions">
-          <button type="button" className="app__action" onClick={() => void signOut()}>
-            Sign out
-          </button>
-          <button
-            type="button"
-            className="app__action app__action--primary"
-            onClick={() => void openRecalc()}
-            disabled={rows.length === 0 || previewing}
-          >
-            {previewing ? 'Calculating…' : 'Recalculate'}
-          </button>
-        </div>
+        <HeaderActions
+          canRecalculate={canRecalculate}
+          busy={previewing}
+          hasTasks={rows.length > 0}
+          onRecalculate={() => void openRecalc()}
+          onSignOut={() => void signOut()}
+        />
       </header>
 
       {(writeError ?? previewError) ? (
@@ -1044,7 +1052,7 @@ function Workspace({
                 detail={detail.status === 'ready' ? detail.data : null}
                 loading={detail.status === 'loading'}
                 busy={writing}
-                {...(canImport ? { onSave: saveLabels } : {})}
+                {...labelWriteHandlers}
               />
             ) : sidePanel === 'issues' ? (
               <IssuePanel
@@ -1067,8 +1075,7 @@ function Workspace({
                 loading={links.status === 'loading'}
                 rows={rows}
                 issues={linkIssues}
-                onAdd={addLink}
-                onRemove={removeLink}
+                {...linkWriteHandlers}
                 busy={writing}
               />
             )}
