@@ -18,7 +18,7 @@ import {
   expandSummaryEdgesCompact,
   type DepEdge,
 } from '../domain/dependency.js';
-import { createCalendarEngine } from '../domain/calendar.js';
+import { createCalendarEngine, type CalendarEngine } from '../domain/calendar.js';
 import { runCpm, type CpmTask } from '../domain/cpm.js';
 import {
   checkMilestonesOnHolidays,
@@ -74,6 +74,36 @@ export interface ScheduleOptions {
    * Bỏ trống khi xếp một dự án lẻ: lúc đó mọi dự án khác đều đang giữ chỗ thật.
    */
   readonly pendingProjects?: readonly string[];
+  /**
+   * Khi nào chạy `J06` — rule DUY NHẤT đọc pool toàn cục thay vì dữ liệu của dự án này.
+   *
+   * `'inline'` (mặc định) hợp với "Recalculate this project": ghi xong lịch là pool đã ở
+   * trạng thái cuối, đếm ngay được.
+   *
+   * `'defer'` dành cho "Recalculate all": lúc xếp dự án thứ nhất thì dự án thứ hai vẫn
+   * mang assignment của lượt trước, đếm ngay sẽ ra một con số không thuộc lượt nào cả.
+   * Khi hoãn, hàm này KHÔNG ghi `validation_run` mà trả về `deferred` để người gọi đếm
+   * lại và ghi sau, khi cả lượt đã xong.
+   */
+  readonly poolAudit?: 'inline' | 'defer';
+}
+
+/**
+ * Phần việc `scheduleProject` để lại cho người gọi khi `poolAudit: 'defer'`.
+ *
+ * Mang theo đủ đầu vào của `J06` tại thời điểm xếp lịch — chỉ riêng bảng `assignment` là
+ * đọc lại lúc đếm, vì đó chính là thứ cần chờ ổn định.
+ */
+export interface DeferredPoolAudit {
+  readonly projectId: string;
+  readonly runId: string;
+  readonly detectedAt: string;
+  /** Mọi issue đã biết, trừ `J06`. */
+  readonly recorded: readonly RecordedIssue[];
+  /** Chỉ người CÓ làm dự án này (§8.3). */
+  readonly resourceIds: readonly string[];
+  readonly windowStart: DateOnly;
+  readonly windowEnd: DateOnly | null;
 }
 
 export interface ScheduleIssue {
@@ -99,6 +129,8 @@ export interface ScheduleResult {
   /** §3.1 đặt ngưỡng 200 ms cho write lock. */
   readonly writeLockMs: number;
   readonly projectEnd: DateOnly | null;
+  /** Chỉ có khi `poolAudit: 'defer'` — xem `DeferredPoolAudit`. */
+  readonly deferred?: DeferredPoolAudit;
 }
 
 /** §7.2 — duration danh nghĩa, làm tròn LÊN bội số 0.5. */
@@ -475,21 +507,8 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
       assignments: sgs.assignments,
       workingDaysBetween: (a, b) => engine.workingDaysBetween(lagCalendarId, a, b) + 1,
     }),
-    // `J06` — cửa sổ từ MỐC CHUẨN tới hết dự án (PM chốt 2026-09-13). Đo cả span thì
-    // người tham gia ở giai đoạn cuối luôn hiện ra là rảnh dù chưa tới lượt; câu hỏi PM
-    // đặt là "ai đang rảnh", ở thì hiện tại.
-    ...(projectEnd === null
-      ? []
-      : checkResourceUtilisation({
-          // Chỉ người CÓ làm dự án này. Đo toàn cục rồi báo ở mọi dự án thì cùng một phát
-          // hiện lặp lại khắp nơi.
-          resourceIds: [...new Set(sgs.assignments.map((a) => a.resourceId))],
-          // Nhưng ĐẾM thì đếm toàn cục — đó là cả điểm của rule.
-          assignments: scheduleRepo.loadAssignmentsInWindow(db, settings.statusDate, projectEnd),
-          windowStart: settings.statusDate,
-          windowEnd: projectEnd,
-          capacityOn: (resourceId, date) => engine.capacityOn(resourceId, date),
-        })),
+    // `J06` chạy ở cuối hàm hoặc ở người gọi, tuỳ `poolAudit` — nó là rule duy nhất đọc
+    // pool toàn cục, nên cần pool đã ổn định mới đếm đúng.
   ]) {
     issues.push({
       code: i.code,
@@ -511,31 +530,88 @@ export function scheduleProject(db: Db, options: ScheduleOptions): ScheduleResul
 
   // Gộp hai nguồn: validate trên dữ liệu, và issue chỉ lộ ra KHI xếp lịch (N07 bắc cầu
   // hỏng, J01 overallocate...). Với PM đọc màn S6 thì cả hai đều là vấn đề của dự án.
-  const recorded: RecordedIssue[] = [
-    ...afterSchedule.issues,
-    ...issues.map((i) => ({
+  const toRecorded = (list: readonly ScheduleIssue[]): RecordedIssue[] =>
+    list.map((i) => ({
       severity: i.severity,
       code: i.code,
       message: i.message,
       ...(i.taskUid === undefined ? {} : { taskUid: i.taskUid }),
-    })),
-  ];
+    }));
+
+  // `J06` cần pool đã ổn định. Người gọi một dự án lẻ thì pool ổn định ngay tại đây; người
+  // gọi "Recalculate all" phải chờ hết lượt, nên nhận `deferred` và tự đếm sau.
+  const poolAudit: DeferredPoolAudit = {
+    projectId: settings.id,
+    runId: options.runId,
+    detectedAt: options.now,
+    recorded: [...afterSchedule.issues, ...toRecorded(issues)],
+    resourceIds: [...new Set(sgs.assignments.map((a) => a.resourceId))],
+    windowStart: settings.statusDate,
+    windowEnd: projectEnd,
+  };
+
+  if (options.poolAudit === 'defer') {
+    return {
+      report,
+      scheduledCount: schedule.size,
+      assignedCount: sgs.assignments.length,
+      issues,
+      writeLockMs,
+      projectEnd,
+      deferred: poolAudit,
+    };
+  }
+
+  const utilisation = poolUtilisationIssues(db, poolAudit, engine);
   recordValidationRun(db, {
     runId: options.runId,
     projectId: settings.id,
     detectedAt: options.now,
     source: 'schedule',
-    issues: recorded,
+    issues: [...poolAudit.recorded, ...toRecorded(utilisation)],
   });
 
   return {
     report,
     scheduledCount: schedule.size,
     assignedCount: sgs.assignments.length,
-    issues,
+    issues: [...issues, ...utilisation],
     writeLockMs,
     projectEnd,
   };
+}
+
+/**
+ * `J06` — ai đang rảnh, tính trên pool TOÀN CỤC (§8.3).
+ *
+ * Cửa sổ chạy từ MỐC CHUẨN tới hết dự án (PM chốt 2026-09-13). Đo cả span thì người tham
+ * gia ở giai đoạn cuối luôn hiện ra là rảnh dù chưa tới lượt; câu hỏi PM đặt là "ai đang
+ * rảnh", ở thì hiện tại.
+ *
+ * Tách khỏi `scheduleProject` vì nó là rule duy nhất mà câu trả lời phụ thuộc vào dự án
+ * KHÁC — nên nó cũng là rule duy nhất phải chờ cả lượt chạy xong mới đếm được.
+ */
+export function poolUtilisationIssues(
+  db: Db,
+  pending: DeferredPoolAudit,
+  engine: CalendarEngine,
+): ScheduleIssue[] {
+  if (pending.windowEnd === null) return [];
+  return checkResourceUtilisation({
+    // Chỉ người CÓ làm dự án này. Đo toàn cục rồi báo ở mọi dự án thì cùng một phát hiện
+    // lặp lại khắp nơi.
+    resourceIds: pending.resourceIds,
+    // Nhưng ĐẾM thì đếm toàn cục — đó là cả điểm của rule.
+    assignments: scheduleRepo.loadAssignmentsInWindow(db, pending.windowStart, pending.windowEnd),
+    windowStart: pending.windowStart,
+    windowEnd: pending.windowEnd,
+    capacityOn: (resourceId, date) => engine.capacityOn(resourceId, date),
+  }).map((i) => ({
+    code: i.code,
+    severity: i.severity,
+    message: i.message,
+    ...(typeof i.detail?.['taskUid'] === 'string' ? { taskUid: i.detail['taskUid'] } : {}),
+  }));
 }
 
 // ── §7.12 — lập lịch xuyên dự án ────────────────────────────────────────────
@@ -583,20 +659,57 @@ export function scheduleAllProjects(db: Db, options: ScheduleAllOptions): Schedu
   const perProject = new Map<string, ScheduleResult>();
   const order: string[] = [];
 
-  for (let i = 0; i < projects.length; i += 1) {
-    const project = projects[i];
-    if (project === undefined) continue;
-    const result = scheduleProject(db, {
-      projectId: project.id,
-      runId: options.runId,
-      now: options.now,
-      ...(options.windowDays === undefined ? {} : { windowDays: options.windowDays }),
-      respectOtherProjects: true,
-      // Chưa tới lượt — lịch hiện có của họ là output lượt trước, không phải chỗ đã chiếm.
-      pendingProjects: projects.slice(i + 1).map((p) => p.id),
-    });
-    perProject.set(project.id, result);
-    order.push(project.id);
+  try {
+    for (let i = 0; i < projects.length; i += 1) {
+      const project = projects[i];
+      if (project === undefined) continue;
+      const result = scheduleProject(db, {
+        projectId: project.id,
+        runId: options.runId,
+        now: options.now,
+        ...(options.windowDays === undefined ? {} : { windowDays: options.windowDays }),
+        respectOtherProjects: true,
+        // Chưa tới lượt — lịch hiện có của họ là output lượt trước, không phải chỗ đã chiếm.
+        pendingProjects: projects.slice(i + 1).map((p) => p.id),
+        poolAudit: 'defer',
+      });
+      perProject.set(project.id, result);
+      order.push(project.id);
+    }
+  } finally {
+    // `finally` chứ không phải sau vòng lặp: một dự án ở giữa bị chặn vì Critical sẽ ném
+    // ra ngoài, và issue của những dự án đã xếp xong phải ở lại DB thì PM mới đọc được vì
+    // sao. Lúc đó pool mới ổn định một phần — vẫn đúng hơn là không ghi gì.
+    const engine = createCalendarEngine(loadCalendarSnapshot(db));
+    for (const [projectId, result] of perProject) {
+      const pending = result.deferred;
+      if (pending === undefined) continue;
+      const utilisation = poolUtilisationIssues(db, pending, engine);
+      recordValidationRun(db, {
+        runId: pending.runId,
+        projectId: pending.projectId,
+        detectedAt: pending.detectedAt,
+        source: 'schedule',
+        issues: [
+          ...pending.recorded,
+          ...utilisation.map((i) => ({
+            severity: i.severity,
+            code: i.code,
+            message: i.message,
+            ...(i.taskUid === undefined ? {} : { taskUid: i.taskUid }),
+          })),
+        ],
+      });
+      // Người gọi đọc `issues` để đếm — nó phải gồm cả `J06` như đường một dự án.
+      perProject.set(projectId, {
+        report: result.report,
+        scheduledCount: result.scheduledCount,
+        assignedCount: result.assignedCount,
+        issues: [...result.issues, ...utilisation],
+        writeLockMs: result.writeLockMs,
+        projectEnd: result.projectEnd,
+      });
+    }
   }
 
   return { order, perProject };

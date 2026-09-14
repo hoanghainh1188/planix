@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { migrate, openDatabase, type Db } from '../../src/db/migrate.js';
-import { scheduleAllProjects } from '../../src/pipeline/schedule-project.js';
+import { scheduleAllProjects, scheduleProject } from '../../src/pipeline/schedule-project.js';
 import { buildScenario, SCENARIO_AT, type ScenarioHandles } from '../fixtures/scenario.js';
 import { buildPayload } from '../fixtures/generate.js';
 import { createCalendarEngine } from '../../src/domain/calendar.js';
@@ -320,5 +320,53 @@ describe('§7 pha C — đường găng sau san tài nguyên', () => {
     const first = run();
     expect(run(), 'lượt 2 phải bằng lượt 1').toBe(first);
     expect(run(), 'lượt 3 phải bằng lượt 1').toBe(first);
+  });
+
+  /**
+   * Lịch giống nhau chưa đủ — bảng issue PM đọc cũng phải giống nhau.
+   *
+   * `J06` là rule DUY NHẤT đếm trên pool toàn cục, nên nó là chỗ duy nhất mà câu trả lời
+   * cho dự án này phụ thuộc vào dự án kia. Đếm ngay lúc xếp xong dự án thứ nhất thì dự án
+   * thứ hai vẫn mang assignment của lượt trước — lượt đầu trên DB trắng thấy P-SIDE chưa
+   * có gì, lượt sau thấy P-SIDE của lượt đầu, và con số lệch đủ để đổi cả cách gộp:
+   * "cả 30 người đều dưới 50%" thành 29 dòng lẻ.
+   *
+   * Không có bài này thì lỗi chỉ hiện ra trên dữ liệu thật, dưới dạng một con số không ai
+   * đối chiếu được với cái gì.
+   */
+  it('Recalculate all hai lượt ghi ra cùng một tập issue (§8.3)', () => {
+    const issuesOf = (runId: string): string[] =>
+      (
+        db
+          .prepare(
+            `SELECT project_id, code, message FROM validation_issue
+              WHERE run_id = ? ORDER BY project_id, code, message`,
+          )
+          .all(runId) as Array<Record<string, unknown>>
+      ).map((r) => `${String(r['project_id'])} ${String(r['code'])} ${String(r['message'])}`);
+
+    scheduleAllProjects(db, { runId: 'RA', now: SCENARIO_AT, windowDays: 2000 });
+    scheduleAllProjects(db, { runId: 'RB', now: SCENARIO_AT, windowDays: 2000 });
+
+    expect(issuesOf('RB')).toEqual(issuesOf('RA'));
+  });
+
+  /**
+   * Mặt còn lại: đường một dự án KHÔNG được hoãn `J06`.
+   *
+   * "Recalculate this project" ghi xong là pool đã ở trạng thái cuối, nên đếm ngay tại chỗ
+   * mới đúng. Hoãn ở đây thì `J06` rơi mất hẳn — và mất một rule thì không có gì đỏ.
+   */
+  it('xếp một dự án lẻ vẫn ghi J06 ngay trong lượt đó', () => {
+    scheduleProject(db, { projectId: 'P-MAIN', runId: 'SOLO', now: SCENARIO_AT, windowDays: 2000 });
+
+    const n = (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM validation_issue WHERE run_id = 'SOLO' AND code = 'J06'`,
+        )
+        .get() as { n: number }
+    ).n;
+    expect(n).toBeGreaterThan(0);
   });
 });
