@@ -5,6 +5,7 @@ import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
 import { IssuePanel } from '../components/issues/IssuePanel.js';
 import { DependencyPanel, type LinkDirection } from '../components/links/DependencyPanel.js';
+import { TaskDetailPanel } from '../components/detail/TaskDetailPanel.js';
 import { ImportScreen } from '../components/import/ImportScreen.js';
 import { PeriodScreen } from '../components/period/PeriodScreen.js';
 import { RecalcDialog } from '../components/recalc/RecalcDialog.js';
@@ -24,6 +25,8 @@ import type {
   LinkIssue,
   ProgressBoardData,
   ProjectSummary,
+  TaskDetail,
+  TaskLabels,
   TaskLink,
   TaskLinks,
   WbsRow,
@@ -57,7 +60,7 @@ const SCREENS: ReadonlyArray<{ id: Screen; label: string; pmOnly?: boolean }> = 
  * Issues thuộc về CẢ dự án, Links thuộc về MỘT task đang chọn. Cho cả hai cùng hiện thì
  * ở 1024px mỗi panel còn chưa tới mười dòng — mà danh sách issue vốn đã cần cuộn.
  */
-type SidePanel = 'issues' | 'links';
+type SidePanel = 'issues' | 'links' | 'detail';
 
 export function App(): JSX.Element {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -211,6 +214,12 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
     return trpc.wbs.dependencies.query({ taskUid: selectedUid });
   }, [selectedUid]);
 
+  /** S2 — chỉ tải khi tab đang mở: panel này nặng hơn hai tab kia và ít được mở hơn. */
+  const loadDetail = useCallback((): Promise<TaskDetail | null> => {
+    if (selectedUid === null || sidePanel !== 'detail') return Promise.resolve(null);
+    return trpc.wbs.detail.query({ taskUid: selectedUid });
+  }, [selectedUid, sidePanel]);
+
   const loadEvm = useCallback(() => {
     if (projectId === null) return Promise.resolve(null);
     return trpc.evm.get.query({ projectId });
@@ -227,6 +236,7 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
   const gantt = useAsync(loadGantt, [projectId, screen]);
   const board = useAsync(loadBoard, [projectId, screen, savedAt]);
   const links = useAsync(loadLinks, [selectedUid, savedAt]);
+  const detail = useAsync(loadDetail, [selectedUid, sidePanel, savedAt]);
 
   const rows: WbsRow[] = tree.status === 'ready' ? tree.data : [];
   const selectedRow = rows.find((r) => r.uid === selectedUid) ?? null;
@@ -447,6 +457,28 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
       afterWrite();
     } catch (error) {
       setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  /**
+   * S2 — lưu nhóm nhãn phân loại (quyết định 2026-09-14).
+   *
+   * Không chạy scheduler: §10.1 nói lịch chỉ đổi khi PM bấm Recalculate và duyệt bảng so
+   * sánh trước. Nhãn phân loại không đụng tới ngày, nhưng `afterWrite` vẫn cần vì sửa
+   * `phase`/`module` làm đổi tập issue `N03` mà panel Issues đang hiện.
+   */
+  async function saveLabels(labels: TaskLabels): Promise<void> {
+    if (selectedUid === null) return;
+    setWriteError(null);
+    setWriting(true);
+    try {
+      await trpc.wbs.updateLabels.mutate({ taskUid: selectedUid, ...labels });
+      afterWrite();
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+      throw error;
     } finally {
       setWriting(false);
     }
@@ -820,9 +852,28 @@ function Workspace({ onSignedOut }: { readonly onSignedOut: () => void }): JSX.E
                   <b>{selectedRow.linkCount}</b>
                 ) : null}
               </button>
+              <button
+                type="button"
+                role="tab"
+                className="app__tab"
+                aria-selected={sidePanel === 'detail'}
+                onClick={() => setSidePanel('detail')}
+              >
+                Detail
+              </button>
             </div>
 
-            {sidePanel === 'issues' ? (
+            {sidePanel === 'detail' ? (
+              <TaskDetailPanel
+                // `key` buộc panel dựng lại khi đổi task: bản nháp trong nó phải bị vứt,
+                // nếu không thì bấm Save là ghi dữ liệu task cũ đè lên task mới.
+                key={selectedUid ?? 'none'}
+                detail={detail.status === 'ready' ? detail.data : null}
+                loading={detail.status === 'loading'}
+                busy={writing}
+                {...(canImport ? { onSave: saveLabels } : {})}
+              />
+            ) : sidePanel === 'issues' ? (
               <IssuePanel
                 issues={issues.status === 'ready' ? issues.data : []}
                 lastRun={lastRun.status === 'ready' ? lastRun.data : null}

@@ -1,0 +1,227 @@
+/*
+ * S2 — Task detail. Cùng ngôn ngữ với panel Issues và Links: cột phải, viền trái mảnh,
+ * tiêu đề chữ nhỏ in hoa.
+ *
+ * Panel này dài hơn hai panel kia nên phải cuộn được, và `min-width: 0` là bắt buộc:
+ * thiếu nó thì tên task dài sẽ đẩy panel rộng ra và tràn sang cây WBS bên trái. Đúng lỗi
+ * này đã gặp một lần với `.wbs`.
+ */
+
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border-left: 1px solid var(--c-rule);
+  background: var(--c-surface);
+}
+
+.detail__empty {
+  padding: var(--space-3);
+  color: var(--c-ink-muted);
+  font-size: var(--text-sm);
+}
+
+.detail__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.detail__code {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-muted);
+  font-size: var(--text-sm);
+}
+.detail__name {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detail__kind {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-ink-muted);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+  padding: 0 var(--space-1);
+}
+.detail__kind--milestone {
+  color: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+/* Hai cột nhãn/giá trị. `minmax(0, …)` để giá trị dài co lại được thay vì đẩy rộng panel. */
+.detail__facts {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.detail__factLabel {
+  color: var(--c-ink-muted);
+}
+.detail__factValue {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.detail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+}
+.detail__tag {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--c-accent);
+  color: var(--c-accent);
+  border-radius: 3px;
+  padding: 0 var(--space-1);
+}
+.detail__tag--pin {
+  border-color: var(--c-warn, var(--c-rule));
+  color: var(--c-warn, var(--c-ink-muted));
+}
+
+.detail__block {
+  border-top: 1px solid var(--c-rule);
+  padding-top: var(--space-2);
+  min-width: 0;
+}
+.detail__heading {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-ink-muted);
+}
+.detail__note {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--c-ink-muted);
+}
+
+/* Chuỗi chặn: đọc từ task đang xem ngược lên nguồn, nên thụt dần cho thấy hướng đi. */
+.detail__chain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+}
+.detail__chainItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding: 2px 0 2px var(--space-2);
+  border-left: 2px solid var(--c-rule);
+  min-width: 0;
+}
+.detail__chainCode {
+  font-variant-numeric: tabular-nums;
+  color: var(--c-ink-muted);
+}
+.detail__chainName {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detail__chainReason {
+  color: var(--c-accent);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  align-self: center;
+}
+
+.detail__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--text-sm);
+}
+.detail__links li {
+  padding: 2px 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.detail__links b {
+  color: var(--c-ink-muted);
+  font-weight: 500;
+}
+.detail__links i {
+  color: var(--c-ink-muted);
+  font-style: normal;
+  font-size: var(--text-xs);
+}
+
+.detail__field {
+  display: block;
+  margin-bottom: var(--space-2);
+  min-width: 0;
+}
+.detail__label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--c-ink-muted);
+  margin-bottom: 2px;
+}
+.detail__hint {
+  font-style: normal;
+  opacity: 0.75;
+}
+.detail__input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-1);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+  background: var(--c-bg);
+  color: var(--c-ink);
+}
+.detail__input--area {
+  resize: vertical;
+}
+.detail__input:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
+}
+
+.detail__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.detail__button {
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--c-rule);
+  border-radius: 3px;
+  background: var(--c-bg);
+  color: var(--c-ink);
+  cursor: pointer;
+}
+.detail__button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.detail__button--go {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+}

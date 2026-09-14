@@ -18,6 +18,7 @@ import * as baselineRepo from '@planix/core/db/repo/baseline-repo.js';
 import { validateProgressEntry } from '@planix/core/domain/progress-suggest.js';
 import { validate } from '@planix/core/domain/validator.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
+import * as mcpRepo from '@planix/core/db/repo/mcp-repo.js';
 import type { ValidationIssue, ValidationReport } from '@planix/core/domain/validation-types.js';
 import { recordValidationRun } from '@planix/core/db/repo/issue-repo.js';
 import * as issueRepo from '@planix/core/db/repo/issue-repo.js';
@@ -275,6 +276,97 @@ export const appRouter = t.router({
           revalidateAfterEdit(ctx, projectId);
         })();
         return { ok: true as const };
+      }),
+
+    /**
+     * S2 — mọi thứ về MỘT task (quyết định 2026-09-14).
+     *
+     * Gọi đúng hàm mà `wbs_get_task` và `wbs_explain_task` của lớp MCP đang dùng. Cố ý:
+     * hai câu truy vấn gần giống nhau cho cùng một câu hỏi sẽ trôi khỏi nhau, và khi đó
+     * PM với AI nhìn thấy hai phiên bản khác nhau của cùng một task.
+     */
+    detail: authed.input(z.object({ taskUid: z.string().min(1) })).query(({ ctx, input }) => {
+      const projectId = read.projectOfTask(ctx.db, input.taskUid);
+      if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+      try {
+        assertCan('view_assigned_project', permissionContext(ctx, projectId));
+      } catch (e) {
+        toTrpc(e);
+      }
+
+      const task = mcpRepo.loadMcpTask(ctx.db, input.taskUid);
+      if (task === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+      return {
+        task,
+        dependencies: read.loadTaskDependencies(ctx.db, input.taskUid),
+        explanation: mcpRepo.explainTask(ctx.db, input.taskUid),
+      };
+    }),
+
+    /**
+     * S2 — sửa nhóm nhãn phân loại.
+     *
+     * Tách khỏi `updateTask` chứ không gộp: hai nhóm sửa ở hai màn khác nhau, và gộp lại
+     * thì mỗi lần lưu một bên sẽ ghi đè bên kia bằng giá trị cũ nó đang giữ trong state.
+     *
+     * Chuỗi rỗng quy về `null` ngay tại biên: `phase = ''` và `phase = NULL` là hai thứ
+     * khác nhau với SQL nhưng cùng nghĩa "chưa đặt" với người dùng, và `N03` chỉ kiểm
+     * `NULL`. Không quy về thì xoá trắng một ô sẽ làm rule im lặng trong khi dữ liệu vẫn
+     * thiếu.
+     */
+    updateLabels: authed
+      .input(
+        z.object({
+          taskUid: z.string().min(1),
+          description: z.string().nullable(),
+          category: z.string().nullable(),
+          phase: z.string().nullable(),
+          module: z.string().nullable(),
+          externalRef: z.string().nullable(),
+        }),
+      )
+      .mutation(({ ctx, input }) => {
+        const projectId = read.projectOfTask(ctx.db, input.taskUid);
+        if (projectId === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+        try {
+          assertCan('edit_wbs', permissionContext(ctx, projectId));
+        } catch (e) {
+          toTrpc(e);
+        }
+
+        const before = read.loadTaskLabels(ctx.db, input.taskUid);
+        if (before === undefined) throw new TRPCError({ code: 'NOT_FOUND' });
+
+        const blank = (v: string | null): string | null => {
+          const t = v?.trim() ?? '';
+          return t === '' ? null : t;
+        };
+        const after = {
+          description: blank(input.description),
+          category: blank(input.category),
+          phase: blank(input.phase),
+          module: blank(input.module),
+          externalRef: blank(input.externalRef),
+        };
+
+        // Ghi dữ liệu và nhật ký trong CÙNG transaction: có vết mà không có thay đổi,
+        // hoặc ngược lại, đều tệ hơn là không có gì.
+        const report = ctx.db.transaction((): ValidationReport => {
+          read.updateTaskLabels(ctx.db, input.taskUid, after, ctx.now);
+          recordUpdate(
+            ctx.db,
+            { userId: ctx.user.userId, at: ctx.now },
+            'task',
+            input.taskUid,
+            before,
+            after,
+          );
+          return revalidateAfterEdit(ctx, projectId);
+        })();
+
+        // Trả kèm báo cáo: sửa `phase`/`module` là cách DUY NHẤT vá `N03`, nên panel phải
+        // thấy ngay issue vừa biến mất thay vì đợi lượt tải sau.
+        return { ok: true as const, validation: report };
       }),
 
     /** §10.4 — thêm một task vào cây. Trước đây chỉ importer ghi được vào bảng `task`. */
