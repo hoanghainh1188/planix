@@ -5,6 +5,7 @@ import {
   checkResourceUtilisation,
   checkThinAllocations,
   type AuditAssignment,
+  type UtilisationAssignment,
   type AuditTask,
 } from './schedule-audit.js';
 import { unsafeDateOnly } from './date-only.js';
@@ -192,7 +193,7 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
   }
 
   function run(
-    assignments: readonly AuditAssignment[],
+    assignments: readonly UtilisationAssignment[],
     over: { resourceIds?: readonly string[]; leave?: Record<string, readonly string[]> } = {},
   ) {
     return checkResourceUtilisation({
@@ -204,8 +205,39 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
     });
   }
 
-  function busy(resourceId: string, allocation: number, from = '2026-01-05', to = '2026-01-30') {
-    return { taskUid: 'T-1', resourceId, allocation, fromDate: d(from), toDate: d(to) };
+  /**
+   * `effortMd` suy ra từ `allocation` × số ngày làm của bao ngoài.
+   *
+   * Tức là mô tả một task LẤP KÍN bao ngoài của nó — và đó chính là trường hợp duy nhất
+   * mà cách tính cũ (`allocation` × mọi ngày) cho ra đúng kết quả. Mọi ca dưới đây đều
+   * thuộc loại đó, nên chúng không đổi đáp án khi rule chuyển sang rải theo effort.
+   *
+   * Ca mà cách cũ tính SAI — bao ngoài rộng hơn phần việc — nằm ở test riêng cuối describe.
+   */
+  function busy(
+    resourceId: string,
+    allocation: number,
+    from = '2026-01-05',
+    to = '2026-01-30',
+    leave: Readonly<Record<string, readonly string[]>> = {},
+  ) {
+    const capacity = makeCapacity(leave);
+    let workingDays = 0;
+    for (
+      let cursor = new Date(`${from}T00:00:00Z`);
+      cursor <= new Date(`${to}T00:00:00Z`);
+      cursor = new Date(cursor.getTime() + 86400000)
+    ) {
+      workingDays += capacity(resourceId, cursor.toISOString().slice(0, 10));
+    }
+    return {
+      taskUid: 'T-1',
+      resourceId,
+      allocation,
+      fromDate: d(from),
+      toDate: d(to),
+      effortMd: allocation * workingDays,
+    };
   }
 
   it('gần như không có việc thì báo, mức Major', () => {
@@ -249,6 +281,37 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
   });
 
   /**
+   * Ca mà cách tính CŨ trả lời sai — lý do rule này phải đổi.
+   *
+   * `assignment.from_date`/`to_date` là **bao ngoài**, không phải danh sách ngày làm. SGS
+   * giữ chỗ trên một số ngày cụ thể bên trong rồi chỉ ghi hai đầu mút; DB không lưu danh
+   * sách ngày. Một task 2 MD trải trên cả cửa sổ 20 ngày là chuyện bình thường — người đó
+   * chỉ thật sự bận 2 ngày.
+   *
+   * Cách cũ nhân `allocation = 1` với cả 20 ngày ⇒ đọc ra **100%**, và im lặng. Cách đúng
+   * rải 2 MD trên 20 ngày ⇒ **10%**, và báo J06 — đúng thứ §7.2 muốn nêu ra.
+   *
+   * Đo trên `data/dev.db`: lệch 6–32 điểm phần trăm; R-03 đọc 83% trong khi thật là 51%.
+   */
+  it('bao ngoài rộng hơn phần việc: phải đọc ra tỷ lệ THẬT, không phải 100%', () => {
+    const thinlySpread = {
+      taskUid: 'T-mong',
+      resourceId: 'R-1',
+      // `allocation` vẫn là 1 — đó chính là chỗ đánh lừa cách tính cũ.
+      allocation: 1,
+      fromDate: d('2026-01-05'),
+      toDate: d('2026-01-30'),
+      // …nhưng task chỉ có 2 MD việc.
+      effortMd: 2,
+    };
+
+    const issues = run([thinlySpread]);
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.code).toBe('J06');
+    expect(issues[0]?.message).toContain('10% utilised');
+  });
+
+  /**
    * Mẫu số là năng lực THẬT, không phải số ngày lịch. Người nghỉ phép gần hết cửa sổ mà
    * vẫn làm trọn những ngày còn lại thì không phải người rảnh.
    */
@@ -257,7 +320,7 @@ describe('J06 — resource dùng dưới 30% (§8.2, PM chốt 2026-09-13)', () 
     for (const day of [12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 26, 27, 28, 29, 30]) {
       leaveDays.push(`2026-01-${String(day).padStart(2, '0')}`);
     }
-    const issues = run([busy('R-1', 1, '2026-01-05', '2026-01-09')], {
+    const issues = run([busy('R-1', 1, '2026-01-05', '2026-01-09', { 'R-1': leaveDays })], {
       leave: { 'R-1': leaveDays },
     });
     // Chỉ còn 5 ngày làm trong cửa sổ, và cả 5 đều có việc → 100%.

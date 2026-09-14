@@ -12,6 +12,7 @@
  */
 
 import { addDays, compareDateOnly, type DateOnly } from './date-only.js';
+import { spreadOf } from './resource-load.js';
 import type { DepIssue } from './dependency.js';
 
 /** Đủ để nhận ra một task trong thông điệp, không cần cả `TaskRow`. */
@@ -29,6 +30,21 @@ export interface AuditAssignment {
   readonly allocation: number;
   readonly fromDate: DateOnly;
   readonly toDate: DateOnly;
+}
+
+/**
+ * Thêm khối lượng thật, cho rule cần ĐO TẢI.
+ *
+ * Hai rule dùng hai thứ khác nhau, và đó không phải chuyện tuỳ tiện:
+ *
+ *   - `N06` hỏi *"người này bị chia mỏng tới mức nào"* — tức hỏi về chính con số
+ *     `allocation`. Dùng `AuditAssignment` là đúng.
+ *   - `J06` hỏi *"người này được dùng bao nhiêu phần trăm năng lực"* — tức hỏi về KHỐI
+ *     LƯỢNG. `allocation` không trả lời được câu đó, vì `from_date`/`to_date` là bao
+ *     ngoài chứ không phải danh sách ngày làm.
+ */
+export interface UtilisationAssignment extends AuditAssignment {
+  readonly effortMd: number;
 }
 
 /** Phần lịch mà các rule dưới đây cần. */
@@ -200,7 +216,7 @@ export function checkResourceUtilisation(params: {
   /** Người có ít nhất một assignment trong dự án đang xét. */
   readonly resourceIds: readonly string[];
   /** Assignment của MỌI dự án — đó là cả điểm của rule này. */
-  readonly assignments: readonly AuditAssignment[];
+  readonly assignments: readonly UtilisationAssignment[];
   readonly windowStart: DateOnly;
   readonly windowEnd: DateOnly;
   /** Lịch A: năng lực của chính người đó trong một ngày (0 | 0.5 | 1). */
@@ -209,7 +225,7 @@ export function checkResourceUtilisation(params: {
   const { resourceIds, assignments, windowStart, windowEnd, capacityOn } = params;
   if (compareDateOnly(windowStart, windowEnd) > 0) return [];
 
-  const byResource = new Map<string, AuditAssignment[]>();
+  const byResource = new Map<string, UtilisationAssignment[]>();
   for (const a of assignments) {
     const list = byResource.get(a.resourceId);
     if (list === undefined) byResource.set(a.resourceId, [a]);
@@ -222,16 +238,27 @@ export function checkResourceUtilisation(params: {
     let available = 0;
     let allocated = 0;
 
+    // Rải `effort_md` theo năng lực từng ngày, KHÔNG nhân `allocation` với mọi ngày trong
+    // khoảng. `assignment.from_date`/`to_date` là bao ngoài; SGS chỉ giữ chỗ trên một số
+    // ngày bên trong và DB không lưu danh sách ngày. Đo trên `data/dev.db`: cách cũ phóng
+    // đại tỷ lệ sử dụng 6–32 điểm phần trăm — R-03 đọc 83% trong khi thật là 51%.
+    //
+    // Dùng chung `spreadOf` với `resource-load.ts` để hai chỗ không thể lệch nhau: cùng
+    // một câu hỏi mà hai con số khác nhau thì không ai biết tin cái nào.
+    const spread = (byResource.get(resourceId) ?? []).map((a) => ({
+      from: a.fromDate,
+      to: a.toDate,
+      load: spreadOf(a, capacityOn),
+    }));
+
     for (let day = windowStart; compareDateOnly(day, windowEnd) <= 0; day = addDays(day, 1)) {
       const capacity = capacityOn(resourceId, day);
       if (capacity <= 0) continue;
       available += capacity;
 
-      for (const a of byResource.get(resourceId) ?? []) {
-        if (compareDateOnly(day, a.fromDate) < 0 || compareDateOnly(day, a.toDate) > 0) continue;
-        // Nhân với capacity: nửa ngày làm ở mức 0.5 allocation là 0.25 người-ngày, không
-        // phải 0.5. Mẫu số cũng tính theo capacity nên hai vế cùng đơn vị.
-        allocated += a.allocation * capacity;
+      for (const a of spread) {
+        if (compareDateOnly(day, a.from) < 0 || compareDateOnly(day, a.to) > 0) continue;
+        allocated += a.load(day);
       }
     }
 

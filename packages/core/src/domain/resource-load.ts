@@ -101,8 +101,13 @@ export interface LoadInput {
  * bản làm mịn của thứ engine thật sự làm; nó không nói được NGÀY NÀO người đó ngồi vào
  * việc, nhưng không bao giờ phóng đại tổng.
  */
-function spreadOf(
-  span: LoadSpan,
+export function spreadOf(
+  span: {
+    readonly resourceId: string;
+    readonly fromDate: DateOnly;
+    readonly toDate: DateOnly;
+    readonly effortMd: number;
+  },
   capacityOn: (resourceId: string, date: DateOnly) => number,
 ): (date: DateOnly) => number {
   let totalCapacity = 0;
