@@ -268,19 +268,38 @@ describe('endpoint (§12.4)', () => {
     expect(entries.at(-1)?.path).toBe('/mcp');
   });
 
-  it('liệt kê đúng bộ tool đọc của §12.1', async () => {
+  /**
+   * So khớp CHÍNH XÁC, không phải "có chứa".
+   *
+   * Danh sách tool là bề mặt API của lớp này. Thêm nhầm một tool hay gỡ mất một tool đều
+   * là thay đổi hợp đồng với mọi client, và kiểu "có chứa" sẽ không thấy cái nào cả.
+   */
+  it('liệt kê đúng bộ tool §12.1 và §12.2', async () => {
     const res = await rpc('tools/list', {});
     const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
-    expect(body.result.tools.map((t) => t.name).sort()).toEqual([
-      'wbs_explain_task',
-      'wbs_get_critical_path',
-      'wbs_get_schedule',
-      'wbs_get_task',
-      'wbs_get_tree',
-      'wbs_list_projects',
-      'wbs_list_tasks',
-      'wbs_validate',
-    ]);
+    expect(body.result.tools.map((t) => t.name).sort()).toEqual(
+      [
+        // §12.1 — đọc
+        'wbs_explain_task',
+        'wbs_get_critical_path',
+        'wbs_get_schedule',
+        'wbs_get_task',
+        'wbs_get_tree',
+        'wbs_list_projects',
+        'wbs_list_tasks',
+        'wbs_validate',
+        // §12.2 — ghi
+        'wbs_delete_dependency',
+        'wbs_delete_subtree',
+        'wbs_import',
+        'wbs_move_task',
+        'wbs_pin_resource',
+        'wbs_set_dependency',
+        'wbs_set_progress',
+        'wbs_set_sequencing',
+        'wbs_update_task',
+      ].sort(),
+    );
   });
 });
 

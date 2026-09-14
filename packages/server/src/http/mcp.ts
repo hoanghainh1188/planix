@@ -41,12 +41,15 @@ export function bearerToken(header: string | undefined): string | null {
  */
 export async function handleMcpRequest(params: {
   readonly db: Db;
+  /** Đường dẫn file DB — tool chạy lịch mở kết nối riêng trong worker (§7.14). */
+  readonly dbPath: string;
   readonly principal: McpPrincipal;
   readonly now: string;
   readonly request: Request;
 }): Promise<Response> {
   const server = createMcpServer({
     db: params.db,
+    dbPath: params.dbPath,
     principal: params.principal,
     now: params.now,
   });

@@ -18,36 +18,17 @@
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import type { Db } from '@planix/core/db/migrate.js';
 import * as authRepo from '@planix/core/db/repo/auth-repo.js';
 import * as importRepo from '@planix/core/db/repo/import-repo.js';
 import * as mcpRepo from '@planix/core/db/repo/mcp-repo.js';
 import { projectOfTask, loadTaskDependencies } from '@planix/core/db/repo/read-repo.js';
 import { validate } from '@planix/core/domain/validator.js';
-import type { McpPrincipal } from '@planix/core/db/repo/mcp-token-repo.js';
 import { assertCan, ForbiddenError } from '../auth/permissions.js';
+import { errorResult, jsonResult, type McpContext, type McpToolResult } from './result.js';
+import { registerWriteTools } from './write-tools.js';
 
-export interface McpContext {
-  readonly db: Db;
-  readonly principal: McpPrincipal;
-  /** Thời điểm của request. Truyền vào chứ không đọc đồng hồ trong logic (N2). */
-  readonly now: string;
-}
-
-/** Kết quả tool: JSON có cấu trúc, cộng bản in ra cho client chưa đọc structured. */
-function jsonResult(data: unknown): CallToolResult {
-  return {
-    content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
-    structuredContent: { result: data },
-  };
-}
-
-/** Lỗi tool: MCP muốn `isError` trong kết quả, không phải một exception ném ra ngoài. */
-function errorResult(message: string): CallToolResult {
-  return { content: [{ type: 'text', text: message }], isError: true };
-}
+export type { McpContext } from './result.js';
 
 /**
  * Chặn ở biên, đúng bảng §10.6.
@@ -70,7 +51,7 @@ function ensureCanView(ctx: McpContext, projectId: string): void {
  * Để nó thoát thì SDK biến thành lỗi JSON-RPC nội bộ, và client đọc ra "server hỏng" chứ
  * không phải "bạn không có quyền" — hai thứ cần phản ứng khác hẳn nhau.
  */
-function guard(run: () => CallToolResult): CallToolResult {
+function guard(run: () => McpToolResult): McpToolResult {
   try {
     return run();
   } catch (error) {
@@ -158,7 +139,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
   const server = new McpServer({ name: 'planix', version: '0.1.0' });
 
   /** Mẫu chung của tool cần một dự án: đổi ref → id, kiểm quyền, rồi mới chạm dữ liệu. */
-  const inProject = (projectRef: string, run: (projectId: string) => CallToolResult) =>
+  const inProject = (projectRef: string, run: (projectId: string) => McpToolResult) =>
     guard(() => {
       const projectId = resolveProjectId(ctx, projectRef);
       if (projectId === undefined) return errorResult(`No project ${projectRef}.`);
@@ -167,7 +148,7 @@ export function createMcpServer(ctx: McpContext): McpServer {
     });
 
   /** Cùng mẫu, nhưng điểm vào là một task: dự án suy ra từ task rồi mới kiểm quyền. */
-  const onTask = (uid: string, run: (projectId: string) => CallToolResult) =>
+  const onTask = (uid: string, run: (projectId: string) => McpToolResult) =>
     guard(() => {
       const projectId = projectOfTask(ctx.db, uid);
       if (projectId === undefined) return errorResult(`No task ${uid}.`);
@@ -396,6 +377,9 @@ export function createMcpServer(ctx: McpContext): McpServer {
         return jsonResult(validate(input));
       }),
   );
+
+  // ── §12.2 — tool ghi ──────────────────────────────────────────────────────
+  registerWriteTools(server, ctx);
 
   return server;
 }
