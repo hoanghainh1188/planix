@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import { WbsTree, type TaskEdit } from '../components/wbs-tree/WbsTree.js';
+import { WbsEmpty } from '../components/wbs-tree/WbsEmpty.js';
 import { EvmStrip } from '../components/evm/EvmStrip.js';
 import { GanttChart } from '../components/gantt/GanttChart.js';
 import { ProgressBoard } from '../components/progress/ProgressBoard.js';
@@ -315,10 +316,15 @@ function Workspace({
 
   const poolData = useAsync(loadPool, [screen, poolRange, savedAt]);
 
-  // §10.6: `import_from_ai` chỉ PM. Admin được `listUserProjects` trả về vai 'pm' nên
-  // một phép so sánh là đủ.
-  const canImport =
-    projects.status === 'ready' && projects.data.find((p) => p.id === projectId)?.role === 'pm';
+  // §10.6: `import_from_ai` và `edit_wbs` đều chỉ PM. Admin được `listUserProjects` trả về
+  // vai 'pm' nên một phép so sánh là đủ.
+  //
+  // Hai hằng số riêng chứ không một, dù bảng §10.6 đang cho chúng cùng một dòng: đó là hai
+  // quyền khác nhau, và gộp lại thì ngày nào bảng đổi một trong hai, chỗ này sai âm thầm.
+  const projectRole =
+    projects.status === 'ready' ? projects.data.find((p) => p.id === projectId)?.role : undefined;
+  const canImport = projectRole === 'pm';
+  const canEditWbs = projectRole === 'pm';
 
   /**
    * Bản so sánh THẬT: engine chạy thử trên bản sao DB rồi trả về lịch trước và sau.
@@ -436,6 +442,55 @@ function Workspace({
         role: null,
         priority: 500,
         afterUid,
+      });
+      afterWrite();
+      setSelectedUid(created.uid);
+      setEditUid(created.uid);
+    } catch (error) {
+      setWriteError(toFriendlyError(error).message);
+    } finally {
+      setWriting(false);
+    }
+  }
+
+  /**
+   * §10.6: thiếu `edit_wbs` thì cây chỉ để xem — `WbsTree` đã hỗ trợ sẵn chế độ đó bằng cách
+   * vắng callback.
+   *
+   * Server vẫn là chỗ chặn thật (`assertCan('edit_wbs')` trên từng procedure); cái này chỉ
+   * là để người không có quyền khỏi phải đâm vào tường mới biết có tường.
+   */
+  const wbsWriteHandlers = canEditWbs
+    ? {
+        onEdit: editTask,
+        onMove: moveTask,
+        onSequencing: setSequencing,
+        onCreate: createTask,
+        onDelete: deleteTask,
+      }
+    : {};
+
+  /**
+   * Task đầu tiên của một dự án rỗng — không có dòng nào để rê chuột nên cần lối vào riêng.
+   *
+   * Tạo `summary` chứ không `work` như nút `+after`: gốc của một cây WBS là summary, và chỉ
+   * summary mới hiện nút `+child`, nên tạo `work` là dựng sẵn một ngõ cụt. `effortMd` để
+   * trống vì effort của summary là rollup từ con (§7.7).
+   */
+  async function createFirstTask(): Promise<void> {
+    if (projectId === null) return;
+    setWriteError(null);
+    setWriting(true);
+    try {
+      const created = await trpc.wbs.createTask.mutate({
+        projectId,
+        parentUid: null,
+        name: 'New task',
+        kind: 'summary',
+        effortMd: null,
+        role: null,
+        priority: 500,
+        afterUid: null,
       });
       afterWrite();
       setSelectedUid(created.uid);
@@ -894,9 +949,11 @@ function Workspace({
             <p className="app__state app__state--error">{tree.error.message}</p>
           ) : rows.length === 0 ? (
             /* Rỗng vì chưa tải xong và rỗng vì dự án chưa có task là hai chuyện khác nhau. */
-            <p className="app__state">
-              This project has no tasks yet. Import a task list to start.
-            </p>
+            <WbsEmpty
+              canEdit={canEditWbs}
+              busy={writing}
+              onCreateFirst={() => void createFirstTask()}
+            />
           ) : (
             <div className="app__wbs">
               <EvmStrip evm={evm.status === 'ready' ? evm.data : null} />
@@ -905,11 +962,7 @@ function Workspace({
                 rows={rows}
                 selectedUid={selectedUid}
                 onSelect={setSelectedUid}
-                onEdit={editTask}
-                onMove={moveTask}
-                onSequencing={setSequencing}
-                onCreate={createTask}
-                onDelete={deleteTask}
+                {...wbsWriteHandlers}
                 editUid={editUid}
                 onEditDone={() => setEditUid(null)}
                 reveal={reveal}
