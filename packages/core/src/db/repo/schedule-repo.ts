@@ -372,6 +372,8 @@ export interface GlobalAssignment {
   readonly allocation: number;
   readonly fromDate: DateOnly;
   readonly toDate: DateOnly;
+  /** `J06` đo tải bằng khối lượng thật, không bằng `allocation` — xem `spreadOf`. */
+  readonly effortMd: number;
 }
 
 /**
@@ -384,10 +386,12 @@ export interface GlobalAssignment {
 export function loadAssignmentsInWindow(db: Db, from: DateOnly, to: DateOnly): GlobalAssignment[] {
   const rows = db
     .prepare(
-      `SELECT task_uid, resource_id, allocation, from_date, to_date
-         FROM assignment
-        WHERE from_date <= ? AND to_date >= ?
-        ORDER BY resource_id, task_uid`,
+      `SELECT a.task_uid, a.resource_id, a.allocation, a.from_date, a.to_date,
+              COALESCE(t.effort_md, 0) AS effort_md
+         FROM assignment a
+         JOIN task t ON t.uid = a.task_uid
+        WHERE a.from_date <= ? AND a.to_date >= ?
+        ORDER BY a.resource_id, a.task_uid`,
     )
     .all(to, from) as Array<Record<string, unknown>>;
   return rows.map((r) => ({
@@ -396,5 +400,6 @@ export function loadAssignmentsInWindow(db: Db, from: DateOnly, to: DateOnly): G
     allocation: r['allocation'] as number,
     fromDate: r['from_date'] as DateOnly,
     toDate: r['to_date'] as DateOnly,
+    effortMd: r['effort_md'] as number,
   }));
 }

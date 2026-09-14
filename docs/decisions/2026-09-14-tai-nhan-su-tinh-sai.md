@@ -2,7 +2,7 @@
 
 **Ngày:** 2026-09-14
 **Phát hiện khi:** làm S9 (P12)
-**Trạng thái:** Đã sửa phần BÁO CÁO. **Phần rule `J06` cần PM quyết.**
+**Trạng thái:** Đã sửa cả phần báo cáo lẫn rule `J06`. **Ngưỡng 30% vẫn cần PM xem lại.**
 
 ## Triệu chứng
 
@@ -65,7 +65,7 @@ vài tuần thật sự vượt 100% — con số dùng được.
 Áp dụng cho **cả hai**: `wbs_get_resource_load` (§12.1, đã merge ở #48) và `poolLoad` mới
 của S9. Hai hàm dùng chung `spreadOf` nên không thể lệch nhau.
 
-## CẦN PM QUYẾT: rule `J06` dùng đúng phép tính sai đó
+## Rule `J06` — đã sửa phép tính (PR riêng), ngưỡng thì chưa
 
 `checkResourceUtilisation` trong `domain/schedule-audit.ts` cũng nhân `allocation` với mọi
 ngày trong bao ngoài (§8.2 `J06` — "resource dưới 30% sử dụng").
@@ -84,12 +84,13 @@ Lệch **6–32 điểm phần trăm**. Trên dữ liệu demo thì **kết lu�
 đều báo 0 người dưới 30% — nhưng `J06` đang **phóng đại** tỷ lệ sử dụng, nghĩa là nó sẽ
 **bỏ sót người đang rảnh** trên dữ liệu khác. Đó đúng là thứ §7.2 muốn nêu ra.
 
-**Chưa sửa trong PR này**, vì:
+**Đã sửa trong một PR riêng**, đúng như `CLAUDE.md` §4 đòi: `J06` nay dùng chung
+`spreadOf` với lớp báo cáo, nên hai chỗ không thể lệch nhau.
 
-- `J06` là rule validate, và đổi nó là đổi tập issue sinh ra. `CLAUDE.md` §4 đòi việc đó
-  phải là một commit riêng có giải thích.
-- `CLAUDE.md` §8 cấm đụng vào một rule validate mà không hỏi.
+Đo lại tập issue trước/sau trên `data/dev.db`: **không đổi** — J06 = 0 ở cả hai dự án,
+cả hai cách. Không file `expected.json` nào phải sửa.
 
-**Đề xuất:** sửa `J06` dùng chung `spreadOf`, trong một PR riêng, kèm đo lại tập issue
-trước/sau. Ngưỡng 30% có thể phải xem lại cùng lúc, vì nó được đặt khi con số còn bị phóng
-đại.
+**Vẫn cần PM xem lại: ngưỡng 30%.** Nó được đặt khi con số còn bị phóng đại 6–32 điểm
+phần trăm, nghĩa là nó được hiệu chỉnh theo một thước đo sai. Với thước đo đúng, một
+ngưỡng cao hơn có thể mới đúng ý "ai đang rảnh". Đây là phán đoán nghiệp vụ, không phải
+việc sửa lỗi — tôi không tự đổi.
