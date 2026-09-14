@@ -274,7 +274,7 @@ describe('endpoint (§12.4)', () => {
    * Danh sách tool là bề mặt API của lớp này. Thêm nhầm một tool hay gỡ mất một tool đều
    * là thay đổi hợp đồng với mọi client, và kiểu "có chứa" sẽ không thấy cái nào cả.
    */
-  it('liệt kê đúng bộ tool §12.1 và §12.2', async () => {
+  it('liệt kê đúng bộ tool §12.1, §12.2 và §12.3', async () => {
     const res = await rpc('tools/list', {});
     const body = (await res.json()) as { result: { tools: Array<{ name: string }> } };
     expect(body.result.tools.map((t) => t.name).sort()).toEqual(
@@ -298,6 +298,10 @@ describe('endpoint (§12.4)', () => {
         'wbs_set_progress',
         'wbs_set_sequencing',
         'wbs_update_task',
+        // §12.3 — chạy. `wbs_what_if` KHÔNG có ở đây: nó thuộc P14 theo §14.1.
+        'wbs_close_period',
+        'wbs_export_excel',
+        'wbs_schedule',
       ].sort(),
     );
   });

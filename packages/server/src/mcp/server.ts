@@ -27,6 +27,7 @@ import { validate } from '@planix/core/domain/validator.js';
 import { assertCan, ForbiddenError } from '../auth/permissions.js';
 import { errorResult, jsonResult, type McpContext, type McpToolResult } from './result.js';
 import { registerWriteTools } from './write-tools.js';
+import { registerRunTools } from './run-tools.js';
 
 export type { McpContext } from './result.js';
 
@@ -380,6 +381,9 @@ export function createMcpServer(ctx: McpContext): McpServer {
 
   // ── §12.2 — tool ghi ──────────────────────────────────────────────────────
   registerWriteTools(server, ctx);
+
+  // ── §12.3 — tool chạy ─────────────────────────────────────────────────────
+  registerRunTools(server, ctx);
 
   return server;
 }
