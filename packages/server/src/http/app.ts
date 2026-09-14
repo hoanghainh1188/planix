@@ -240,6 +240,7 @@ export function createApp(config: AppConfig): Hono<{ Variables: Vars }> {
 
     return handleMcpRequest({
       db: config.db,
+      dbPath: config.dbPath,
       principal,
       now: now(),
       request: c.req.raw,
